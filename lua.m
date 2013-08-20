@@ -7,6 +7,9 @@
 
 :- include_module list, string, int, float, pair.
 
+:- typeclass lua(T).
+
+
 
 :- type expression --->  % Lua expression
   variable  ;
@@ -15,23 +18,15 @@
 
 :- type explist == list(expression).
 
-
-:- type name.  % Lua identifier
+% name(S) = N :- S \= '...', S = N.
+:- type name ---> name(string).  % Lua identifier
 :- type namelist == list(name).
-
-:- pred name(string::in) is semidet. % name(S) :- S \= '...'.
-
-:- func name(string) = name.        % name(S) = N :- name(S), S = N.
-:- mode name(out) = in is det.
-:- mode name(in) = out is semidet.
-:- mode name(in) = in is semidet.
-
 
 :- type parname ---> name ; '...'.  % union of name and '...'
 :- type parlist == list(parname).
 
 
-:- type variable.
+:- type variable ---> variable(name).
 :- type varlist == list(variable).
 
 
@@ -44,46 +39,65 @@
   function  ;
   thread    .
   
-:- type valuelist == list(value).
+
+:- type literal --->
+  nil       ;
+  boolean   ;
+  number    ;
+  string    ;
+  refrence  .
+  
+:- type chunk == list(statement).
+
+:- type block == chunk.
+  
+:- type statement --->
+  assign(varlist,explist) ;
+  functioncall            ;
+  do(block)               ;
+  while(expression,block) ;
+  repeat(block,expression);
+  if(expression,thenblock);
+  for(field,expression,block);
+  for(field,expression,expression,block);
+  for(namelist,explist,block);
+  deffunction(funcname,funcbody);
+  ldeffunction(funcname,funcbody);
+  local(namelist)         ;
+  local(namelist,explist) .
+  
+:- type thenblock --->
+  block   ;
+  else(block,block);
+  elseif(block,expression,thenblock).
+  
+:- type funcname --->
+  name ;
+  list(name);
+  method(name,name);
+  method(list(name),name).
+  
+:- type funcbody ---> funcbody(parlist,block).
+  
 
 
-:- type statement.
-:- type statementlist == list(statement).
-
-
-:- type refrence.   % refrence ---> positive non-zero int
-
-:- pred refrence(int::in) is semidet. % refrence(N) :- N > 0.
-
-:- func refrence(int) = refrence.   % refrence(N) = R :- refrence(N), N = R.
-:- mode refrence(out) = in is det.
-:- mode refrence(in) = out is semidet.
-:- mode refrence(in) = in is semidet.
+% refrence(R) = I :- I > 0, I = R.
+:- type refrence ---> refrence(int).   % refrence ---> positive non-zero int
 
 :- type refrencestack == list(refrence).
 
-:- pred niltype(value::in) is semidet.  % niltype(V) :- V = nil.
-:- func niltype(nil) = value is det.
-
-
 :- type boolean ---> true ; false.
 
-:- pred booleantype(value::in) is semidet.
-:- func booleantype(boolean) = value  is det.
 
-:- type number == float ; int.
-
-:- pred numbertype(value::in) is semidet.
-:- func numbertype(number) = value is det.
-
-
-:- pred stringtype(value::in) is semidet.
+% number(F) = N :- F = N.
+:- type number ---> number(float).
 
 :- type key ---> name ; expression.
 
 :- pred key(key::in) is semidet. % key(K) :- not niltype(K).
 
 :- type field == pair(key,expression).
+:- func '='(key,expression) = field is semidet.
 :- func key(field) = key is det.            % key(F) = fst(F).
 :- func val(field) = expression is det.     % val(F) = snd(F).
 
@@ -94,7 +108,6 @@
 
 :- type table ---> table(fields).
 
-% refrencetype(N) ??? TODO
 
 
 
