@@ -9,6 +9,14 @@
 
 :- typeclass lua(T).
 
+:- type luaversion --->
+  c_lua;
+  mercury_lua;
+  luajit. % TODO, will fail
+  
+:- type c_lua ---> lua5_1 ; lua5_2.
+
+:- type lua ---> lua(luaversion) <= lua(luaversion).
 
 
 :- type expression --->  % Lua expression
@@ -57,7 +65,7 @@
   do(block)               ;
   while(expression,block) ;
   repeat(block,expression);
-  if(expression,thenblock);
+  ifstatement;
   for(field,expression,block);
   for(field,expression,expression,block);
   for(namelist,explist,block);
@@ -66,10 +74,13 @@
   local(namelist)         ;
   local(namelist,explist) .
   
+:- type ifstatement --->
+  if(expression,thenblock).
+  
 :- type thenblock --->
   block   ;
   else(block,block);
-  elseif(block,expression,thenblock).
+  elseif(block,ifstatement).
   
 :- type funcname --->
   name ;
