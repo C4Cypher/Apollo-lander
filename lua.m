@@ -1,125 +1,92 @@
 :- module lua.
 
-% Lua Syntax and semantics as defined in https://github.com/supranove/prolua/blob/master/implementation.pdf
-% thanks to Jeremy OTHIENO for putting this together
-
 :- interface.
 
 :- include_module list, string, int, float, pair.
 
-:- typeclass lua(T).
 
-:- type luaversion --->
-  c_lua;
-  mercury_lua;
-  luajit. % TODO, will fail
-  
-:- type c_lua ---> lua5_1 ; lua5_2.
+:- type luaversion == string.
 
-:- type lua ---> lua(luaversion) <= lua(luaversion).
+:- typeclass lua(L).
+
+:- typeclass value(T,L) <= lua(L).
 
 
-:- type expression --->  % Lua expression
-  variable  ;
-  value     .
-  
+:- func new_state = lua_state(L) <= lua(L).
 
-:- type explist == list(expression).
+:- pred close_state(lua_state(L):di) is det <= lua(L).
 
-% name(S) = N :- S \= '...', S = N.
-:- type name ---> name(string).  % Lua identifier
-:- type namelist == list(name).
-
-:- type parname ---> name ; '...'.  % union of name and '...'
-:- type parlist == list(parname).
+:- pred push(T, !lua_state(L)) <= value(T,L).
+:- mode push(in, in, out) is det.
+	
+:- pred pop(T, !lua_state(L)) <= value(T,L).
+:- mode pop(out, in, out) is semidet.
+:- mode pop(in, in, out) is semidet.
 
 
-:- type variable ---> variable(name).
-:- type varlist == list(variable).
+:- typeclass callable(T,L) <= value(T,L).
 
+:- pred pcall(T, !lua_state(L),)
+:- typeclass index(T,L) <= value(T,L).
+:- typeclass newindex(T,L) <= index(T,L).
+:- typeclass unifiable(A,B,L) <= (value(A,L),value(B,L)).	
+:- type lua_state(L). % Abstract lua state or Existential type constrained to the Lua typeclass
 
+:- type lua_state == lua_state(univ).
+
+% from lua.h
+%	#define LUA_TNONE               (-1)
+%	#define LUA_TNIL                0
+%	#define LUA_TBOOLEAN            1
+%	#define LUA_TLIGHTUSERDATA      2
+%	#define LUA_TNUMBER             3
+%	#define LUA_TSTRING             4
+%	#define LUA_TTABLE              5
+%	#define LUA_TFUNCTION           6
+%	#define LUA_TUSERDATA           7
+%	#define LUA_TTHREAD             8
+
+:- type type --->
+	tnone;
+	tnil;
+	tboolean;
+	tlightuserdata;
+	tnumber;
+	tstring;
+	ttable;
+	tfunction;
+	tuserdata;
+	tthread.
+	
 :- type value --->
-  nil       ;
-  boolean   ;
-  number    ;
-  string    ;
-  table     ;
-  function  ;
-  thread    .
-  
+	nil;
+	boolean;
+	userdata;
+	number;
+	string;
+	table;
+	function;
+	thread.
+	
+:- type value(T) --->
+	some [T,L] ---> callable(L)
 
-:- type literal --->
-  nil       ;
-  boolean   ;
-  number    ;
-  string    ;
-  refrence  .
-  
-:- type chunk == list(statement).
+:- implementation.
 
-:- type block == chunk.
-  
-:- type statement --->
-  assign(varlist,explist) ;
-  functioncall            ;
-  do(block)               ;
-  while(expression,block) ;
-  repeat(block,expression);
-  ifstatement;
-  for(field,expression,block);
-  for(field,expression,expression,block);
-  for(namelist,explist,block);
-  deffunction(funcname,funcbody);
-  ldeffunction(funcname,funcbody);
-  local(namelist)         ;
-  local(namelist,explist) .
-  
-:- type ifstatement --->
-  if(expression,thenblock).
-  
-:- type thenblock --->
-  block   ;
-  else(block,block);
-  elseif(block,ifstatement).
-  
-:- type funcname --->
-  name ;
-  list(name);
-  method(name,name);
-  method(list(name),name).
-  
-:- type funcbody ---> funcbody(parlist,block).
-  
-
-
-% refrence(R) = I :- I > 0, I = R.
-:- type refrence ---> refrence(int).   % refrence ---> positive non-zero int
-
-:- type refrencestack == list(refrence).
-
-:- type boolean ---> true ; false.
-
-
-% number(F) = N :- F = N.
-:- type number ---> number(float).
-
-:- type key ---> name ; expression.
-
-:- pred key(key::in) is semidet. % key(K) :- not niltype(K).
-
-:- type field == pair(key,expression).
-:- func '='(key,expression) = field is semidet.
-:- func key(field) = key is det.            % key(F) = fst(F).
-:- func val(field) = expression is det.     % val(F) = snd(F).
-
-:- type fields == list(field).
-
-:- pred fields(fields:in) is semidet. % feilds([First|Rest]) :- key(key(First)), feilds(Rest).
-
-
-:- type table ---> table(fields).
-
-
-
-
-
+:- type lua_state(L) --->
+	lua_state(
+		version	::string,
+		stack	::list(luavalue(L)),
+		registry::assoc_list(registry_index,luavalue(L)),
+		global	::table)	;
+		some [L] (lua_state(L) => lua(L)).
+		
+:- typeclass value(T,L) <= lua(L) where [
+	
+	pred push(T, !lua_state(L)),
+	mode push(in, in, out),
+	
+	pred pop(T, !lua_state(L)),
+	mode pop(out, in, out),
+	
+	
