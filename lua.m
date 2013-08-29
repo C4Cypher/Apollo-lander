@@ -18,21 +18,55 @@
 
 :- pred push(T, !lua_state(L)) <= value(T,L).
 :- mode push(in, in, out) is det.
+
+:- func push(T, lua_state(L)) = lua_state(L) <= value(T,L) is det.
 	
 :- pred pop(T, !lua_state(L)) <= value(T,L).
 :- mode pop(out, in, out) is semidet.
 :- mode pop(in, in, out) is semidet.
 
+:- func pop(T, lua_state(L)) = lua_state(L) <= value(T,L) is semidet.
+
 
 :- typeclass callable(T,L) <= value(T,L).
 
-:- pred pcall(T, !lua_state(L),)
+:- pred call(T, !lua_state(L),)
 :- typeclass index(T,L) <= value(T,L).
 :- typeclass newindex(T,L) <= index(T,L).
 :- typeclass unifiable(A,B,L) <= (value(A,L),value(B,L)).	
 :- type lua_state(L). % Abstract lua state or Existential type constrained to the Lua typeclass
 
 :- type lua_state == lua_state(univ).
+
+
+:- type ltype --->
+	tnone;
+	tnil;
+	tboolean;
+	tlightuserdata;
+	tnumber;
+	tstring;
+	ttable;
+	tfunction;
+	tuserdata;
+	tthread.
+	
+
+	
+:- type value --->
+	nil;
+	boolean;
+	userdata;
+	number;
+	string;
+	table;
+	function;
+	thread.
+	
+
+	
+
+:- implementation.
 
 % from lua.h
 %	#define LUA_TNONE               (-1)
@@ -46,32 +80,6 @@
 %	#define LUA_TUSERDATA           7
 %	#define LUA_TTHREAD             8
 
-:- type type --->
-	tnone;
-	tnil;
-	tboolean;
-	tlightuserdata;
-	tnumber;
-	tstring;
-	ttable;
-	tfunction;
-	tuserdata;
-	tthread.
-	
-:- type value --->
-	nil;
-	boolean;
-	userdata;
-	number;
-	string;
-	table;
-	function;
-	thread.
-	
-:- type value(T) --->
-	some [T,L] ---> callable(L)
-
-:- implementation.
 
 :- type lua_state(L) --->
 	lua_state(
