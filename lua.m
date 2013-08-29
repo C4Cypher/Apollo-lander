@@ -38,6 +38,7 @@
 
 :- type lua_state == lua_state(univ).
 
+:- type value(T) == some [T,L] (value(T) <= value(T,L) (T -> L)). %functional dependency yadda yadda
 
 :- type ltype --->
 	tnone;
@@ -80,6 +81,18 @@
 %	#define LUA_TUSERDATA           7
 %	#define LUA_TTHREAD             8
 
+tnone		= -1.
+tnil 		= 0.
+tboolean 	= 1.
+tlightuserdata = 2.
+tnumber 	= 3.
+tstring		= 4.
+ttable		= 5.
+tfunction	= 6.
+tuserdata	= 7.
+tthread		= 8.
+
+%TODO :- pragma promise equiv type ltype = c int
 
 :- type lua_state(L) --->
 	lua_state(
@@ -92,9 +105,16 @@
 :- typeclass value(T,L) <= lua(L) where [
 	
 	pred push(T, !lua_state(L)),
-	mode push(in, in, out),
+	mode push(in, di, uo) is det,
 	
 	pred pop(T, !lua_state(L)),
-	mode pop(out, in, out),
+	mode pop(out, di, uo) is semidet,
+	mode pop(in, di, uo) is semidet 
+].
+
+push(T, !.Lua) = !:Lua :- push(T, !Lua).
+pop(T, !.lua) = !:Lua :- pop(T, !Lua).
+
+
 	
 	
