@@ -18,7 +18,7 @@
   registry(string);
   upvalue(int).  % Manipulating c function upvalues
 
-:- type userdata. % Not sure how to implement this
+%:- type userdata. % Not sure how to implement this, do later after I get the rest working
 
 % types that can be converted to and be manipulated like lua values
 % All calls assume that the indexes called are from the same lua_state
@@ -26,7 +26,7 @@
   pred peek(int,T::out,lua_state::in) is semidet,
   pred push(T::in,lua_state::in) is semidet ].
 
-:- instance lua_vaule(index).
+
 :- instance lua_value(nil).
 :- instance lua_value(int).
 :- instance lua_value(float).
@@ -34,7 +34,16 @@
 :- instance lua_value(map(K,V)) <= (lua_value(K), lua_value(V)). %For lua tables
 :- instance lua_value(list(T)) <= lua_value(T). %For lua array tables
 
+% Standard get/set calls
+:- pred get(lua_state::in,T::in,K::in,V::out) <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- func get(lua_state::in,T::in,K::in) = V::out <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- pred get(lua_state::in,index::in,V::out) <= (lua_value(V)) is semidet.
+:- func get(lua_state::in,index::in) = V::out <= (lua_value(V)) is semidet.
 
+:- pred set(lua_state::in,T::in,K::in,V::in) <= (lua_value(T), lua_value(K), lua_value(V)) is det.
+:- pred set(lua_state::in,index::in,V::in) <= (lua_value(V)) is det.
+
+% Get/set calls with I/O threading
 :- pred get(lua_state::in,T::in,K::in,V::out) <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
 :- func get(lua_state::in,T::in,K::in) = V::out <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
 :- pred get(lua_state::in,index::in,V::out) <= (lua_value(V)) is semidet.
