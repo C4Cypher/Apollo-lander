@@ -2,19 +2,23 @@
 
 :- interface.
 
-:- include_module list, string, int, float, pair, assoc_list, map.
+:- import_module list, string, int, float, pair, assoc_list, map, io.
 
 :- type lua_state.
 
 :- type nil.
+
+:- type cfunction.
+
+:- type mfunction == (pred(lua_state::in, list(T)::in, list(T)::out
 
 
 % For transparently handling lua variables on the stack
 
 :- type index --->
   stack(int);
-  global(string);
-  local(string);  % LUA_ENVIRONMENT_INDEX
+  global(string); 
+  environment(string);  
   registry(string);
   upvalue(int).  % Manipulating c function upvalues
 
@@ -43,15 +47,34 @@
 :- pred set(lua_state::in,T::in,K::in,V::in) <= (lua_value(T), lua_value(K), lua_value(V)) is det.
 :- pred set(lua_state::in,index::in,V::in) <= (lua_value(V)) is det.
 
+:- pred rawget(lua_state::in,T::in,K::in,V::out) <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- func rawget(lua_state::in,T::in,K::in) = V::out <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- pred rawget(lua_state::in,index::in,V::out) <= (lua_value(V)) is semidet.
+:- func rawget(lua_state::in,index::in) = V::out <= (lua_value(V)) is semidet.
+
+:- pred rawset(lua_state::in,T::in,K::in,V::in) <= (lua_value(T), lua_value(K), lua_value(V)) is det.
+:- pred rawset(lua_state::in,index::in,V::in) <= (lua_value(V)) is det.
+
 % Get/set calls with I/O threading
-:- pred get(lua_state::in,T::in,K::in,V::out) <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
-:- func get(lua_state::in,T::in,K::in) = V::out <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
-:- pred get(lua_state::in,index::in,V::out) <= (lua_value(V)) is semidet.
-:- func get(lua_state::in,index::in) = V::out <= (lua_value(V)) is semidet.
+:- pred get(lua_state::in,T::in,K::in,V::out,io::di,io::uo) <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- func get(lua_state::in,T::in,K::in,io::di,io::uo) = V::out <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- pred get(lua_state::in,index::in,V::out,io::di,io::uo) <= (lua_value(V)) is semidet.
+:- func get(lua_state::in,index::in,io::di,io::uo) = V::out <= (lua_value(V)) is semidet.
 
-:- pred set(lua_state::in,T::in,K::in,V::in) <= (lua_value(T), lua_value(K), lua_value(V)) is det.
-:- pred set(lua_state::in,index::in,V::in) <= (lua_value(V)) is det.
+:- pred set(lua_state::in,T::in,K::in,V::in,io::di,io::uo) <= (lua_value(T), lua_value(K), lua_value(V)) is det.
+:- pred set(lua_state::in,index::in,V::in,io::di,io::uo) <= (lua_value(V)) is det.
 
+:- pred rawget(lua_state::in,T::in,K::in,V::out,io::di,io::uo) <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- func rawget(lua_state::in,T::in,K::in,io::di,io::uo) = V::out <= (lua_value(T), lua_value(K), lua_value(V)) is semidet.
+:- pred rawget(lua_state::in,index::in,V::out,io::di,io::uo) <= (lua_value(V)) is semidet.
+:- func rawget(lua_state::in,index::in,io::di,io::uo) = V::out <= (lua_value(V)) is semidet.
+
+:- pred rawset(lua_state::in,T::in,K::in,V::in,io::di,io::uo) <= (lua_value(T), lua_value(K), lua_value(V)) is det.
+:- pred rawset(lua_state::in,index::in,V::in,io::di,io::uo) <= (lua_value(V)) is det.
+
+% TODO: rawget and rawset
+
+% Predicates and functions for calling lua functions (or metatabled values) in lua
 :- pred call(lua_state::in,T::in,list(T)::in,list(T)::out) <= lua_value(T) is semidet.
 
 
