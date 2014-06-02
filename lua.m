@@ -6,28 +6,12 @@
 
 :- type lua_state.
 
-:- type mercury_function == pred(lua_state::in, list(lua_value)::in, list(lua_value)::out) is det.
+:- type mercury_function.
 :- type c_function.
 
 :- type lua_refrence.
 
 
-:- type lua_value --->
-    nil;
-    boolean(bool);
-    string(string);
-    string(char);
-    number(int);
-    number(float);
-    table(map(lua_value,lua_value));
-    table(list(lua_value));
-    function(mercury_function);
-    function(c_function);
-    userdata(c_pointer);
-    thread(lua_state);
-    refrence(lua_refrence);
-    invalid.
-    
 
   
 :- implementation.
@@ -42,7 +26,9 @@
     stack(int);
     global(string);
     registry(string);
-    upvalue(int).
+    upvalue(int);
+    key(lua_refrence,lua_refrence);
+    key(lua_refrence,string).
 
 
 
