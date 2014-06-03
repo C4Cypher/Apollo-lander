@@ -112,13 +112,20 @@
 %%% Functions from the auxillary library %%%
 
 :- pred callmeta(int::in, string::in, state::in, state::out) is semidet.
-:- pred checkstack(int::in, int::in, string::in, state::in
+:- pred checkstack(int::in,string::in, state::in, state::out) is semidet.
+:- pred dofile(string::in, state::in, state::out) is semidet.
+:- pred dostring(string::in, state::in, state::out) is semidet.
+:- pred loadfile(string::in, state::in, state::out) is semidet.
+:- pred loadstring(string::in, state::in, state::out) is semidet.
 
+:- pred ref(int::in, int::uo, state::in, state::out) is semidet.
+:- func ref(int::in, state::in, state::out) = int::uo is semidet.
+:- pred unref(int::in, int::di, state::in, state::out) is semidet.
 
-
-
-
-
+%% same as above, but implicitly uses the registry
+:- pred ref(int::uo, state::in, state::out) is semidet.
+:- func ref(state::in, state::out) = int::uo is semidet.
+:- pred unref(int::di, state::in, state::out) is semidet.
 
 
 :- implementation.
