@@ -31,6 +31,7 @@
 :- pred getmetatable(int::in, state::in, state::out) is det.
 :- pred gettable(int::in, state::in, state::out) is det.
 :- pred gettop(int::out, state::in, state::out) is det.
+:- func gettop(state::in,state::out) = int::out is det.
 
 :- pred insert(int::in, state::in, state::out) is det.
 
@@ -147,16 +148,30 @@
     thread - "LUA_TTHREAD",
     lightuserdata - "LUA_TLIGHTUSERDATA" ]).
     
-:- pragma foreign_proc("C", call(Args, Results, Lua, Lua), [may_call_mercury], "lua_call(Lua, Args, Results);")    
-:- pragma foreign_proc("C", checkstack(Extra,Lua,Lua), [will_not_call_mercury], "lua_checkstack(Lua,Extra);").
-:- pragma foreign_proc("C", close(Lua), [will_not_call_mercury], "lua_close(Lua);").
-:- pragma foreign_proc("C", createtable(Narr,Nrec,Lua,Lua), [will_not_call_mercury], 
-    "lua_createtable(Lua,Narr,Nrec);").
+:- pragma foreign_proc("C", call(Args::in, Results::in, Lua::in, Return::out), [may_call_mercury], 
+    "lua_call(Lua, Args, Results); Return = Lua;").
+    
+:- pragma foreign_proc("C", checkstack(Extra::in,Lua::in, Return::out), [will_not_call_mercury], 
+    "lua_checkstack(Lua,Extra); Return = Lua;").
+    
+:- pragma foreign_proc("C", close(Lua::in), [will_not_call_mercury], "lua_close(Lua);").
+
+:- pragma foreign_proc("C", createtable(Narr::in, Nrec::in, Lua::in, Return::out), [will_not_call_mercury], 
+    "lua_createtable(Lua,Narr,Nrec); Return = Lua;").
 :- pragma foreign_proc("C", equal(A,B,Lua,Lua), [may_call_mercury], "SUCCSESS_INDICATOR = lua_equal(Lua,A,B);").
 
 :- pragma foreign_proc("C", getfield(Table,Key,Lua,Lua), [may_call_mercury], "lua_getfield(Lua,Table,Key);").
-:- pragma foreign_proc("C", getglobal(Key,Lua,Lua), [may_call_mercury], "lua_getfield(Lua,Key);").
+:- pragma foreign_proc("C", getglobal(Key,Lua,Lua), [may_call_mercury], "lua_getglobal(Lua,Key);").
+:- pragma foreign_proc("C", getmetatable(Index,Lua,Lua), [will_not_call_mercury], 
+    "SUCCSESS_INDICATOR = lua_getmetatable(Lua,Index);").
+:- pragma foreign_proc("C", gettable(Table,Lua,Lua), [may_call_mercury], "lua_getglobal(Lua,Table);").
+:- pragma foreign_proc("C", gettop(Top,Lua,Lua), [will_not_call_mercury], "Top = lua_gettop(Lua);").
+gettop(!Lua) = Top :- gettop(Top, !Lua).
 
+:- pragma foreign_proc("C", insert(Index,Lua,Lua), [will_not_call_mercury], "lua_insert(Lua,Index);").
+
+:- pragma foreign_proc("C", isboolean(Index,Lua,Lua), [will_not_call_mercury], 
+    "SUCCSESS_INDICATOR = lua_isboolean(Lua,Index);").
 
 
 
