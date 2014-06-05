@@ -75,17 +75,30 @@ Planned features:
 
 :- import_module list, string, bool, int, float.
 
-:- type lua_state. 
-:- type cfunction.
+:- type lua_var.  %  Represents a refrence to a value in Lua
 
-
-:- type lua_var.
+:- type lua_value --->
+	nil;
+	number(float);
+	boolean(bool);
+	string(string);
+	table(lua_table);
+	function(string);
+	function(c_function);
+	function(m_function);
+	userdata(userdata);  % TODO: Not sure how to handle this yet
+	thread(lua_state);
+	lightuserdata(c_pointer).
+	
 
 :- type lua_args == list(lua_var)
 
-:- type lua_closure == func(lua_args) ==.
+% TODO: define a typeclass that represents Lua ADT
 
-:- pred
+:- type lua_state. 	% lua_state typedef
+:- type c_function.  	% cfunction typedef function pointer
+:- type m_function == pred(lua_args) = lua_args.
+:- type userdata. 	% TODO: use existential typeclass?
 
 
 
