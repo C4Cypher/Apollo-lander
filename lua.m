@@ -75,7 +75,7 @@ Planned features:
 
 :- import_module list, string, bool, int, float.
 
-:- include_module lua.value, lua.impure.
+:- include_module lua.value.
 
 %%%% 	Handling the lua state  
 
