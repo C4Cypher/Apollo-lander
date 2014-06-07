@@ -84,6 +84,8 @@ Planned features:
 
 :- type lua_state.
 
+:- type lua_context.
+
 :- type nil ---> nil. 	
 	
 :- type lua_closure.	% For handling
@@ -115,8 +117,34 @@ Planned features:
 :- pragma foreign_decl("C",
 	"#include <lua.h>;  #include <lauxlib.h>; #include <lualib.h>;").
 
-:- pragma foreign_type("C", state, "lua_State *").
-:- pragma foreign_type("C", cfunction, "lua_CFunction *").
+:- pragma foreign_type("C", lua_state, "lua_State *").
+:- pragma foreign_type("C", c_function, "lua_CFunction *").
+
+:- pragma foreign_code("C", " 
+	typedef struct lua_Context {
+		lua_State * state; // refrence to the lua state to be called
+		int top; // The current top of the stack
+		int arg;  // The index of the last argument
+		int return; // The index of the first value to be returned
+	} lua_Context;
+
+	lua_Context create_context(lua_State * L) {
+		lua_Context context;
+		context.state = L;
+	 	context.top = lua_gettop(L);
+		context.arg = context.top;
+		context.return = 0;
+		return context;
+	}
+	
+	
+	int revert_context(lua_Context * current, lua_Context * new) {
+	if(current != new)
+		return 0;
+	
+")
+
+:- pragma foreign_type("C", lua_context, "lua_Context").
 
 :- pragma foreign_enum("C", lua_type, [
     none - "LUA_TNONE",
