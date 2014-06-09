@@ -73,7 +73,7 @@ Planned features:
 
 :- interface.
 
-:- import_module list, string, bool, int, float.
+:- import_module list, string, bool, int, float, maybe.
 
 :- include_module lua.value.
 
@@ -83,28 +83,74 @@ Planned features:
 % the same condition that it was found.
 :- type lua_state.
 
+:- typeclass lua_value(T).
 
+% Represents a value or values instantiated in lua.  They should be considered immutable and their scope should be
+% limited to the predicate call that created them.
+:- type lua_var.
+
+:- func value_of(lua_var) = T.
+:- mode value_of(in) = out is semidet.
+:- mode value_of(in) = in is semidet.
+
+:- func maybe_value_of(lua_var) = maybe(T).
+:- mode maybe_value_of(in) = out is det.
+
+
+	
+
+
+	
+	
 % The following types specify operations that can be performed on a lua state, such operations must be pure, leaving no
 % side effects on the lua_state, and leaving the stack in the same state that it was found. Note that Lua itself does not
 % hold any distinction between subroutines, predicates, functions and iterators, treating them all as functions. The 
 % distinction is made so that mercury can handle
 
-% Lua 'subroutines' are deterministic, and cannot fail 
-:- type lua_sub == pred(lua_state).
-:- inst lua_sub == pred(in) is det.
-:- mode sub_in == in(lua_sub).
-:- mode sub_out == out(lua_sub).
-:- mode si == sub_in.
-:- mode so == sub_out.
+% Perform a pure operation in lua
+:- pred run(pred(lua_state), lua_state).
+:- mode run(in(pred(in) is det), in) is det.
+:- mode run(in(pred(in) is semidet), in) is semidet.
 
-% Lua 'predicates' are conceptually similar to subroutines, can succeed or fail.
-:- type lua_pred == pred(lua_state).
-:- inst lua_pred == pred(in) is semidet.
-:- mode pred_in == in(lua_pred).
-:- mode pred_out == out(lua_pred).
-:- mode pi == pred_in.
-:- mode po == pred_out.
+% Lua ^ run(Something) <=> run(Something, Lua) :- Something(Lua).
 
+
+% Return a function that does nothing.
+:- func end = pred(lua_state).
+:- mode end = out(pred(in) is det) is det.
+
+% Retrieve the value(s) currently on the top of the stack
+:- func get(T, pred(lua_state)) = pred(T, lua_state) <= lua_value(T).
+:- mode get(out, in(pred(in) is det)) = out(pred(in) is semidet)) is det. 
+:- mode get(out, in(pred(in) is semidet)) = out(pred(in is semidet)) is det.
+
+% somefunc(Lua) = Out :- Lua ^ run(get(Out) ^ end) <=> run(Out, get(Out, end), Lua).
+
+:- func return(pred(lua_state), lua_state) = T <= lua_value(T).
+:- mode return(in(pred(in)), in) = out is semidet.
+
+% Lua ^ return(Something) <=> return(
+
+% Push a value onto the stack, perform an operation with it, and then push said values off the stack
+:- func local(pred(lua_var, lua_state), T) = pred(lua_state) <= lua_value(T).
+:- mode local(in(pred(in, in) is det), in) = out(pred(in) is det) is det.  
+:- mode local(in(pred(in, in) is semidet), in) = out(pred(in) is semidet) is det.
+
+% Lua ^ local(Something, Var) ^ do <=> Something(Var, Lua) ^ do <=> do(Something(Var, Lua))
+
+% Rawget a global variable onto the stack, perform an operation with it and then push said variable off the stack.
+:- func global(pred(lua_var, lua_state), string) = pred(lua_state).
+:- mode global(in(pred(in, in) is det), in) = out(pred(in) is det) is det. 
+:- mode global(in(pred(in, in) is semidet), in) = out(pred(in) is semidet) is det.
+
+% Check to see the type of the last value on the stack
+:- func type(
+:- 
+:- func if(pred(lua_state), pred(lua_state)) = pred(lua_state).
+:- mode if(in(pred(in) is semidet), in(pred(in) is det)) = out(pred(in)) is det.
+
+:- func if(pred(lua_state), pred(lua_state), pred(lua_state)) = pred(lua_state).
+:- mode if(in(pred(in) is semidet), in(pred(in) is det), in(pred(in) is det)) = out(pred(in)) is det.
 
 
 
@@ -114,7 +160,6 @@ Planned features:
 % Such cases are represented by varag
 :- type lua_type --->
     none;
-    vararg(list(lua_type));
     nil;
     number;
     boolean;
