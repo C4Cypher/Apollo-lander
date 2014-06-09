@@ -79,28 +79,55 @@ Planned features:
 
 %%%% 	Handling the lua state  
 
-% This is the lua_state C type defined in lua.h, it must be handled as a unique
-% value, and most operations on it should be understood to produce side effects.
-
+% This is the lua_state C type defined in lua.h, all operations performed on a lua_state must leave the lua state in
+% the same condition that it was found.
 :- type lua_state.
 
-:- type lua_context.
-
-:- type nil ---> nil. 	
-	
-:- type lua_closure.	% For handling
-
-% TODO: define a typeclass that represents Lua ADT
+% Lua variables represent refrences to values that are instatiated in lua, they should be immutable in mercury, and their
+% scope must be identical to the lua_state that created them.
+:- type lua_var.
+:- type lua_vars == list(lua_var).
 
 
-:- type c_function.  	% cfunction typedef function pointer
-:- type m_function == func(I) = O.
-:- type userdata. 	% TODO: use existential typeclass?
+% The following types specify operations that can be performed on a lua state, such operations must be pure, leaving no
+% side effects on the lua_state, and leaving the stack in the same state that it was found. Note that Lua itself does not
+% hold any distinction between subroutines, predicates, functions and iterators, treating them all as functions. The 
+% distinction is made so that mercury can handle
+
+% Lua 'subroutines' are deterministic, and cannot fail 
+:- type lua_sub == pred(lua_state).
+:- inst lua_sub == pred(in) is det.
+:- mode sub_in == in(lua_sub).
+:- mode sub_out == out(lua_sub).
+:- mode si == sub_in.
+:- mode so == sub_out.
+
+% Lua 'predicates' are conceptually similar to subroutines, can succeed or fail.
+:- type lua_pred == pred(lua_state).
+:- inst lua_pred == pred(in) is semidet.
+:- mode pred_in == in(lua_pred).
+:- mode pred_out == out(lua_pred).
+:- mode pi == pred_in.
+:- mode po == pred_out.
 
 
+% Lua functions accept a list of argument and return a list of return values
+:- type lua_func(I, O) == func(I) = O.
+:- inst lua_func(I, O) == func(I::in) = O::out is det.
 
+:- type lua_func == lua_func(lua_vars, lua_vars).
+:- inst lua_func == lua_func(lua_vars, lua_vars).
+:- mode func_in == in(lua_func).
+:- mode func_out == out(lua_func).
+
+
+% Type conversion from mercury types to  lua types and back is handled in the lua.value module via the lua_value typeclass.
+
+% A compatable mercury can represent a single lua variable, or, in special cases can represent a list of lua values.
+% Such cases are represented by varag
 :- type lua_type --->
     none;
+    vararg(list(lua_type));
     nil;
     number;
     boolean;
@@ -110,6 +137,20 @@ Planned features:
     userdata;
     thread;
     lightuserdata.
+    
+:- func type(T) = lua_type is det.  % Non compatable values return the 'none' lua type. 
+
+% A type unique to lua, representing the abscence of value.
+:- type nil ---> nil.
+
+
+:- type c_function.  	% cfunction typedef function pointer
+:- type m_function == func(I) = O.
+:- type userdata. 	% TODO: use existential typeclass?
+
+
+
+
     
 
 :- implementation.
