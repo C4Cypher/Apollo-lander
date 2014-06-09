@@ -83,11 +83,6 @@ Planned features:
 % the same condition that it was found.
 :- type lua_state.
 
-% Lua variables represent refrences to values that are instatiated in lua, they should be immutable in mercury, and their
-% scope must be identical to the lua_state that created them.
-:- type lua_var.
-:- type lua_vars == list(lua_var).
-
 
 % The following types specify operations that can be performed on a lua state, such operations must be pure, leaving no
 % side effects on the lua_state, and leaving the stack in the same state that it was found. Note that Lua itself does not
@@ -111,14 +106,6 @@ Planned features:
 :- mode po == pred_out.
 
 
-% Lua functions accept a list of argument and return a list of return values
-:- type lua_func(I, O) == func(I) = O.
-:- inst lua_func(I, O) == func(I::in) = O::out is det.
-
-:- type lua_func == lua_func(lua_vars, lua_vars).
-:- inst lua_func == lua_func(lua_vars, lua_vars).
-:- mode func_in == in(lua_func).
-:- mode func_out == out(lua_func).
 
 
 % Type conversion from mercury types to  lua types and back is handled in the lua.value module via the lua_value typeclass.
@@ -152,7 +139,7 @@ Planned features:
 
 
     
-
+%%%%-------------------------------------------------------------------------------------------------------------------%%%%
 :- implementation.
 
 :- pragma foreign_decl("C",
@@ -161,31 +148,8 @@ Planned features:
 :- pragma foreign_type("C", lua_state, "lua_State *").
 :- pragma foreign_type("C", c_function, "lua_CFunction *").
 
-:- pragma foreign_code("C", " 
-	typedef struct lua_Context {
-		lua_State * state; // refrence to the lua state to be called
-		int top; // The current top of the stack
-		int arg;  // The index of the last argument
-		int return; // The index of the first value to be returned
-	} lua_Context;
+:- import_module lua.value.
 
-	lua_Context create_context(lua_State * L) {
-		lua_Context context;
-		context.state = L;
-	 	context.top = lua_gettop(L);
-		context.arg = context.top;
-		context.return = 0;
-		return context;
-	}
-	
-	
-	int revert_context(lua_Context * current, lua_Context * new) {
-	if(current != new)
-		return 0;
-	
-")
-
-:- pragma foreign_type("C", lua_context, "lua_Context").
 
 :- pragma foreign_enum("C", lua_type, [
     none - "LUA_TNONE",
