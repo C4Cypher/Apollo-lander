@@ -3,27 +3,31 @@
 :- interface.
 
 % push a value onto the stack
-:- pred push(T::in, lua_context::in) is cc_nondet.
-:- pred push(T::in, lua_context::mdi, lua_context::muo) is cc_nondet.
-
-:- pred look(int::in, int::out, T::out, lua_context::in) is cc_nondet.
-:- pred look(int::in, int::out, T::out lua_context::mdi, lua_context::muo) 
-	is cc_nondet.
-
 
 :- typeclass lua_value(T) where [
 	% push a value onto the stack
-	pred push(T, lua_context),
-	mode push(in, in) is semidet,
-	pred push(T, lua_context, lua_context),
-	mode push(in, mdi, muo) is semidet,
+	impure pred push_value(T, lua_state, lua_state),
+	mode push_value(in, in, out) is semidet,
 	
-	% unify with a value on the stack, starting at a given index
-	% return the number of values matched
-	pred look(int, int, T, lua_context),
-	mode look(in, out, out, in),
-	pred look(int, int, T, lua_context, lua context),
-	mode look(in, out, out,  mdi, muo) is semidet].
+	% extract value from a lua_var, or, if it's a refrence, push it onto the stack and extract it from lua.
+	some [T] func local_value(lua_state, int) = T,
+	mode local_value(in, in) = out is semidet,
+	
+	% determine equivalent Lua type
+	func type_of(T) = lua_type
+].
+
+	
+:- instance lua_value(nil).
+:- instance lua_value(bool).
+:- instance lua_value(string).
+:- instance lua_value(int).
+:- instance lua_value(float).
+:- instance lua_value(lua_state).
+:- instance lua_value(c_function).
+:- instance lua_value(c_pointer).
+:- instance lua_value(map(lua_var,lua_var)).
+:- instance lua_value(list(lua_var)).
 
 
 :- implementation.
