@@ -19,7 +19,7 @@
 
 %%%%-------------------------------------------------------------------------------------------------------------------%%%%
 :- interface.	
-:- pred pop(int, lua_state, lua_state) is det.
+:- pred pop(int::in, lua_state::in, lua_state::out) is det.
 :- pred pop(lua_state::in, lua_state::out) is det.
 
 :- implementation.
