@@ -75,7 +75,7 @@ Planned features:
 
 :- import_module list, string, bool, int, float, maybe.
 
-:- include_module lua.value.
+:- include_module lua.value, lua.api.
 
 %%%% 	Handling the lua state  
 
@@ -83,18 +83,28 @@ Planned features:
 % the same condition that it was found.
 :- type lua_state.
 
-:- typeclass lua_value(T).
 
-% Represents a value or values instantiated in lua.  They should be considered immutable and their scope should be
-% limited to the predicate call that created them.
+% Represents either a value instantiated in lua or a mercury value that is compatable with lua.  These values should be
+% considered immutable and their scope should be limited to the scope of the exact lua state that produced them.
+% The types which can be converted to lua variables can be extended using the typeclass defined in lua.value.
 :- type lua_var.
+:- type lua_vars == list(lua_var).
 
-:- func value_of(lua_var) = T.
-:- mode value_of(in) = out is semidet.
-:- mode value_of(in) = in is semidet.
+:- pred valid(lua_var::in) is semidet.
+:- func type(lua_var) = lua_type is det.
 
-:- func maybe_value_of(lua_var) = maybe(T).
-:- mode maybe_value_of(in) = out is det.
+:- func value(T) = lua_var.
+:- mode value(in) = out is det.
+:- mode value(in) = uo is det.
+:- mode value(in) = muo is det.
+:- mode value(out) = in is semidet.
+:- mode value(out) = di is semidet.
+:- mode value(out) = mdi is semidet.
+
+
+
+
+
 
 
 	
@@ -178,6 +188,7 @@ Planned features:
 
 :- type c_function.  	% cfunction typedef function pointer
 :- type m_function == func(I) = O.
+:- mode m_function == (func(in) = out
 :- type userdata. 	% TODO: use existential typeclass?
 
 
@@ -193,8 +204,43 @@ Planned features:
 :- pragma foreign_type("C", lua_state, "lua_State *").
 :- pragma foreign_type("C", c_function, "lua_CFunction *").
 
-:- import_module lua.value.
+:- import_module lua.value, lua.api.
 
+	
+:- func lua_state(lua_var) = lua_state is semidet.
+lua_state(ref(L, _)) = L.
+
+:- pred push(lua_var::di, lua_state::in, lua_var::uo) is semidet.
+push(Var, In, Out) :- check_stack(1, In, Lua), (
+	value(Val) = Var, push_value(Val, Lua, Out);
+	ref(Lua, local(_)) = Var, Out = Var);
+	ref(Other, local(I)) = Var, Other /= Lua, xmove
+	
+:- type lua_var --->
+	some [T] (value(T) => lua_value(T));
+	ref(lua_state, lua_ref);
+	invalid.
+	
+:- type lua_ref --->
+	local(int);
+	global(string);
+	registry(string);
+	refrence(int);
+	upvalue(int).
+	
+:- some [T] (func value_of(lua_var) = T => lua_value(T)).
+:- mode value_of(di) = out is semidet.
+
+value_of(Var) = Val :- 
+	Val = value(Var) ;
+	Val = push(Var, Ref), ; 
+	
+	
+
+
+:- func maybe_value(lua_var) = maybe(T). 
+
+:- func make_var(T) 
 
 :- pragma foreign_enum("C", lua_type, [
     none - "LUA_TNONE",
