@@ -77,6 +77,8 @@ Planned features:
 
 :- include_module lua.value, lua.api.
 
+:- pragma require_feature_set([trailing]).
+
 %%%% 	Handling the lua state  
 
 % This is the lua_state C type defined in lua.h, all operations performed on a lua_state must leave the lua state in
@@ -101,16 +103,6 @@ Planned features:
 :- mode value(out) = di is semidet.
 :- mode value(out) = mdi is semidet.
 
-
-
-
-
-
-
-	
-
-
-	
 	
 % The following types specify operations that can be performed on a lua state, such operations must be pure, leaving no
 % side effects on the lua_state, and leaving the stack in the same state that it was found. Note that Lua itself does not
@@ -253,3 +245,48 @@ value_of(Var) = Val :-
     userdata - "LUA_TUSERDATA",
     thread - "LUA_TTHREAD",
     lightuserdata - "LUA_TLIGHTUSERDATA" ]).
+    
+% Backtracking
+
+:- pragma foreign_code("C", "
+	
+	typedef struct luaM_Checkpoint {
+		lua_State * lua_state;
+		int top;
+	} luaM_Checkpoint;
+    
+    void luaM_restore_checkpoint(void * p, MR_untrail_reason r) {
+    	
+    	switch(r){
+		case MR_undo:       /* Fall through. */
+		case MR_exception:  /* Fall through. */
+		case MR_retry:
+		   	luaM_Checkpoint * checkpoint = (checkpoint *) p;
+    			int current  = lua_gettop(checkpoint.lua_state);
+    			assert(current >= checkpoint.top);
+    			if(current == checkpoint.top)
+    				break;
+    			lua_settop(checkpoint.lua_state, checkpoint.top);
+			break;
+
+		case MR_solve:  /* Fall through */
+		case MR_commit: 
+			break;
+
+		default:
+			MR_fatal_error(""lua.m: unknown MR_untrail_reason"");
+		}
+	}
+").
+
+:- pred set_checkpoint(lua_state::in) is det.
+
+:- pragma foreign_proc("C", set_checkpoint(L::in), "
+	luaM_Checkpoint * c = malloc(sizeof(luaM_Checkpoint));
+	c.lua_state = L;
+	c.top = lua_gettop(L);
+	
+	MR_trail_function(luaM_restore_checkpoint, (void *) c);
+").
+    
+    
