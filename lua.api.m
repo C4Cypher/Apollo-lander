@@ -14,3 +14,10 @@
 :- implementation.
 :- pragma foreign_proc("C", gettop(L::in) = (O::out), [promise_pure, will_not_call_mercury],
 	"O = lua_gettop(L);").
+
+:- interface.	
+:- pred pop(int, lua_state, lua_state) is det.
+
+:- implementation.
+:- pragma foreign_proc("C", pop(N::in, L::in, O::out), [promise_pure, will_not_call_mercury],
+	"lua_pop(L, N); O = L;").
