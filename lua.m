@@ -73,93 +73,41 @@ Planned features:
 
 :- interface.
 
-:- import_module list, string, bool, int, float, maybe.
+% For interfacing with Lua
+:- include_module lua.module, lua.stack.
 
-:- include_module lua.value, lua.api.
+% types that can be passed by value to Lua as primitives.
+:- include_module lua.primitive, lua.nil, lua.string lua.bool, lua.int, lua.float. 
+:- include_module lua.thread,  lua.c_function, lua.lightuserdata.
 
-:- pragma require_feature_set([trailing]).
+% types that cannot be passed directly from lua, but can be refrenced from within a closure.
+:- include_module lua.object, lua.table, lua.function.
+
+% types that can be used to construct and deconstruct Lua tables
+:- include_module lua.list, lua.assoc_list, lua.map, lua.set, lua.store, lua.array.
+
+
+
 
 %%%% 	Handling the lua state  
 
 % This is the lua_state C type defined in lua.h, all operations performed on a lua_state must leave the lua state in
 % the same condition that it was found.
 :- type lua_state.
+:- type lua.state == lua_state.
 
 
-% Represents either a value instantiated in lua or a mercury value that is compatable with lua.  These values should be
-% considered immutable and their scope should be limited to the scope of the exact lua state that produced them.
-% The types which can be converted to lua variables can be extended using the typeclass defined in lua.value.
-:- type lua_var.
-:- type lua_vars == list(lua_var).
+:- func new_state = lua_state::uo is det.
+:- pred load_libs(lua_state::di, lua_state::uo) is det.
+:- pred load_mercury(lua_state
 
-:- pred valid(lua_var::in) is semidet.
-:- func type(lua_var) = lua_type is det.
-
-:- func value(T) = lua_var.
-:- mode value(in) = out is det.
-:- mode value(in) = uo is det.
-:- mode value(in) = muo is det.
-:- mode value(out) = in is semidet.
-:- mode value(out) = di is semidet.
-:- mode value(out) = mdi is semidet.
-
-	
-% The following types specify operations that can be performed on a lua state, such operations must be pure, leaving no
-% side effects on the lua_state, and leaving the stack in the same state that it was found. Note that Lua itself does not
-% hold any distinction between subroutines, predicates, functions and iterators, treating them all as functions. The 
-% distinction is made so that mercury can handle
-
-% Perform a pure operation in lua
-:- pred run(pred(lua_state), lua_state).
-:- mode run(in(pred(in) is det), in) is det.
-:- mode run(in(pred(in) is semidet), in) is semidet.
-
-% Lua ^ run(Something) <=> run(Something, Lua) :- Something(Lua).
-
-
-% Return a function that does nothing.
-:- func end = pred(lua_state).
-:- mode end = out(pred(in) is det) is det.
-
-% Retrieve the value(s) currently on the top of the stack
-:- func get(T, pred(lua_state)) = pred(T, lua_state) <= lua_value(T).
-:- mode get(out, in(pred(in) is det)) = out(pred(in) is semidet)) is det. 
-:- mode get(out, in(pred(in) is semidet)) = out(pred(in is semidet)) is det.
-
-% somefunc(Lua) = Out :- Lua ^ run(get(Out) ^ end) <=> run(Out, get(Out, end), Lua).
-
-:- func return(pred(lua_state), lua_state) = T <= lua_value(T).
-:- mode return(in(pred(in)), in) = out is semidet.
-
-% Lua ^ return(Something) <=> return(
-
-% Push a value onto the stack, perform an operation with it, and then push said values off the stack
-:- func local(pred(lua_var, lua_state), T) = pred(lua_state) <= lua_value(T).
-:- mode local(in(pred(in, in) is det), in) = out(pred(in) is det) is det.  
-:- mode local(in(pred(in, in) is semidet), in) = out(pred(in) is semidet) is det.
-
-% Lua ^ local(Something, Var) ^ do <=> Something(Var, Lua) ^ do <=> do(Something(Var, Lua))
-
-% Rawget a global variable onto the stack, perform an operation with it and then push said variable off the stack.
-:- func global(pred(lua_var, lua_state), string) = pred(lua_state).
-:- mode global(in(pred(in, in) is det), in) = out(pred(in) is det) is det. 
-:- mode global(in(pred(in, in) is semidet), in) = out(pred(in) is semidet) is det.
-
-% Check to see the type of the last value on the stack
-:- func type(
-:- 
-:- func if(pred(lua_state), pred(lua_state)) = pred(lua_state).
-:- mode if(in(pred(in) is semidet), in(pred(in) is det)) = out(pred(in)) is det.
-
-:- func if(pred(lua_state), pred(lua_state), pred(lua_state)) = pred(lua_state).
-:- mode if(in(pred(in) is semidet), in(pred(in) is det), in(pred(in) is det)) = out(pred(in)) is det.
+ 
 
 
 
-% Type conversion from mercury types to  lua types and back is handled in the lua.value module via the lua_value typeclass.
 
 % A compatable mercury can represent a single lua variable, or, in special cases can represent a list of lua values.
-% Such cases are represented by varag
+
 :- type lua_type --->
     none;
     nil;
@@ -174,14 +122,10 @@ Planned features:
     
 :- func type(T) = lua_type is det.  % Non compatable values return the 'none' lua type. 
 
-% A type unique to lua, representing the abscence of value.
-:- type nil ---> nil.
 
 
-:- type c_function.  	% cfunction typedef function pointer
-:- type m_function == func(I) = O.
-:- mode m_function == (func(in) = out
-:- type userdata. 	% TODO: use existential typeclass?
+
+
 
 
 
