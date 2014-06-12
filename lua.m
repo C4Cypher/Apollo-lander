@@ -73,20 +73,18 @@ Planned features:
 
 :- interface.
 
-% For interfacing with Lua
-:- include_module lua.module, lua.stack.
 
-% types that can be passed by value to Lua as primitives.
-:- include_module lua.primitive, lua.nil, lua.string lua.bool, lua.int, lua.float. 
+% types that can be passed by value to Lua.
+:- include_module lua.nil, lua.string lua.bool, lua.int, lua.float. 
 :- include_module lua.thread,  lua.c_function, lua.lightuserdata.
 
-% types that cannot be passed directly from lua, but can be refrenced from within a closure.
+% types that cannot be passed directly from lua, but can be refrenced purely from within a closure.
 :- include_module lua.object, lua.table, lua.function.
 
 % types that can be used to construct and deconstruct Lua tables
 :- include_module lua.list, lua.assoc_list, lua.map, lua.set, lua.store, lua.array.
 
-
+:- import_module io, int,.
 
 
 %%%% 	Handling the lua state  
@@ -96,10 +94,19 @@ Planned features:
 :- type lua_state.
 :- type lua.state == lua_state.
 
+% Validate whether Apollo is initialized
+:- pred mercury_is_init(lua_state::in) is semidet.
+:- pred mercury_is_init(lua_state::di, lua_state::uo) is semidet.
+:- pred mercury_is_init(lua_state::in, io::di, io::uo) is semidet.
 
-:- func new_state = lua_state::uo is det.
-:- pred load_libs(lua_state::di, lua_state::uo) is det.
-:- pred load_mercury(lua_state
+% Initialize mercury with the registry, call again to reset
+:- pred mercury_init(lua_state::di, lua_state::uo) is det.
+:- pred mercury_init(lua_state::in, io::di, io::uo) is det.
+
+
+
+:- semipure global(lua_state::in, string::in) = 
+
 
  
 
@@ -134,49 +141,68 @@ Planned features:
 %%%%-------------------------------------------------------------------------------------------------------------------%%%%
 :- implementation.
 
-:- pragma foreign_decl("C",
-	"#include <lua.h>;  #include <lauxlib.h>; #include <lualib.h>;").
+% Header %
+:- pragma foreign_decl("C", "
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+
+
+
+
+// Names for the lua registry
+#define AP_TYPE "luaAPOLLO_LANDER_MERCURY_TYPE"
+#define AP_MODULE "luaAPOLLO_LANDER_MODULE"
+#define AP_READY "luaAPOLLO_LANDER_READY"
+
+
+// Upvalues for function context
+#define AP_SELF 1
+
+
+int luaAP_init_apollo(lua_State *);
+int apollo_ready(lua_State *);
+").
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
 :- pragma foreign_type("C", c_function, "lua_CFunction *").
 
-:- import_module lua.value, lua.api.
+:- pragma foreign_code("C", "
+
+// check apollo for modules when loading modules in lua.
+int apollo_ready(lua_State * L) {
+	lua_checkstack(L, 1);
+	lua_getfield(L, LUA_REGISTRYINDEX, AP_READY);
+	int ready = lua_toboolean(L, -1);
+	lua_pop(L, 1);
+	return ready;
+}
+
+/* take the provided module name and attempt to load an apollo module
+passes any additional arguments.
+int luaAP_loader(lua_State * L) {
+	if (lua_isstring(L, 1)) {
+		const char * module_name = lua_tostring(L, 1)
+
+
+int luaAP_init_apollo(lua_State * L) {
+	
+	lua_checkstack(L, 3);
+	
+	// Add tables to the registry.
+	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_TYPE);
+	
+	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+	
 
 	
 :- func lua_state(lua_var) = lua_state is semidet.
 lua_state(ref(L, _)) = L.
 
-:- pred push(lua_var::di, lua_state::in, lua_var::uo) is semidet.
-push(Var, In, Out) :- check_stack(1, In, Lua), (
-	value(Val) = Var, push_value(Val, Lua, Out);
-	ref(Lua, local(_)) = Var, Out = Var);
-	ref(Other, local(I)) = Var, Other /= Lua, xmove
-	
-:- type lua_var --->
-	some [T] (value(T) => lua_value(T));
-	ref(lua_state, lua_ref);
-	invalid.
-	
-:- type lua_ref --->
-	local(int);
-	global(string);
-	registry(string);
-	refrence(int);
-	upvalue(int).
-	
-:- some [T] (func value_of(lua_var) = T => lua_value(T)).
-:- mode value_of(di) = out is semidet.
-
-value_of(Var) = Val :- 
-	Val = value(Var) ;
-	Val = push(Var, Ref), ; 
-	
-	
 
 
-:- func maybe_value(lua_var) = maybe(T). 
-
-:- func make_var(T) 
 
 :- pragma foreign_enum("C", lua_type, [
     none - "LUA_TNONE",
@@ -190,47 +216,6 @@ value_of(Var) = Val :-
     thread - "LUA_TTHREAD",
     lightuserdata - "LUA_TLIGHTUSERDATA" ]).
     
-% Backtracking
 
-:- pragma foreign_code("C", "
-	
-	typedef struct luaM_Checkpoint {
-		lua_State * lua_state;
-		int top;
-	} luaM_Checkpoint;
-    
-    void luaM_restore_checkpoint(void * p, MR_untrail_reason r) {
-    	
-    	switch(r){
-		case MR_undo:       /* Fall through. */
-		case MR_exception:  /* Fall through. */
-		case MR_retry:
-		   	luaM_Checkpoint * checkpoint = (checkpoint *) p;
-    			int current  = lua_gettop(checkpoint.lua_state);
-    			assert(current >= checkpoint.top);
-    			if(current == checkpoint.top)
-    				break;
-    			lua_settop(checkpoint.lua_state, checkpoint.top);
-			break;
 
-		case MR_solve:  /* Fall through */
-		case MR_commit: 
-			break;
-
-		default:
-			MR_fatal_error(""lua.m: unknown MR_untrail_reason"");
-		}
-	}
-").
-
-:- pred set_checkpoint(lua_state::in) is det.
-
-:- pragma foreign_proc("C", set_checkpoint(L::in), "
-	luaM_Checkpoint * c = malloc(sizeof(luaM_Checkpoint));
-	c.lua_state = L;
-	c.top = lua_gettop(L);
-	
-	MR_trail_function(luaM_restore_checkpoint, (void *) c);
-").
-    
     
