@@ -84,37 +84,48 @@ Planned features:
 % types that can be used to construct and deconstruct Lua tables
 :- include_module lua.list, lua.assoc_list, lua.map, lua.set, lua.store, lua.array.
 
-:- import_module io, int,.
+:- import_module io.
 
 
-%%%% 	Handling the lua state  
+%%%%  Handling the lua state  %%%%
 
-% This is the lua_state C type defined in lua.h, all operations performed on a lua_state must leave the lua state in
-% the same condition that it was found.
+% This is the lua_state C type defined in lua.h
 :- type lua_state.
-:- type lua.state == lua_state.
 
-% Validate whether Apollo is initialized
-:- pred mercury_is_init(lua_state::in) is semidet.
-:- pred mercury_is_init(lua_state::di, lua_state::uo) is semidet.
-:- pred mercury_is_init(lua_state::in, io::di, io::uo) is semidet.
+% Typeclasses for types that can be passed to and from Lua variables
+:- typeclass lua_value(T).
+:- typeclass lua_var(T).
 
-% Initialize mercury with the registry, call again to reset
-:- pred mercury_init(lua_state::di, lua_state::uo) is det.
-:- pred mercury_init(lua_state::in, io::di, io::uo) is det.
+% Represents types
+:- type lua_var --->
+	some [T] (value(T) => lua_value(T)).
 
+%%%%  Lua modules  %%%%
 
+:- typeclass lua_module(T) where [
+	pred load_module
+	
 
-:- semipure global(lua_state::in, string::in) = 
+%%%%  Lua type system  %%%%
 
+/* In Lua, variables are dynamically typed, type is associated with value, not the variable.
+There are eight basic types in Lua, one of which is further divided into two variations in C.
 
- 
-
-
-
-
-% A compatable mercury can represent a single lua variable, or, in special cases can represent a list of lua values.
-
+Value Types - Primitive values
+	nil 	indicates the abscence of value, used as a return value and as a list terminator
+	number 	equivalent to Mercury float or C double, Lua also allows Integers to be easily passed 
+	boolean	truth value equivalent to Mercury bool
+	string	similar to Mercury strings, can be passed as char *
+	
+Refrence Types - Cannot be passed directly, but must be handled by refrence, their functionality
+		can be extended with the use of metatables
+		
+	table		efficient associative array implemented by a hash table
+	function	varadic first class value in lua, lexically scoped with varadic return values
+	userdata	Lua's type for foreign values
+	thread		Used to handle refrences to the lua_state and coroutines
+	lightuserdata	A special case of userdata, it holds a C pointer and cannot have a metatable
+	
 :- type lua_type --->
     none;
     nil;
@@ -129,12 +140,7 @@ Planned features:
     
 :- func type(T) = lua_type is det.  % Non compatable values return the 'none' lua type. 
 
-
-
-
-
-
-
+type
 
 
     
@@ -165,6 +171,9 @@ int apollo_ready(lua_State *);
 ").
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
+
+:- type c_function. % A C function pointer with the signature int (lua_Cfunction *)(lua_State *);
+
 :- pragma foreign_type("C", c_function, "lua_CFunction *").
 
 :- pragma foreign_code("C", "
@@ -173,8 +182,8 @@ int apollo_ready(lua_State *);
 int apollo_ready(lua_State * L) {
 	lua_checkstack(L, 1);
 	lua_getfield(L, LUA_REGISTRYINDEX, AP_READY);
-	int ready = lua_toboolean(L, -1);
-	lua_pop(L, 1);
+	int ready = lua_toboolean(L, 1);
+	lua_remove(L, 1);
 	return ready;
 }
 
