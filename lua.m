@@ -65,7 +65,6 @@ Planned features:
 		compromising type-safety or having to resort to the Lua API.
 	-Allow Lua to make calls on non-deterministic predicates via iterators
 		and Mercury multithreading.
-	-Allow Mercury to backtrack over changes made to Lua.
 	-Initial support is for Lua 5.1, eventual support for Lua 5.2
 	-Support for Lua coroutines
 
@@ -73,112 +72,65 @@ Planned features:
 
 :- interface.
 
-
-% types that can be passed by value to Lua.
-:- include_module lua.nil, lua.string lua.bool, lua.int, lua.float. 
-:- include_module lua.thread,  lua.c_function, lua.lightuserdata.
-
-% types that cannot be passed directly from lua, but can be refrenced purely from within a closure.
-:- include_module lua.object, lua.table, lua.function.
-
-% types that can be used to construct and deconstruct Lua tables
-:- include_module lua.list, lua.assoc_list, lua.map, lua.set, lua.store, lua.array.
-
-:- import_module io.
-
-
-%%%%  Handling the lua state  %%%%
-
-% This is the lua_state C type defined in lua.h
+/* This type represents a refrence to the Lua VM, in Mercury it should be 
+treated as a unique value, frozen in time, to preserve both Mercury's 
+declarative semantics and Lua's imperative semantics. */
 :- type lua_state.
 
-% Typeclasses for types that can be passed to and from Lua variables
+% types that can be passed to and from Lua 
 :- typeclass lua_value(T).
-:- typeclass lua_var(T).
 
-% Represents types
-:- type lua_var --->
-	some [T] (value(T) => lua_value(T)).
 
-%%%%  Lua modules  %%%%
 
-:- typeclass lua_module(T) where [
-	pred load_module
-	
 
-%%%%  Lua type system  %%%%
 
-/* In Lua, variables are dynamically typed, type is associated with value, not the variable.
-There are eight basic types in Lua, one of which is further divided into two variations in C.
+% types that can be used to construct and deconstruct Lua tables
+%:- include_module lua.list, lua.assoc_list, lua.map, lua.set, lua.store, lua.array.
 
-Value Types - Primitive values
-	nil 	indicates the abscence of value, used as a return value and as a list terminator
-	number 	equivalent to Mercury float or C double, Lua also allows Integers to be easily passed 
-	boolean	truth value equivalent to Mercury bool
-	string	similar to Mercury strings, can be passed as char *
-	
-Refrence Types - Cannot be passed directly, but must be handled by refrence, their functionality
-		can be extended with the use of metatables
-		
-	table		efficient associative array implemented by a hash table
-	function	varadic first class value in lua, lexically scoped with varadic return values
-	userdata	Lua's type for foreign values
-	thread		Used to handle refrences to the lua_state and coroutines
-	lightuserdata	A special case of userdata, it holds a C pointer and cannot have a metatable
-	
-:- type lua_type --->
-    none;
-    nil;
-    number;
-    boolean;
-    string;
-    table;
-    function;
-    userdata;
-    thread;
-    lightuserdata.
-    
-:- func type(T) = lua_type is det.  % Non compatable values return the 'none' lua type. 
 
-type
+:- include_module lua.nil, lua.string lua.bool, lua.int, lua.float. 
+:- include_module lua.thread,  lua.c_function, lua.lightuserdata.
+:- include_module lua.object, lua.table, lua.function.
+
 
 
     
-%%%%-------------------------------------------------------------------------------------------------------------------%%%%
+%%%%%%%%%%%%%%%%%%
 :- implementation.
+%%%%%%%%%%%%%%%%%%
 
-% Header %
+
 :- pragma foreign_decl("C", "
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+").
 
 
+%% Header for C interface %%
 
-
+:- pragma foreign_decl("C", "
 // Names for the lua registry
-#define AP_TYPE "luaAPOLLO_LANDER_MERCURY_TYPE"
-#define AP_MODULE "luaAPOLLO_LANDER_MODULE"
-#define AP_READY "luaAPOLLO_LANDER_READY"
+#define AP_TYPE ""luaAPOLLO_LANDER_MERCURY_TYPE""
+#define AP_MODULE ""luaAPOLLO_LANDER_MODULE""
+#define AP_READY ""luaAPOLLO_LANDER_READY""
 
 
 // Upvalues for function context
 #define AP_SELF 1
 
-
-int luaAP_init_apollo(lua_State *);
+// check to see if Apollo has already been initialized.
 int apollo_ready(lua_State *);
+
+// lua_CFunction that prepares a lua_State for use with Apollo_lander
+int luaAP_init_apollo(lua_State *);
 ").
 
-:- pragma foreign_type("C", lua_state, "lua_State *").
-
-:- type c_function. % A C function pointer with the signature int (lua_Cfunction *)(lua_State *);
-
-:- pragma foreign_type("C", c_function, "lua_CFunction *").
+%% Body for C interface **
 
 :- pragma foreign_code("C", "
 
-// check apollo for modules when loading modules in lua.
+// check to see if Apollo has already been initialized.
 int apollo_ready(lua_State * L) {
 	lua_checkstack(L, 1);
 	lua_getfield(L, LUA_REGISTRYINDEX, AP_READY);
@@ -188,15 +140,18 @@ int apollo_ready(lua_State * L) {
 }
 
 /* take the provided module name and attempt to load an apollo module
-passes any additional arguments.
+passes any additional arguments. */
 int luaAP_loader(lua_State * L) {
 	if (lua_isstring(L, 1)) {
-		const char * module_name = lua_tostring(L, 1)
-
-
+		const char * module_name = lua_tostring(L, 1);
+		lua_getfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+		lua_getfield(L, 2, module_name);
+		return 1;
+	}
+	return 0;
+}
+		
 int luaAP_init_apollo(lua_State * L) {
-	
-	lua_checkstack(L, 3);
 	
 	// Add tables to the registry.
 	lua_newtable(L);
@@ -204,27 +159,38 @@ int luaAP_init_apollo(lua_State * L) {
 	
 	lua_newtable(L);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+
+	// Add loader to package.loaders
+	lua_getglobal(L, ""package"");
+	lua_getfield(L, 1, ""loaders"");
+	const lua_Integer length = (lua_integer)lua_objlen(L, 1);
+	lua_pushinteger(L, length + 1);
+	lua_pushcfunction(L, luaAP_loader);
+	lua_settable(L, 2);
+	lua_pop(L, 2);
 	
+	// Mark Apollo as ready
+	lua_pushboolean(L, 1);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_READY);
+	return 0;
+}
 
+int luaAP
+
+").	
+
+%%  Types and Typeclasses  %%
+
+:- type lua == lua_state.
+
+:- pragma foreign_type("C", lua_state, "lua_State *").
+
+:- typeclass lua_value(T) where [
+
+	% Push value onto the Lua stack
+	pred push_value(T::in, lua::di, lua::uo) is det ,
+ 
 	
-:- func lua_state(lua_var) = lua_state is semidet.
-lua_state(ref(L, _)) = L.
-
-
-
-
-:- pragma foreign_enum("C", lua_type, [
-    none - "LUA_TNONE",
-    nil - "LUA_TNIL",
-    number - "LUA_TNUMBER",
-    boolean - "LUA_TBOOLEAN",
-    string - "LUA_TSTRING",
-    table - "LUA_TTABLE",
-    function - "LUA_TFUNCTION",
-    userdata - "LUA_TUSERDATA",
-    thread - "LUA_TTHREAD",
-    lightuserdata - "LUA_TLIGHTUSERDATA" ]).
-    
 
 
     
