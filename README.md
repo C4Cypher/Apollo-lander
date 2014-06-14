@@ -69,3 +69,5 @@ Planned features:
 -Initial support is for Lua 5.1, eventual support for Lua 5.2
 
 -Support for Lua coroutines
+
+[1] http://www.haskell.org/haskellwiki/Haskell
