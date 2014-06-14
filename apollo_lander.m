@@ -3,7 +3,7 @@
 
 :- import_module lua.
 
-
+% TODO: Rewrite apollo_lander.m as to produce an appropriate C header file.
 
 :- implementation.
 
