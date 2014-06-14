@@ -165,7 +165,7 @@ to_int(L, Index, T, !IO) :- is_number(L, Index, !IO),
 
 :- pragma foreign_proc("C", to_int_unsafe(L::in, N::in, T::out, I::di, O::uo), 
 	[promise_pure, will_not_call_mercury], 
-`	"T = (MR_Integer)lua_tointeger(L, N);").
+	"T = (MR_Integer)lua_tointeger(L, N);").
 
 to_float(L, Index, T, !IO) :- is_number(L, Index, !IO), 
 	to_float_unsafe(L, Index, T, !IO).
@@ -174,7 +174,7 @@ to_float(L, Index, T, !IO) :- is_number(L, Index, !IO),
 
 :- pragma foreign_proc("C", to_float_unsafe(L::in, N::in, T::out, I::di, O::uo), 
 	[promise_pure, will_not_call_mercury], 
-`	"T = (MR_Float)lua_tonumber(L, N);").
+	"T = (MR_Float)lua_tonumber(L, N);").
 
 :- pragma foreign_proc("C", to_string(L::in, N::in, T::out, I::di, O::uo), 
 	[promise_pure, will_not_call_mercury], "
@@ -204,7 +204,7 @@ to_c_pointer(L, Index, T, !IO) :- is_lightuserdata(L, Index, !IO),
 
 :- pragma foreign_proc("C", to_c_pointer_unsafe(L::in, N::in, T::out, I::di, 
 	O::uo), [promise_pure, will_not_call_mercury], 
-`	"T = lua_touserdata(L, N);").
+	"T = lua_touserdata(L, N);").
 
 to_lightuserdata(L, N, T, !IO) :- to_c_pointer_unsafe(L, N, T, !IO).
 
