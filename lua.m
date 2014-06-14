@@ -72,25 +72,22 @@ Planned features:
 
 :- interface.
 
-/* This type represents a refrence to the Lua VM, in Mercury it should be 
-treated as a unique value, frozen in time, to preserve both Mercury's 
-declarative semantics and Lua's imperative semantics. */
-:- type lua_state.
+:- include lua.state.
 
-% types that can be passed to and from Lua 
-:- typeclass lua_value(T).
+:- type lua_type --->
+    none;
+    nil;
+    number;
+    boolean;
+    string;
+    table;
+    function;
+    userdata;
+    thread;
+    lightuserdata.
 
-
-
-
-
-% types that can be used to construct and deconstruct Lua tables
-%:- include_module lua.list, lua.assoc_list, lua.map, lua.set, lua.store, lua.array.
-
-
-:- include_module lua.nil, lua.string lua.bool, lua.int, lua.float. 
-:- include_module lua.thread,  lua.c_function, lua.lightuserdata.
-:- include_module lua.object, lua.table, lua.function.
+% Non compatable values return the 'none' lua type.    
+:- func type(T) = lua_type is det.  
 
 
 
@@ -99,6 +96,7 @@ declarative semantics and Lua's imperative semantics. */
 :- implementation.
 %%%%%%%%%%%%%%%%%%
 
+% C code
 
 :- pragma foreign_decl("C", "
 #include <lua.h>
@@ -107,7 +105,7 @@ declarative semantics and Lua's imperative semantics. */
 ").
 
 
-%% Header for C interface %%
+
 
 :- pragma foreign_decl("C", "
 // Names for the lua registry
@@ -178,18 +176,14 @@ int luaAP_init_apollo(lua_State * L) {
 int luaAP
 
 ").	
+%%%%%%%%%%%%%%%%%%
 
-%%  Types and Typeclasses  %%
+:- import_module lua_state.
 
-:- type lua == lua_state.
 
-:- pragma foreign_type("C", lua_state, "lua_State *").
+:- type c_function.
 
-:- typeclass lua_value(T) where [
-
-	% Push value onto the Lua stack
-	pred push_value(T::in, lua::di, lua::uo) is det ,
- 
+:- pragma foreign_type("C", c_function, "
 	
 
 
