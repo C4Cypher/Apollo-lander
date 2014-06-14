@@ -62,8 +62,10 @@ Planned features:
 	passed to Lua as return values, using either userdata,
 	metatables and/or Lua's existing primitive types, without
 	compromising type-safety or having to resort to the Lua API.
+
 -Allow Lua to make calls on non-deterministic predicates via iterators
 	and Mercury multithreading.
--Allow Mercury to backtrack over changes made to Lua.
+
 -Initial support is for Lua 5.1, eventual support for Lua 5.2
+
 -Support for Lua coroutines
