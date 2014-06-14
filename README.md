@@ -6,7 +6,7 @@ both Prolog and Haskell.[1] It features a strong, static, polymorphic
 type system, as well as a strong mode and determinism system.
 
 Apollo, the ancient Greek name for the planet Mercury, when observed just before
-dawn as a morning star
+dawn as a morning star.
 
 The Apollo spacecraft was composed of three parts designed to accomplish the 
 American Apollo program's goal of landing astronauts on the Moon by the end of 
