@@ -1,9 +1,9 @@
 Apollo-lander
 =============
 
-Mercury is a purely declarative logic language. It is related to both Prolog and
-Haskell.[1] It features a strong, static, polymorphic type system, as well as a
-strong mode and determinism system.
+Mercury is a purely declarative logic programming language. It is related to 
+both Prolog and Haskell.[1] It features a strong, static, polymorphic 
+type system, as well as a strong mode and determinism system.
 
 Apollo, the ancient Greek name for the planet Mercury, when observed just before
 dawn as a morning star
