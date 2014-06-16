@@ -44,6 +44,7 @@ get_top(L, !IO) = Top :- get_top(L, Top, !IO).
 
 :- type io == io.state.
 
+:- pred push_value(lua_state::in, int::in, io::di, io::uo) is det.
 :- pred push_nil(lua_state::in, io::di, io::uo) is det.
 :- pred push_int(lua_state::in, int::in, io::di, io::uo) is det.
 :- pred push_float(lua_state::in, float::in, io::di, io::uo) is det.
@@ -62,8 +63,16 @@ get_top(L, !IO) = Top :- get_top(L, Top, !IO).
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
+:- pragma foreign_proc("C", push_value(L::in, T::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], 
+	"lua_pushvalue(L, (lua_Integer)T);").
+
 :- pragma foreign_proc("C", push_nil(L::in, I::di, O::uo), 
 	[promise_pure, will_not_call_mercury], "lua_pushnil(L);").
+
+:- pragma foreign_proc("C", push_int(L::in, T::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], 
+	"lua_pushinteger(L, (lua_Integer)T);").
 
 :- pragma foreign_proc("C", push_int(L::in, T::in, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], 

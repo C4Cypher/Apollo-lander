@@ -72,61 +72,76 @@ Planned features:
 
 :- interface.
 
-:- include_module lua.state, lua.value, lua.int, lua.char, lua.float,
-	lua.bool, lua.string, lua.list, lua.map, lua.assoc_list, 
-	lua.array, lua.set, lua.univ, lua.table, lua.c_function, 
-	lua.function, lua.module.
+:- include_module lua.state, lua.value, lua.table, lua.c_function, 
+	lua.function, lua.userdata, lua.module.
 
+:- import_module , int, float, bool, string, list, map, set, univ, lua.table,
+	lua.c_function, lua.function, lua.userdata.
+	
 
 :- type lua_type --->
-    none;
-    nil;
-    number;
-    boolean;
-    string;
-    table;
-    function;
-    userdata;
-    thread;
-    lightuserdata.
+	none;
+	nil;
+	number;
+	boolean;
+	string;
+	table;
+	function;
+	userdata;
+	thread;
+	lightuserdata.
 
 
 %%%%%%%%%%%%%
 Lua Variables
 %%%%%%%%%%%%%
 
-% Represents a varaible in Lua or a value ready to be passed to Lua
-:- type lua_var.
+% Represents a lua varaible constructor
+:- type lua_var --->
+	nil ;
+	int(int) ;
+	float(float) ;
+	bool(bool) ;
+	string(string) ;
+	
+	% A standard table
+	map(map(lua_var, lua_var)) ;
 
-:- typeclass lua_var(T) where [
-    func make_var(T) = lua_var is det,
-    func from_var(lua_var) = T is semidet ].
+	% A table where each member is indexed from 1 to n, n being the last index
+	list(list(lua_var)) ;
+	
+	% A table where the members of the set are keys, and the values are boolean	
+	set(set(lua_var)) ;
+	
+	% Some other implemention as defined by lua.value
+	value(lua_value) ;
+	
+	c_function(c_function) ;
+	c_pointer(c_pointer) ;
+	lightuserdata(lightuserdata) ;	
 
-% Non compatable values return the 'none' lua type.    
+	% refrence types
+	table(table) ;
+	function(function) ;
+	userdata(userdata) ;
+	
+	% opaque refrence
+	ref(lua_ref) 
+
+	where equality is raw_equal, comparison is raw_compare.
+	
+
+% A refrence to an instantiated variable in Lua.
+:- type lua_ref.
+
+
+% Non-Lua values return the 'none' lua type.    
 :- func type_of(T) = lua_type is det.
 :- pred is_type(T::in, lua_type::in) is semidet.
-
-% Represents an abscence of value.
-:- func nil = lua_var.
-:- mode nil = in is semidet.
-:- mode nil = out is det.
 
 :- pred is_nil(T::in) is semidet.
 
 
-/* Extract mercury value from lua_variable,
-
-Tables will be extracted as associated_list(lua_var).
-
-If userdata is identified as registered mercury type, then that 
-type will be returned, otherwise a c_pointer will be returned. */
-:- some [T] from_var(lua_var) = T is semidet.
-
-% Create lua variable from mercury value.
-:- func to_var(T, lua_type) = lua_var is semidet
-
-% Non-compatable values will be passed as userdata
-:- func to_var(T) = lua_var is det.
 
 
 % Does not trigger metamethods
@@ -233,9 +248,22 @@ int luaAP
 ").	
 %%%%%%%%%%%%%%%%%%
 
-:- import_module lua_state.
+:- import_module lua_state, lua_value.
 
-:- pragma foreign_type("C", c_function, "lua_CFunction *").
+:- type lua_ref ---> ref(lua_state::lua_state, index::int).
+
+:- instance lua_value(lua_var) where [
+	(push(L, Var, !IO) :- 
+		Var = nil; push_nil(L, !IO) ;
+		Var = int(Int), push_int(L, Int, !IO) ;
+		Var = float(Float), push_float(L, Float, !IO) ;
+		Var = bool(Bool), push_bool(L, Bool, !IO) ;
+		Var = string(String), push_string(L, String, !IO) ;
+		Var = table(Table), push(L, Table, !IO) ;
+ 
+
+
+
 
 	
 
