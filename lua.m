@@ -72,7 +72,9 @@ Planned features:
 
 :- interface.
 
-:- include lua.state.
+:- import_module int, float, bool, string, list, map, assoc_list, array, set, univ.
+
+:- include_module lua.state.
 
 :- type lua_type --->
     none;
@@ -86,9 +88,64 @@ Planned features:
     thread;
     lightuserdata.
 
-% Non compatable values return the 'none' lua type.    
-:- func type(T) = lua_type is det.  
 
+% function pointer defined in lua.h
+:- type c_function.
+
+% Represents a varaible in Lua or a value ready to be passed to Lua
+:- type lua_var.
+
+% Represents a coroutine running in Lua
+:- type lua_thread.
+
+% Non compatable values return the 'none' lua type.    
+:- func type_of(T) = lua_type is det.
+:- pred is_type(T::in, lua_type::in) is semidet.
+
+% Represents an abscence of value.
+:- func nil = lua_var.
+:- mode nil = in is semidet.
+:- mode nil = out is det.
+
+:- pred is_nil(T::in) is semidet.
+
+% Convert lua variable to mercury value.
+:- func to_int(lua_var) = int is semidet.
+:- func to_float(lua_var) = float is semidet.
+:- func to_bool(lua_var) = bool is semidet.
+:- func to_string(lua_var) = string is semidet.
+:- func to_list(lua_var) = list(lua_var) is semidet.
+:- func to_assoc_list(lua_var) = assoc_list(lua_var, lua_var) is semidet.
+:- func to_map(lua_var) = map(lua_var, lua_var) is semidet.
+:- func to_c_function(lua_var) = c_function is semidet.
+:- func to_c_pointer(lua_var) = c_pointer.
+:- func to_univ(lua_var) = univ.
+
+/* Extract mercury value from lua_variable,
+
+Tables will be extracted as associated_list(lua_var).
+
+If userdata is identified as registered mercury type, then that 
+type will be returned, otherwise a c_pointer will be returned. */
+:- some [T] from_var(lua_var) = T is semidet.
+
+% Create lua variable from mercury value.
+:- func to_var(T, lua_type) = lua_var is semidet
+
+% Non-compatable values will be passed as userdata
+:- func to_var(T) = lua_var is det.
+
+
+% Does not trigger metamethods
+:- pred raw_equal(lua_var, lua_var) is semidet.
+:- pred raw_compare(comparison_result::uo, lua_var::in, lua_var::in) is det.
+
+
+% fails only if T is not a table, or if I provided is not a valid index, empty results are returned as nil
+:- func raw_get(T, I) = lua_var is semidet.
+
+% Same as raw_get, but returns nil on any failure condition
+:- func det_get(T, I) = lua_var is get.
 
 
     
@@ -180,10 +237,8 @@ int luaAP
 
 :- import_module lua_state.
 
+:- pragma foreign_type("C", c_function, "lua_CFunction *").
 
-:- type c_function.
-
-:- pragma foreign_type("C", c_function, "
 	
 
 
