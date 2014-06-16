@@ -72,9 +72,10 @@ Planned features:
 
 :- interface.
 
-:- import_module int, float, bool, string, pair, list, map, assoc_list, array, set, univ.
+:- include_module lua.state, lua.int, lua.float, lua.bool, lua.string, lua.list,
+	lua.map, lua.assoc_list, lua.array, lua.set, lua.univ, lua.table,
+	lua.c_function, lua.function, lua.module.
 
-:- include_module lua.state, lua.value.
 
 :- type lua_type --->
     none;
@@ -89,20 +90,12 @@ Planned features:
     lightuserdata.
 
 
-% function pointer defined in lua.h
-:- type c_function.
-
-:- import_module lua.value.
-
 %%%%%%%%%%%%%
 Lua Variables
 %%%%%%%%%%%%%
 
 % Represents a varaible in Lua or a value ready to be passed to Lua
 :- type lua_var.
-
-% Represents a coroutine running in Lua
-:- type lua_thread.
 
 % Non compatable values return the 'none' lua type.    
 :- func type_of(T) = lua_type is det.
@@ -115,17 +108,6 @@ Lua Variables
 
 :- pred is_nil(T::in) is semidet.
 
-% Convert lua variable to mercury value.
-:- func to_int(lua_var) = int is semidet.
-:- func to_float(lua_var) = float is semidet.
-:- func to_bool(lua_var) = bool is semidet.
-:- func to_string(lua_var) = string is semidet.
-:- func to_list(lua_var) = list(lua_var) is semidet.
-:- func to_assoc_list(lua_var) = assoc_list(lua_var, lua_var) is semidet.
-:- func to_map(lua_var) = map(lua_var, lua_var) is semidet.
-:- func to_c_function(lua_var) = c_function is semidet.
-:- func to_c_pointer(lua_var) = c_pointer.
-:- func to_univ(lua_var) = univ.
 
 /* Extract mercury value from lua_variable,
 
@@ -150,41 +132,6 @@ type will be returned, otherwise a c_pointer will be returned. */
 %%%%%%%%%%
 Lua Tables
 %%%%%%%%%%
-
-% A lua_var confirmed to be table in lua
-:- type lua_table.
-
-% All operations are pure, no metamethods are to be triggered
-:- func to_table(T) = lua_table is semidet.
-:- func table_to_var(lua_table) = lua_var is det.
-:- func new_table = lua_table is det.
-
-:- func get_metatable(lua_var) = lua_table is semidet.
-:- func set_metatable(lua_var, lua_table) = lua_var is semidet.
-
-:- pred get(lua_table::in, lua_var::in, lua_var::out) is det.
-:- func get(lua_table, lua_var) = lua_var is det.
-:- pred set(lua_table::in, lua_var::in, lua_var::in, lua_table::out) is det.
-:- func set(lua_table, lua_var, lua_var) = lua_table is det.
-
-:- func lua_table ^ lua_var = lua_var is det.
-:- func lua_table ^ lua_var := lua_var = lua_table is det.
-
-:- pred shallow_copy(lua_table::in, lua_table::out) is det.
-:- func shallow_copy(lua_var) = lua_var is det.
-
-:- pred deep_copy(lua_table::in, lua_table::out) is det
-:- func deep_copy(lua_table) = lua_table.
-
-:- pred empty_table(lua_table::in) is semidet.
-:- func empty_table = lua_table::in is semidet.
-
-% Empty tables produce nil
-:- pred first(lua_table::in, lua_var::out) is det.
-:- func first(lua_table) = lua_var is det.
-
-:- pred next(lua_table::in, pair(lua_var)::in, pair(lua_var)::out) is semidet.
-:- func next(lua_table, pair(lua_var)) = pair(lua_var) is semidet.
 
 
 
