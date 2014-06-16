@@ -72,9 +72,10 @@ Planned features:
 
 :- interface.
 
-:- include_module lua.state, lua.int, lua.float, lua.bool, lua.string, lua.list,
-	lua.map, lua.assoc_list, lua.array, lua.set, lua.univ, lua.table,
-	lua.c_function, lua.function, lua.module.
+:- include_module lua.state, lua.int, lua.char, lua.float, lua.bool,
+	lua.string, lua.list, lua.map, lua.assoc_list, lua.array, 
+	lua.set, lua.univ, lua.table, lua.c_function, lua.function, 
+	lua.module.
 
 
 :- type lua_type --->
