@@ -72,10 +72,10 @@ Planned features:
 
 :- interface.
 
-:- include_module lua.state, lua.int, lua.char, lua.float, lua.bool,
-	lua.string, lua.list, lua.map, lua.assoc_list, lua.array, 
-	lua.set, lua.univ, lua.table, lua.c_function, lua.function, 
-	lua.module.
+:- include_module lua.state, lua.value, lua.int, lua.char, lua.float,
+	lua.bool, lua.string, lua.list, lua.map, lua.assoc_list, 
+	lua.array, lua.set, lua.univ, lua.table, lua.c_function, 
+	lua.function, lua.module.
 
 
 :- type lua_type --->
@@ -97,6 +97,10 @@ Lua Variables
 
 % Represents a varaible in Lua or a value ready to be passed to Lua
 :- type lua_var.
+
+:- typeclass lua_var(T) where [
+    func make_var(T) = lua_var is det,
+    func from_var(lua_var) = T is semidet ].
 
 % Non compatable values return the 'none' lua type.    
 :- func type_of(T) = lua_type is det.
@@ -130,9 +134,9 @@ type will be returned, otherwise a c_pointer will be returned. */
 :- pred raw_compare(comparison_result::uo, lua_var::in, lua_var::in) is det.
 
 
-%%%%%%%%%%
-Lua Tables
-%%%%%%%%%%
+%%%%%%%%%%%%%%%
+Lua Metamethods
+%%%%%%%%%%%%%%%
 
 
 
