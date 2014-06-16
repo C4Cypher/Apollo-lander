@@ -11,17 +11,12 @@ treated as a unique value, frozen in time, to preserve both Mercury's
 declarative semantics and Lua's imperative semantics. */
 :- type lua_state.
 
-% function pointer defined in lua.h
-:- type c_function.
-
 % Lua can refrence C pointers as lightuserdata
 :- type lightuserdata == c_pointer.
 
 :- implementation.
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
-
-:- pragma foreign_type("C", c_function, "lua_CFunction *").
 
 :- interface.
 
