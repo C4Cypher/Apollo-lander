@@ -72,7 +72,7 @@ Planned features:
 
 :- interface.
 
-:- import_module int, float, bool, string, list, map, assoc_list, array, set, univ.
+:- import_module int, float, bool, string, pair, list, map, assoc_list, array, set, univ.
 
 :- include_module lua.state.
 
@@ -91,6 +91,10 @@ Planned features:
 
 % function pointer defined in lua.h
 :- type c_function.
+
+%%%%%%%%%%%%%
+Lua Variables
+%%%%%%%%%%%%%
 
 % Represents a varaible in Lua or a value ready to be passed to Lua
 :- type lua_var.
@@ -141,11 +145,51 @@ type will be returned, otherwise a c_pointer will be returned. */
 :- pred raw_compare(comparison_result::uo, lua_var::in, lua_var::in) is det.
 
 
-% fails only if T is not a table, or if I provided is not a valid index, empty results are returned as nil
-:- func raw_get(T, I) = lua_var is semidet.
+%%%%%%%%%%
+Lua Tables
+%%%%%%%%%%
 
-% Same as raw_get, but returns nil on any failure condition
-:- func det_get(T, I) = lua_var is get.
+% A lua_var confirmed to be table in lua
+:- type lua_table.
+
+% All operations are pure, no metamethods are to be triggered
+:- func to_table(T) = lua_table is semidet.
+:- func table_to_var(lua_table) = lua_var is det.
+:- func new_table = lua_table is det.
+
+:- func get_metatable(lua_var) = lua_table is semidet.
+:- func set_metatable(lua_var, lua_table) = lua_var is semidet.
+
+:- pred get(lua_table::in, lua_var::in, lua_var::out) is det.
+:- func get(lua_table, lua_var) = lua_var is det.
+:- pred set(lua_table::in, lua_var::in, lua_var::in, lua_table::out) is det.
+:- func set(lua_table, lua_var, lua_var) = lua_table is det.
+
+:- func lua_table ^ lua_var = lua_var is det.
+:- func lua_table ^ lua_var := lua_var = lua_table is det.
+
+:- pred shallow_copy(lua_table::in, lua_table::out) is det.
+:- func shallow_copy(lua_var) = lua_var is det.
+
+:- pred deep_copy(lua_table::in, lua_table::out) is det
+:- func deep_copy(lua_table) = lua_table.
+
+:- pred empty_table(lua_table::in) is semidet.
+:- func empty_table = lua_table::in is semidet.
+
+% Empty tables produce nil
+:- pred first(lua_table::in, lua_var::out) is det.
+:- func first(lua_table) = lua_var is det.
+
+:- pred next(lua_table::in, pair(lua_var)::in, pair(lua_var)::out) is semidet.
+:- func next(lua_table, pair(lua_var)) = pair(lua_var) is semidet.
+
+
+
+
+
+
+
 
 
     
