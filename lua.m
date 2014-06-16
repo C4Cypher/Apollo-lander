@@ -74,7 +74,7 @@ Planned features:
 
 :- import_module int, float, bool, string, pair, list, map, assoc_list, array, set, univ.
 
-:- include_module lua.state.
+:- include_module lua.state, lua.value.
 
 :- type lua_type --->
     none;
@@ -91,6 +91,8 @@ Planned features:
 
 % function pointer defined in lua.h
 :- type c_function.
+
+:- import_module lua.value.
 
 %%%%%%%%%%%%%
 Lua Variables
