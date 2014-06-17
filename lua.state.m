@@ -53,6 +53,7 @@ get_top(L, !IO) = Top :- get_top(L, Top, !IO).
 
 :- type io == io.state.
 
+
 :- pred push_value(lua_state::in, int::in, io::di, io::uo) is det.
 :- pred push_nil(lua_state::in, io::di, io::uo) is det.
 :- pred push_int(lua_state::in, int::in, io::di, io::uo) is det.
@@ -122,18 +123,28 @@ push_lightuserdata(L, T, !IO) :- push_c_function(L, T, !IO).
 
 :- interface.
 
+:- pred xmove(lua_state::in, lua_state::in, int::in, io::di, io::uo) is det.
 
-:- pred is_nil(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_number(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_string(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_boolean(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_table(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_function(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_c_function(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_thread(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_userdata(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_c_pointer(lua_state::in, int::in io::di, io::uo) is semidet.
-:- pred is_lightuserdata(lua_state::in, int::in io::di, io::uo) is semidet.
+:- implementation.
+
+:- pragma foreign_proc("C", xmove(L1::in, L2::in, N::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], 
+	"lua_xmove(L1, L2, N);").
+
+:- interface.
+
+
+:- pred is_nil(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_number(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_string(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_boolean(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_table(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_function(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_c_function(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_thread(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_userdata(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_c_pointer(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred is_lightuserdata(lua_state::in, int::in, io::di, io::uo) is semidet.
 
 :- implementation.
 
