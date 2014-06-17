@@ -4,9 +4,8 @@
 
 :- interface.
 
-:- import_module io, int, float, string, bool, exception.
+:- import_module exception.
 
-:- type io == io.state
 
 /* This type represents a refrence to the Lua VM, in Mercury it should be 
 treated as a unique value, frozen in time, to preserve both Mercury's 
