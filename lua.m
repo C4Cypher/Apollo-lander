@@ -305,8 +305,19 @@ value(T) = 'new value'(T).
  		)
  	)
 ].
- 			
- 			
+
+
+var_equal(value(A), value(B)) :- A = B.
+
+var_equal(A, B) :- A = B.
+var_equal(value(A), ref(L, I)) :- A = pull(L, I, !IO).
+var_equal(ref(L, I), value(A)) :- A = pull(L, I, !IO).
+var_equal(ref(L1, I1), ref(L2, I2)) :- pull(L1, I1, !IO) = pull(L2, I2, !IO).
+
+var_compare(R, value(A), value(B)) :- compare(R, A, B).
+var_compare(R, ref(L, I), value(A)) = compare(R, pull(L, I, !IO), A).
+var_compare(R, value(A), ref(L, I)) = compare(R, A, pull(L, I, !IO)). 			
+var_compare(R, ref(L1, I1), ref(L2, I2)) :- compare(R, pull(L1, I1, !IO), pull(L2, I2, !IO)).			
  			
 
 
