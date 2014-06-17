@@ -22,12 +22,21 @@ declarative semantics and Lua's imperative semantics. */
 
 :- interface.
 
+:- pred get_type(lua_state::in, int::in, lua_type::out, io::di, io::uo) is det.
+:- func get_type(lua_state::in, int::in, io::di, io::uo) = lua_type::out is det.
+
 :- pred get_top(lua_state::in, int::out, io::di, io::uo) is det.
 :- func get_top(lua_state::in, state.io::in, state.io::uo) = int::out is det.
 
 :- pred check_stack(lua_state::in, int::in, io::di, io::uo) is semidet.
 
 :- implementation.
+
+:- pragma foreign_proc("C", get_type(L::in, Index::in, Type::out, _I::di, _O::uo), 
+	[will_not_call_mercury, promise_pure],
+	"Type = lua_type(L, I);").
+	
+get_type(L, I, !IO) = Type :- get_type(L, I, Type, !IO).
 
 :- pragma foreign_proc("C", get_top(L::in, Top::out, _I::di, _O::uo), 
 	[will_not_call_mercury, promise_pure],
