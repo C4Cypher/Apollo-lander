@@ -75,9 +75,12 @@ Planned features:
 :- include_module lua.state, lua.value, lua.table, lua.c_function, 
 	lua.function, lua.userdata, lua.module.
 
-:- import_module , int, float, bool, string, list, map, set, univ, lua.table,
+:- import_module io, int, float, bool, string, list, lua.value, lua.table,
 	lua.c_function, lua.function, lua.userdata.
-	
+
+%%%%%%%%%%%%%	
+% Lua Types %
+%%%%%%%%%%%%%
 
 :- type lua_type --->
 	none;
@@ -90,56 +93,56 @@ Planned features:
 	userdata;
 	thread;
 	lightuserdata.
+	
+% Non-Lua values return the 'none' lua type.    
+:- func type_of(T) = lua_type is det.
+:- pred is_type(T::in, lua_type::in) is semidet.
+
+:- pred is_nil(T::in) is semidet.
+
+%%%%%%%%%%%%%%
+% Lua Values %
+%%%%%%%%%%%%%%
+
+% Typeclass defined in lua.value
+:- type lua_value.
 
 
-%%%%%%%%%%%%%
-Lua Variables
-%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+% Lua Variables %
+%%%%%%%%%%%%%%%%%
 
 % Represents a lua varaible constructor
 :- type lua_var --->
+
+	% Value constructors
 	nil ;
 	int(int) ;
 	float(float) ;
 	bool(bool) ;
 	string(string) ;
 	
-	% A standard table
-	map(map(lua_var, lua_var)) ;
-
-	% A table where each member is indexed from 1 to n, n being the last index
-	list(list(lua_var)) ;
-	
-	% A table where the members of the set are keys, and the values are boolean	
-	set(set(lua_var)) ;
-	
-	% Some other implemention as defined by lua.value
+	% Some implemention as defined by lua.value
 	value(lua_value) ;
 	
-	c_function(c_function) ;
-	c_pointer(c_pointer) ;
-	lightuserdata(lightuserdata) ;	
-
 	% refrence types
 	table(table) ;
 	function(function) ;
 	userdata(userdata) ;
+	thread(thread) ;
 	
 	% opaque refrence
 	ref(lua_ref) 
 
 	where equality is raw_equal, comparison is raw_compare.
+
 	
 
 % A refrence to an instantiated variable in Lua.
 :- type lua_ref.
 
 
-% Non-Lua values return the 'none' lua type.    
-:- func type_of(T) = lua_type is det.
-:- pred is_type(T::in, lua_type::in) is semidet.
 
-:- pred is_nil(T::in) is semidet.
 
 
 
@@ -149,9 +152,9 @@ Lua Variables
 :- pred raw_compare(comparison_result::uo, lua_var::in, lua_var::in) is det.
 
 
-%%%%%%%%%%%%%%%
-Lua Metamethods
-%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%
+% Lua Metamethods %
+%%%%%%%%%%%%%%%%%%%
 
 
 
@@ -165,6 +168,8 @@ Lua Metamethods
 %%%%%%%%%%%%%%%%%%
 :- implementation.
 %%%%%%%%%%%%%%%%%%
+
+:- type io == io.state
 
 % C code
 
@@ -250,17 +255,126 @@ int luaAP
 
 :- import_module lua_state, lua_value.
 
-:- type lua_ref ---> ref(lua_state::lua_state, index::int).
+:- pred valid_stack_index(lua_state::in, int::in, io::di, io::uo) is semidet.
+
+valid_stack_index(L, I, !IO) :- I \= 0 , abs(I) =< get_top(L, !IO) ; 
+	I = global ; I = registry.
+	 
+
+
+%%%%%%%%%%%%%	
+% Lua Types %
+%%%%%%%%%%%%%
+
+type_of(V) = Type :- 
+	(
+		L = get_ref(V),
+		check_top(L^state, 1, !IO) ,
+		push_value(L^state, L^index, !IO) ,
+		get_type(L^state, -1, Type, !IO)
+	) ; Type = none.
+	
+is_type(T, type_of(T)).
+
+is_nil(T) :- type_of(T) = nil.
+
+
+
+%%%%%%%%%%%%%%%%%
+% Lua Refrences %
+%%%%%%%%%%%%%%%%%
+
+:- typeclass lua_ref(T) where [ 
+	func get_ref(T) = lua_ref,
+	mode get_ref(in) = out ].
+
+:- type lua_ref ---> ref(state::lua_state, index::int).
+
+:- instance lua_ref(lua_ref) where [ get_ref(R) = R ].
+
+:- instance lua_value(lua_ref) where [
+	( push(L, R, !IO) :- 
+		L = R^state , push_value(L, R^index, !IO) ;
+		
+		check_stack(R^state, 1, !IO) ,
+		push_value(R^state, R^index, !IO) ,
+		xmove(R^state, L, 1, !IO)
+	),
+	
+	( pull(L, Index, !IO) = ref(L, Index) :- valid_stack_index(L, Index, !IO) )
+].
+
+:- func global = int is det.
+
+:- pragma foreign_proc("C", global_index = I::out, 
+	[will_not_call_mercury, promise_pure],
+	"I = LUA_GLOBALINDEX;").
+	
+:- func registry = int is det.
+
+:- pragma foreign_proc("C", registry_index = I::out, 
+	[will_not_call_mercury, promise_pure],
+	"I = LUA_REGISTRYINDEX;").
+	
+		
+
+%%%%%%%%%%%%%%
+% Lua Values %
+%%%%%%%%%%%%%%
+
+:- type lua_value --->
+	some [T] (valid(T) => lua_value(T)) ;
+	invalid.
+	
+:- func value(T) = lua_value is det.
+
+value(Value) = Lua_Val :- Lua_Val = 'new valid'(Value) ; Lua_Val = invalid.
+
+:- some [T] func value_of(lua_value) = T is semidet.
+
+value_of(Lua_Val) = Value :- Lua_Val = valid(Value).  
+
+%%%%%%%%%%%%%%%%%
+% Lua Variables %
+%%%%%%%%%%%%%%%%%
 
 :- instance lua_value(lua_var) where [
-	(push(L, Var, !IO) :- 
+	( push(L, Var, !IO) :- 
 		Var = nil; push_nil(L, !IO) ;
 		Var = int(Int), push_int(L, Int, !IO) ;
 		Var = float(Float), push_float(L, Float, !IO) ;
 		Var = bool(Bool), push_bool(L, Bool, !IO) ;
 		Var = string(String), push_string(L, String, !IO) ;
+		Var = value(Value), push(L, Value, !IO)
 		Var = table(Table), push(L, Table, !IO) ;
- 
+		Var = function(Function), push(L, Function, !IO) ;
+		Var = userdata(Userdata), push(L, Userdata, !IO) ;
+		Var = thread(Thread), push(L, Thread, !IO) ;
+		Var = ref(Ref), push(L, Ref, !IO). 
+	),
+		
+	( pull(L, I, !IO) = Var :- valid_stack_index(L, I, !IO) ,
+		get_type(L, I, T, !IO), 
+		(
+			T = nil, Var = nil ;
+			T = number , (
+				Var = int(V), to_int(L, I, V, !IO)  ;
+				Var = float(V), to_float(L, I, V !IO)
+			) ;
+			T = bool, Var = bool(V), to_bool(L, I, V, !IO) ;
+ 			T = string, Var = string(V), to_string(L, I, V, !IO) ;
+ 			Var = table(pull(L, I, !IO)) ;
+ 			Var = function(pull(L, I, !IO)) ;
+ 			Var = userdata(pull(L, I, !IO)) ;
+ 			Var = thread(pull(L, I, !IO)) ;
+ 			Var = value('new valid'(pull(L, I, !IO))) ;
+ 			Var = ref(pull(L, I, !IO)) 
+ 		)
+ 	)
+].
+ 			
+ 			
+ 			
 
 
 
