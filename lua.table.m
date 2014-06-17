@@ -2,9 +2,11 @@
 
 :- interface.
 
+:- import_module lua.value.
 
-% A lua_var confirmed to be table in lua
 :- type lua_table.
+
+:- instance lua_value(lua_table).
 
 :- typeclass lua_table(T) where [
 	func lua_table(T) = lua_table,
@@ -39,11 +41,16 @@
 :- func empty_table = lua_table::in is semidet.
 
 % Empty tables produce nil
-:- pred first(lua_table::in, lua_var::out) is det.
-:- func first(lua_table) = lua_var is det.
+:- pred first(lua_table::in, pair(lua_var)::out) is det.
+:- func first(lua_table) = pair(lua_var) is det.
 
 :- pred next(lua_table::in, pair(lua_var)::in, pair(lua_var)::out) is semidet.
 :- func next(lua_table, pair(lua_var)) = pair(lua_var) is semidet.
 
 :- interface.
+
+:- type lua_table --->
+	var(lua_var) ;
+	map(
+	
 

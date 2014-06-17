@@ -128,7 +128,7 @@ Planned features:
 :- func value(T) = lua_var <= lua_value(T).
 
 
-:- type lua_index.
+:- type index.
 
 
 % Does not trigger metamethods
@@ -237,13 +237,13 @@ int luaAP
 ").	
 %%%%%%%%%%%%%%%%%%
 
-:- type lua_index == int.
+:- type index == int.
 
-:- pred valid_index(lua_state::in, lua_index::in, io::di, io::uo) is semidet.
+:- pred valid_index(lua_state::in, index::in, io::di, io::uo) is semidet.
 
 valid_index(L, I, !IO) = I = global ; I = registry ; valid_stack_index(L, I, !IO).
 
-:- pred valid_stack_index(lua_state::in, lua_index::in, io::di, io::uo) is semidet.
+:- pred valid_stack_index(lua_state::in, index::in, io::di, io::uo) is semidet.
 
 valid_stack_index(L, I, !IO) :- I \= 0 , abs(I) =< get_top(L, !IO) .
 
@@ -265,13 +265,13 @@ is_nil(T) :- type_of(T) = nil.
 % Lua Refrences %
 %%%%%%%%%%%%%%%%%
 
-:- func global = lua_index is det.
+:- func global = index is det.
 
 :- pragma foreign_proc("C", global_index = I::out, 
 	[will_not_call_mercury, promise_pure],
 	"I = LUA_GLOBALINDEX;").
 	
-:- func registry = lua_index is det.
+:- func registry = index is det.
 
 :- pragma foreign_proc("C", registry_index = I::out, 
 	[will_not_call_mercury, promise_pure],
@@ -289,7 +289,7 @@ value(T) = 'new value'(T).
 		Var = nil , push_nil(L, !IO) ;
 		Var = value(Val) , push(L, Val, !IO) ;
 		Var = ref(L1, I), (
-			L = L1 , push_value(L, I, !IO) ;
+			L = L1 -> push_value(L, I, !IO) ;
 		
 			check_stack(L1, 1, !IO) ,
 			push_value(L1, I, !IO) ,
@@ -312,7 +312,16 @@ var_equal(value(A), value(B)) :- A = B.
 var_equal(A, B) :- A = B.
 var_equal(value(A), ref(L, I)) :- A = pull(L, I, !IO).
 var_equal(ref(L, I), value(A)) :- A = pull(L, I, !IO).
-var_equal(ref(L1, I1), ref(L2, I2)) :- pull(L1, I1, !IO) = pull(L2, I2, !IO).
+
+var_equal(ref(L1, I1), ref(L2, I2)) :- 
+	L1 = L2 -> raw_equal(L1, L1, L2, !IO) ; (
+		check_stack(L1, 1, !IO) ,
+		check_stack(L2, 1, !IO) ,
+		push_value(L2, I2, !IO) ,
+		xmove(L2, L1, 1, !IO) ,
+		raw_equal(L1, I1, -1, !IO) -> pop(L1, 1, !IO) ;
+		( pop(L1, 1, !IO) , fail )
+	).
 
 var_compare(R, value(A), value(B)) :- compare(R, A, B).
 var_compare(R, ref(L, I), value(A)) = compare(R, pull(L, I, !IO), A).

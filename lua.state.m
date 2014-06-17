@@ -4,8 +4,9 @@
 
 :- interface.
 
-:- import_module exception.
+:- import_module io, exception.
 
+:- type io == io.state.
 
 /* This type represents a refrence to the Lua VM, in Mercury it should be 
 treated as a unique value, frozen in time, to preserve both Mercury's 
@@ -21,15 +22,21 @@ declarative semantics and Lua's imperative semantics. */
 
 :- interface.
 
-:- pred get_type(lua_state::in, int::in, lua_type::out, io::di, io::uo) is det.
-:- func get_type(lua_state::in, int::in, io::di, io::uo) = lua_type::out is det.
+:- pred get_type(lua_state::in, index::in, lua_type::out, io::di, io::uo)
+	is det.
 
-:- pred get_top(lua_state::in, int::out, io::di, io::uo) is det.
-:- func get_top(lua_state::in, state.io::in, state.io::uo) = int::out is det.
+:- func get_type(lua_state::in, index::in, io::di, io::uo) = lua_type::out is det.
 
-:- pred check_stack_semidet(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred get_top(lua_state::in, index::out, io::di, io::uo) is det.
+:- func get_top(lua_state::in, io::in, io::uo) = int::out is det.
 
-:- pred check_stack(lua_state::in, int::in, io::di, io::uo) is det.
+:- pred check_stack_semidet(lua_state::in, index::in, io::di, io::uo) 
+	is semidet.
+
+:- pred check_stack(lua_state::in, index::in, io::di, io::uo) is det.
+
+:- pred raw_equal(lua_state::in, index::in, index::in, io::di, io::uo)
+	is semidet.
 
 :- implementation.
 
@@ -52,13 +59,16 @@ get_top(L, !IO) = Top :- get_top(L, Top, !IO).
 :- check_stack(L, N, !IO) :- check_stack_semidet(L, N, !IO) ;
 	throw("Failed to allocate new elements on the Lua stack.").
 
+:- pragma foreign_proc("C", raw_equal(L::in, I1::in, I2::in, _I::di, _O::uo), 
+	[will_not_call_mercury, promise_pure],
+	"SUCCESS_INDICATOR = lua_rawequal(L, I1, I2);").
 
 :- interface.
 
-:- type io == io.state.
 
 
-:- pred push_value(lua_state::in, int::in, io::di, io::uo) is det.
+
+:- pred push_value(lua_state::in, index::in, io::di, io::uo) is det.
 :- pred push_nil(lua_state::in, io::di, io::uo) is det.
 :- pred push_int(lua_state::in, int::in, io::di, io::uo) is det.
 :- pred push_float(lua_state::in, float::in, io::di, io::uo) is det.
@@ -194,19 +204,20 @@ is_lightuserdata(L, T, !IO) :- is_c_pointer(L, T, !IO);
 
 :- interface.
 
-:- pred to_int(lua_state::in, int::in, int::out, io::di, io::uo) is semiddet.
-:- pred to_float(lua_state::in, int::in, float::out, io::di, io::uo) 
+:- pred to_int(lua_state::in, index::in, int::out, io::di, io::uo) is semiddet.
+:- pred to_float(lua_state::in, index::in, float::out, io::di, io::uo) 
 	is semiddet.
-:- pred to_string(lua_state::in, int::in, string::out, io::di, io::uo) 
+:- pred to_string(lua_state::in, index::in, string::out, io::di, io::uo) 
 	is semiddet.
-:- pred to_bool(lua_state::in, int::in, bool::out, io::di, io::uo) is semiddet.
-:- pred to_thread(lua_state::in, int::in, lua_state::out, io::di, io::uo) 
+:- pred to_bool(lua_state::in, index::in, bool::out, io::di, io::uo) 
 	is semiddet.
-:- pred to_c_function(lua_state::in, int::in, c_function::out, io::di, io::uo) 
+:- pred to_thread(lua_state::in, index::in, lua_state::out, io::di, io::uo) 
 	is semiddet.
-:- pred to_c_pointer(lua_state::in, int::in, c_pointer::out, io::di, io::uo) 
+:- pred to_c_function(lua_state::in, index::in, c_function::out, io::di, io::uo) 
 	is semiddet.
-:- pred to_lightuserdata(lua_state::in, int::in, lightuserdata::out, io::di, 
+:- pred to_c_pointer(lua_state::in, index::in, c_pointer::out, io::di, io::uo) 
+	is semiddet.
+:- pred to_lightuserdata(lua_state::in, index::in, lightuserdata::out, io::di, 
 	io::uo) is semiddet.
 
 :- implementation.
