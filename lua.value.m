@@ -15,7 +15,10 @@
 	% Leave the stack in the same state it was found
 	func pull(lua_state, int, io.state, io.state) = T,
 	mode pull(in, in, di, uo) = out is semidet ].
-    
-    
+
     
 :- implementation.
+
+
+
+
