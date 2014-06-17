@@ -4,7 +4,7 @@
 
 :- interface.
 
-:- import_module io, int, float, string, bool.
+:- import_module io, int, float, string, bool, exception.
 
 :- type io == io.state
 
@@ -28,7 +28,9 @@ declarative semantics and Lua's imperative semantics. */
 :- pred get_top(lua_state::in, int::out, io::di, io::uo) is det.
 :- func get_top(lua_state::in, state.io::in, state.io::uo) = int::out is det.
 
-:- pred check_stack(lua_state::in, int::in, io::di, io::uo) is semidet.
+:- pred check_stack_semidet(lua_state::in, int::in, io::di, io::uo) is semidet.
+
+:- pred check_stack(lua_state::in, int::in, io::di, io::uo) is det.
 
 :- implementation.
 
@@ -44,9 +46,12 @@ get_type(L, I, !IO) = Type :- get_type(L, I, Type, !IO).
 	
 get_top(L, !IO) = Top :- get_top(L, Top, !IO).
 
-:- pragma foreign_proc("C", check_stack(L::in, N::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", check_stack_semidet(L::in, N::in, _I::di, _O::uo), 
 	[will_not_call_mercury, promise_pure],
 	"SUCCESS_INDICATOR = lua_checkstack(L, N);").
+	
+:- check_stack(L, N, !IO) :- check_stack_semidet(L, N, !IO) ;
+	throw("Failed to allocate new elements on the Lua stack.").
 
 
 :- interface.
