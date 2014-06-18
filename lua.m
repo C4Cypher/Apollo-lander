@@ -111,7 +111,7 @@ Planned features:
 % Lua Variables %
 %%%%%%%%%%%%%%%%%
 
-% Represents a lua varaible constructor
+% Represents a lua varaible 
 :- type lua_var --->
 
 	% Value constructors
@@ -171,6 +171,7 @@ Planned features:
 #define AP_TYPE ""luaAPOLLO_LANDER_MERCURY_TYPE""
 #define AP_MODULE ""luaAPOLLO_LANDER_MODULE""
 #define AP_READY ""luaAPOLLO_LANDER_READY""
+#define AP_LOCKED ""luaAPOLLO_LANDER_LOCKED""
 
 
 // Upvalues for function context
@@ -215,6 +216,9 @@ int luaAP_init_apollo(lua_State * L) {
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_TYPE);
 	
 	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+	
+	lua_pushboolean(L, 0);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
 
 	// Add loader to package.loaders
@@ -282,52 +286,27 @@ is_nil(T) :- type_of(T) = nil.
 % Lua Variables %
 %%%%%%%%%%%%%%%%%
 
-value(T) = 'new value'(T).
+:- type lua_var ---> ref(state::lua_state, index::index).
+
+
 
 :- instance lua_value(lua_var) where [
 	( push(L, Var, !IO) :- 
-		Var = nil , push_nil(L, !IO) ;
-		Var = value(Val) , push(L, Val, !IO) ;
-		Var = ref(L1, I), (
-			L = L1 -> push_value(L, I, !IO) ;
-		
+		Var = ref(L1, I) , 
+		L = L1 -> push_value(L, I, !IO) ;
 			check_stack(L1, 1, !IO) ,
 			push_value(L1, I, !IO) ,
 			xmove(L1, L, 1, !IO)
-		)
 	),
 		
-	( pull(L, I, !IO) = Var :- valid_index(L, I, !IO) , 
-		(
-			is_nil(L, I, !IO) , Var = nil ;
-			Var = value(pull(L, I, !IO)) ;
- 			Var = ref(L, I) 
- 		)
- 	)
+	( pull(L, I, !IO) = Var :- valid_index(L, I, !IO) , Var = ref(L, I) )
 ].
 
+value(Var) = 
 
-var_equal(value(A), value(B)) :- A = B.
 
-var_equal(A, B) :- A = B.
-var_equal(value(A), ref(L, I)) :- A = pull(L, I, !IO).
-var_equal(ref(L, I), value(A)) :- A = pull(L, I, !IO).
 
-var_equal(ref(L1, I1), ref(L2, I2)) :- 
-	L1 = L2 -> raw_equal(L1, L1, L2, !IO) ; (
-		check_stack(L1, 1, !IO) ,
-		check_stack(L2, 1, !IO) ,
-		push_value(L2, I2, !IO) ,
-		xmove(L2, L1, 1, !IO) ,
-		raw_equal(L1, I1, -1, !IO) -> pop(L1, 1, !IO) ;
-		( pop(L1, 1, !IO) , fail )
-	).
 
-var_compare(R, value(A), value(B)) :- compare(R, A, B).
-var_compare(R, ref(L, I), value(A)) = compare(R, pull(L, I, !IO), A).
-var_compare(R, value(A), ref(L, I)) = compare(R, A, pull(L, I, !IO)). 			
-var_compare(R, ref(L1, I1), ref(L2, I2)) :- compare(R, pull(L1, I1, !IO), pull(L2, I2, !IO)).			
- 			
 
 
 
