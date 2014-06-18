@@ -219,7 +219,7 @@ int luaAP_init_apollo(lua_State * L) {
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
 	
 	lua_pushboolean(L, 0);
-	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
 
 	// Add loader to package.loaders
 	lua_getglobal(L, ""package"");
