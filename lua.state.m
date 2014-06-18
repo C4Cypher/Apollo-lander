@@ -4,28 +4,103 @@
 
 :- interface.
 
-:- import_module io, exception.
+:- import_module exception.
 
-:- type io == io.state.
 
 /* This type represents a refrence to the Lua VM, in Mercury it should be 
 treated as a unique value, frozen in time, to preserve both Mercury's 
 declarative semantics and Lua's imperative semantics. */
 :- type lua_state.
 
-% Lua can refrence C pointers as lightuserdata
-:- type lightuserdata == c_pointer.
+
+% State variable to be passed when manipulating the stack.
+:- type lua_io.
+
+:- type io == lua_io.
+
+:- mode li == mdi.
+
+:- mode lo == muo.
+
+:- pred do(lua_state::in, io::lo) is det.
+:- func do(lua_state::in) = io::lo.
+
+:- pred safe_do(lua_state::in, io::lo) is semidet.
+
+
+:- pred end(io::li).
+:- func end = io::li.
+
+:- pred locked(lua_state) is semidet.
+
 
 :- implementation.
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
 
+
+:- pragma foreign_decl("C", "
+	typedef struct luaAP_IO {
+		lua_State * L;
+		int top;
+		int locked;
+	} luaAP_IO; 
+").
+
+:- pragma foreign_type("C", lua_io, "luaAP_IO").
+
+
+:- func new_io(lua_state::in) = lua_io::lo.
+
+pragma foreign_proc("C", new_io(L::in) = (IO::lo),
+	[will_not_call_mercury, promise_pure], "
+	luaAP_IO new_io;
+	new_io.L = L;
+	new_io.top = lua_gettop(L);
+	new_io.locked = io.top;
+	IO = new_io;
+").
+
+do(L, IO) :- safe_do(L, IO) ; throw("Apollo/Mercury attempted to perform an operation on a locked Lua state").
+
+safe_do(L, new_io(L)) :- not locked(L). 
+
+
+
+
+:- pragma foreign_proc("C", locked(L::in), 
+	[will_not_call_mercury, promise_pure], "
+	lua_checkstack(L, 1);
+	lua_getfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+	SUCCESS_INDICATOR = lua_toboolean(L, -1);
+	lua_pop(L, 1);").
+
+:- func lock(lua_state::in) = lua_state::out is det.
+
+:- pragma foreign_proc("C", lock(L::in) = (R::out), 
+	[will_not_call_mercury, promise_pure], "
+	lua_pushboolean(L, 1);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+	R = L;").
+
+:- func unlock(lua_state::in) = lua_state::out is det.
+
+:- pragma foreign_proc("C", unlock(L::in) = (R::out), 
+	[will_not_call_mercury, promise_pure], "
+	lua_pushboolean(L, 1);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+	R = L;").
+	
+
+
+
+
 :- interface.
 
-:- pred get_type(lua_state::in, index::in, lua_type::out, io::di, io::uo)
+:- pred get_type(index::in, lua_type::out, io::li, io::lo)
 	is det.
 
-:- func get_type(lua_state::in, index::in, io::di, io::uo) = lua_type::out is det.
+:- func get_type(index::in, io::li, io::lo) = lua_type::out is det.
 
 :- pred get_top(lua_state::in, index::out, io::di, io::uo) is det.
 :- func get_top(lua_state::in, io::in, io::uo) = int::out is det.
