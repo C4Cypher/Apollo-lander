@@ -4,7 +4,7 @@
 
 :- interface.
 
-:- import_module exception.
+:- import_module io, exception.
 
 
 /* This type represents a refrence to the Lua VM, in Mercury it should be 
@@ -12,180 +12,265 @@ treated as a unique value, frozen in time, to preserve both Mercury's
 declarative semantics and Lua's imperative semantics. */
 :- type lua_state.
 
-
-% State variable to be passed when manipulating the stack.
-:- type lua_io.
-
-:- type io == lua_io.
-
-:- mode li == mdi.
-
-:- mode lo == muo.
-
-:- pred do(lua_state::in, io::lo) is det.
-:- func do(lua_state::in) = io::lo.
-
-:- pred safe_do(lua_state::in, io::lo) is semidet.
+:- pred do(lua_state, pred(lua_state, lua_state)).
+:- mode do(in, pred(mdi, muo) is det) is det.
+:- mode do(in, pred(mdi, muo) is semidet) is semidet.
 
 
-:- pred end(io::li).
-:- func end = io::li.
+:- pred locked(lua_state::in) is semidet.
 
-:- pred locked(lua_state) is semidet.
+
+
+
+
+
+:- type lua_op == pred(lua_state, lua_state).
+:- inst op_det ---> (pred(mdi, muo) is det).
+:- inst op_sem ---> (pred(mdi, muo) is semidet).
+
+:- inst lua_op ---> op_det ; op_sem.
+
+:- mode opi == in(lua_op).
+:- mode opo == out(lua_op).
+
+:- mode ldi == in(op_det).
+:- mode ldo == out(op_det).
+:- mode lsi == in(op_sem).
+:- mode lso == out(op_sem).
+
+
+:- func lua_op , lua_op = lua_op.
+:- mode ldi , ldi = ldo.
+:- mode opi , lsi = lso.
+:- mode lsi, opi = lso. 
+
+:- func lua_op ; lua_op = lua_op.
+:- mode ldi ; opi = ldo.
+:- mode lsi ; opi = lso.
+
+:- type op_else ---> { lua_op ; lua_op }.
+
+:- inst then_det ---> { ldi ; opi }.
+
+:- inst then_sem ---> { lsi ; opi }.
+
+:- inst else_sem ---> { lsi ; opi } ; { ldi ; lsi }.
+
+:- inst else_det --->  { ldi ; ldi }.
+
+:- func lua_op -> op_else = lua_op.
+:- mode ldi -> in(then_det) = ldo.
+:- mode ldi -> in(then_sem) = lso.
+:- mode lsi -> in(else_det) = ldo.
+:- mode lsi -> in(else_sem) = lso.
+
+:- func not lua_op = lua_op.
+:- mode not lsi = lsi.
+
+
+
+
+
 
 
 :- implementation.
+
+:- pragma require_feature_set([trailing]).
+
+:- type lua == lua_state.
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
 
 
-:- pragma foreign_decl("C", "
-	typedef struct luaAP_IO {
-		lua_State * L;
-		int top;
-		int locked;
-	} luaAP_IO; 
-").
 
-:- pragma foreign_type("C", lua_io, "luaAP_IO").
+do(L0, Op) :-
+	lock(L0, L1) , 
+	call(Op, L1, L2) -> 
+		unlock(L2) ;
+		unlock(L1) , fail.
+		
 
-
-:- func new_io(lua_state::in) = lua_io::lo.
-
-pragma foreign_proc("C", new_io(L::in) = (IO::lo),
-	[will_not_call_mercury, promise_pure], "
-	luaAP_IO new_io;
-	new_io.L = L;
-	new_io.top = lua_gettop(L);
-	new_io.locked = io.top;
-	IO = new_io;
-").
-
-do(L, IO) :- safe_do(L, IO) ; throw("Apollo/Mercury attempted to perform an operation on a locked Lua state").
-
-safe_do(L, new_io(L)) :- not locked(L). 
-
-
-
-
-:- pragma foreign_proc("C", locked(L::in), 
+:- pragma foreign_proc("C", locked(L::di, L1::muo), 
 	[will_not_call_mercury, promise_pure], "
 	lua_checkstack(L, 1);
 	lua_getfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
 	SUCCESS_INDICATOR = lua_toboolean(L, -1);
-	lua_pop(L, 1);").
+	lua_pop(L, 1);
+	L1 = L; ").
 
-:- func lock(lua_state::in) = lua_state::out is det.
+:- pred lock(lua::in, lua::muo) is det.
 
-:- pragma foreign_proc("C", lock(L::in) = (R::out), 
+:- pragma foreign_proc("C", lock(L::di, L1::muo, _), 
 	[will_not_call_mercury, promise_pure], "
 	lua_pushboolean(L, 1);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
-	R = L;").
+").
 
-:- func unlock(lua_state::in) = lua_state::out is det.
+:- func unlock(lua::mdi) is det.
 
-:- pragma foreign_proc("C", unlock(L::in) = (R::out), 
+:- pragma foreign_proc("C", unlock(L::mdi), 
 	[will_not_call_mercury, promise_pure], "
-	lua_pushboolean(L, 1);
+	lua_pushboolean(L, 0);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
-	R = L;").
-	
+").
+
+:- pred choicepoint(lua::mdi, lua::muo) is det.
+
+:- pragma foreign_proc("C", choicepoint(L::mdi, L1::muo), 
+	[will_not_call_mercury, promise_pure], "
+	luaAP_choicepoint(L);
+	L1 = L;
+").
+
+:- pragma foreign_decl("C", "
+
+	typedef struct lua_Trail {
+		lua_State * L;
+		int top;
+		} lua_Trail;
+
+	void luaAP_choicepoint(lua_State *);
+
+	void luaAP_untrail(lua_Trail *, MR_untrail_reason); 
+").
+
+:- pragma foreign_code("C", "
+
+	void luaAP_choicepoint(lua_State * L) {
+		lua_Trail * t = malloc(sizeof(lua_Trail));
+		t.L = L;
+		t->top = lua_gettop(L);
+		
+		MR_trail_function(luaAP_untrail, t);
+	}
+
+	void luaAP_untrail(lua_Trail * t,
+        MR_untrail_reason reason)
+    {
+
+        switch(reason) {
+            case MR_undo:       /* Fall through. */
+            case MR_exception:  /* Fall through. */
+            case MR_retry:
+                lua_State L = t.L;
+       			int old = trail->top;
+				int top = lua_gettop(L);
+				if (old > top)
+					MR_fatal_error(
+	""Found more values on the Lua stack on backtrack than should be there."");
+				
+				if (old < top);
+				lua_settop(L, old);
+
+                
+                break;
+
+            case MR_solve:  /* Fall through */
+            case MR_commit: 
+                break;
+
+            default:
+                MR_fatal_error(""lua.state.m: unknown MR_untrail_reason"");
+        }
+    }
 
 
 
-
-:- interface.
-
-:- pred get_type(index::in, lua_type::out, io::li, io::lo)
+:- pred lua_get_type(lua::mdi, lua::muo, index::in, lua_type::out)
 	is det.
 
-:- func get_type(index::in, io::li, io::lo) = lua_type::out is det.
+:- pred lua_get_top(lua::mdi, lua::muo, index::out) is det.
 
-:- pred get_top(lua_state::in, index::out, io::di, io::uo) is det.
-:- func get_top(lua_state::in, io::in, io::uo) = int::out is det.
-
-:- pred check_stack_semidet(lua_state::in, index::in, io::di, io::uo) 
+:- pred lua_check_stack_semidet(lua::mdi, lua::muo, index::in) 
 	is semidet.
 
-:- pred check_stack(lua_state::in, index::in, io::di, io::uo) is det.
+:- pred lua_check_stack(lua::mdi, lua::muo, index::in) is det.
 
-:- pred raw_equal(lua_state::in, index::in, index::in, io::di, io::uo)
+:- pred lua_raw_equal(lua::mdi, lua::muo, index::in, index::in)
 	is semidet.
 
-:- implementation.
 
-:- pragma foreign_proc("C", get_type(L::in, Index::in, Type::out, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_get_type(L::di, L1::muo, Index::in, Type::out), 
 	[will_not_call_mercury, promise_pure],
-	"Type = lua_type(L, I);").
+	"Type = lua_type(L, I);
+	L1 = L; ").
 	
-get_type(L, I, !IO) = Type :- get_type(L, I, Type, !IO).
+lua_get_type(L, I) = Type :- lua_get_type(L, I, Type).
 
-:- pragma foreign_proc("C", get_top(L::in, Top::out, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_get_top(L::di, L1::muo, Top::out), 
 	[will_not_call_mercury, promise_pure],
-	"Top = lua_gettop(L);").
+	"Top = lua_gettop(L);
+	L1 = L; ").
 	
-get_top(L, !IO) = Top :- get_top(L, Top, !IO).
+lua_get_top(L) = Top :- lua_get_top(L, Top).
 
-:- pragma foreign_proc("C", check_stack_semidet(L::in, N::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_check_stack_semidet(L::di, L1::muo, N::in), 
 	[will_not_call_mercury, promise_pure],
-	"SUCCESS_INDICATOR = lua_checkstack(L, N);").
+	"SUCCESS_INDICATOR = lua_checkstack(L, N);
+	L1 = L; ").
 	
-:- check_stack(L, N, !IO) :- check_stack_semidet(L, N, !IO) ;
+:- check_stack(L, N) :- lua_check_stack_semidet(L, N) ;
 	throw("Failed to allocate new elements on the Lua stack.").
 
-:- pragma foreign_proc("C", raw_equal(L::in, I1::in, I2::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_raw_equal(L::di, L1::muo, I1::in, I2::in), 
 	[will_not_call_mercury, promise_pure],
-	"SUCCESS_INDICATOR = lua_rawequal(L, I1, I2);").
-
-:- interface.
-
+	"SUCCESS_INDICATOR = lua_rawequal(L, I1, I2);
+	L1 = L; ").
 
 
 
-:- pred push_value(lua_state::in, index::in, io::di, io::uo) is det.
-:- pred push_nil(lua_state::in, io::di, io::uo) is det.
-:- pred push_int(lua_state::in, int::in, io::di, io::uo) is det.
-:- pred push_float(lua_state::in, float::in, io::di, io::uo) is det.
-:- pred push_string(lua_state::in, string::in, io::di, io::uo) is det.
-:- pred push_bool(lua_state::in, bool::in, io::di, io::uo) is det.
-:- pred push_thread(lua_state::in, io::di, io::uo) is det.
-:- pred push_thread(lua_state::in, bool::out, io::di, io::uo) is det.
-:- pred push_c_function(lua_state::in, c_function::in, io::di, io::uo) is det.
-:- pred push_c_pointer(lua_state::in, c_pointer::in, io::di, io::uo) is det.
-:- pred push_lightuserdata(lua_state::in, lightuserdata::in, io::di, io::uo) 
+
+
+
+:- pred lua_push_value(lua::mdi, lua::muo, index::in) is det.
+:- pred lua_push_nil(lua::mdi, lua::muo) is det.
+:- pred lua_push_int(lua::mdi, lua::muo, int::in) is det.
+:- pred lua_push_float(lua::mdi, lua::muo, float::in) is det.
+:- pred lua_push_string(lua::mdi, lua::muo, string::in) is det.
+:- pred lua_push_bool(lua::mdi, lua::muo, bool::in) is det.
+:- pred lua_push_thread(lua::mdi, lua::muo) is det.
+:- pred lua_push_thread(lua::mdi, lua::muo, bool::out) is det.
+:- pred lua_push_c_function(lua::mdi, lua::muo, c_function::in) is det.
+:- pred lua_push_c_pointer(lua::mdi, lua::muo, c_pointer::in) is det.
+:- pred lua_push_lightuserdata(lua::mdi, lua::muo, lightuserdata::in) 
 	is det.
 
-:- implementation.
+
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
-:- pragma foreign_proc("C", push_value(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_value(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushvalue(L, (lua_Integer)T);").
+	"lua_pushvalue(L, (lua_Integer)T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_nil(L::in, I::di, O::uo), 
-	[promise_pure, will_not_call_mercury], "lua_pushnil(L);").
+:- pragma foreign_proc("C", lua_push_nil(L::di, L1::muo, I::di, O::uo), 
+	[promise_pure, will_not_call_mercury], "lua_pushnil(L);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_int(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_int(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushinteger(L, (lua_Integer)T);").
+	"lua_pushinteger(L, (lua_Integer)T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_int(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_int(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushinteger(L, (lua_Integer)T);").
+	"lua_pushinteger(L, (lua_Integer)T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_float(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_float(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushnumber(L, (lua_Number)T);").
+	"lua_pushnumber(L, (lua_Number)T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_string(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_string(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_push(L, T);").
+	"lua_push(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_bool(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_bool(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], "
 	if (T == MR_YES)
 		lua_pushboolean(L, 1);
@@ -193,159 +278,176 @@ get_top(L, !IO) = Top :- get_top(L, Top, !IO).
 		lua_pushboolean(L, 0);
 ").
 
-:- pragma foreign_proc("C", push_thread(L::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "lua_pushthread(L);").
+:- pragma foreign_proc("C", lua_push_thread(L::di, L1::muo), 
+	[promise_pure, will_not_call_mercury], "lua_pushthread(L);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_thread(L::in, B::out, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_thread(L::di, L1::muo, B::out), 
 	[promise_pure, will_not_call_mercury], "
 	if(lua_pushthread(L)
 		B = MR_YES;
 	else
 		B = MR_NO;
-;").
+;
+	L1 = L; ").
 
-:- pragma foreign_proc("C", push_c_function(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_push_c_function(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushcfunction(L, T);").
+	"lua_pushcfunction(L, T);
+	L1 = L; ").
 
-push_lightuserdata(L, T, !IO) :- push_c_function(L, T, !IO).
+lua_push_lightuserdata(L, T) :- push_c_function(L, T).
 
-:- interface.
 
-:- pred xmove(lua_state::in, lua_state::in, int::in, io::di, io::uo) is det.
+
+:- pred lua_xmove(lua::mdi, lua::muo, lua_state::in, int::in) is det.
+
+:- pragma foreign_proc("C", lua_xmove(L1::in, L2::in, N::in), 
+	[promise_pure, will_not_call_mercury], 
+	"lua_xmove(L1, L2, N);
+	L1 = L; ").
+
+
+:- pred lua_is_nil(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_number(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_string(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_boolean(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_table(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_function(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_c_function(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_thread(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_userdata(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_c_pointer(lua::mdi, lua::muo, int::in) is semidet.
+:- pred lua_is_lightuserdata(lua::mdi, lua::muo, int::in) is semidet.
 
 :- implementation.
 
-:- pragma foreign_proc("C", xmove(L1::in, L2::in, N::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_nil(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_xmove(L1, L2, N);").
+	"SUCCESS_INDICATOR = lua_isnil(L, T);
+	L1 = L; ").
 
-:- interface.
-
-
-:- pred is_nil(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_number(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_string(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_boolean(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_table(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_function(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_c_function(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_thread(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_userdata(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_c_pointer(lua_state::in, int::in, io::di, io::uo) is semidet.
-:- pred is_lightuserdata(lua_state::in, int::in, io::di, io::uo) is semidet.
-
-:- implementation.
-
-:- pragma foreign_proc("C", is_nil(L::in, T::in, _I::di, _O::uo),, 
+:- pragma foreign_proc("C", lua_is_number(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isnil(L, T);").
+	"SUCCESS_INDICATOR = lua_isnumber(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_number(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_string(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isnumber(L, T);").
+	"SUCCESS_INDICATOR = lua_isstring(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_string(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_boolean(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isstring(L, T);").
+	"SUCCESS_INDICATOR = lua_isboolean(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_boolean(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_function(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isboolean(L, T);").
+	"SUCCESS_INDICATOR = lua_isfunction(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_function(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_c_function(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isfunction(L, T);").
+	"SUCCESS_INDICATOR = lua_iscfunction(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_c_function(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_thread(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_iscfunction(L, T);").
+	"SUCCESS_INDICATOR = lua_isthread(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_thread(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_userdata(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isthread(L, T);").
+	"SUCCESS_INDICATOR = lua_isuserdata(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_userdata(L::in, T::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_is_c_pointer(L::di, L1::muo, T::in), 
 	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_isuserdata(L, T);").
+	"SUCCESS_INDICATOR = lua_is(L, T);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", is_c_pointer(L::in, T::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = lua_is(L, T);").
-
-is_lightuserdata(L, T, !IO) :- is_c_pointer(L, T, !IO);
+lua_is_lightuserdata(L, T) :- lua_is_c_pointer(L, T);
 
 
 
-:- interface.
 
-:- pred to_int(lua_state::in, index::in, int::out, io::di, io::uo) is semiddet.
-:- pred to_float(lua_state::in, index::in, float::out, io::di, io::uo) 
+
+:- pred lua_to_int(lua::mdi, lua::muo, index::in, int::out) is semiddet.
+:- pred lua_to_float(lua::mdi, lua::muo, index::in, float::out) 
 	is semiddet.
-:- pred to_string(lua_state::in, index::in, string::out, io::di, io::uo) 
+:- pred lua_to_string(lua::mdi, lua::muo, index::in, string::out) 
 	is semiddet.
-:- pred to_bool(lua_state::in, index::in, bool::out, io::di, io::uo) 
+:- pred lua_to_bool(lua::mdi, lua::muo, index::in, bool::out) 
 	is semiddet.
-:- pred to_thread(lua_state::in, index::in, lua_state::out, io::di, io::uo) 
+:- pred lua_to_thread(lua::mdi, lua::muo, index::in, lua_state::out) 
 	is semiddet.
-:- pred to_c_function(lua_state::in, index::in, c_function::out, io::di, io::uo) 
+:- pred lua_to_c_function(lua::mdi, lua::muo, index::in, c_function::out) 
 	is semiddet.
-:- pred to_c_pointer(lua_state::in, index::in, c_pointer::out, io::di, io::uo) 
+:- pred lua_to_c_pointer(lua::mdi, lua::muo, index::in, c_pointer::out) 
 	is semiddet.
-:- pred to_lightuserdata(lua_state::in, index::in, lightuserdata::out, io::di, 
+:- pred lua_to_lightuserdata(lua::mdi, lua::muo, index::in, lightuserdata::out, io::di, 
 	io::uo) is semiddet.
 
-:- implementation.
 
-to_int(L, Index, T, !IO) :- is_number(L, Index, !IO), 
-	to_int_unsafe(L, Index, T, !IO).
 
-:- pred to_int_unsafe(lua_state::in, int::in, int::out, io::di, io::uo) is det.
+lua_to_int(L, Index, T) :- lua_is_number(L, Index), 
+	lua_to_int_unsafe(L, Index, T).
 
-:- pragma foreign_proc("C", to_int_unsafe(L::in, N::in, T::out, _I::di, _O::uo),, 
+:- pred lua_to_int_unsafe(lua::mdi, lua::muo, int::in, int::out) is det.
+
+:- pragma foreign_proc("C", lua_to_int_unsafe(L::di, L1::muo, N::in, T::out), 
 	[promise_pure, will_not_call_mercury], 
-	"T = (MR_Integer)lua_tointeger(L, N);").
+	"T = (MR_Integer)lua_tointeger(L, N);
+	L1 = L; ").
 
-to_float(L, Index, T, !IO) :- is_number(L, Index, !IO), 
-	to_float_unsafe(L, Index, T, !IO).
+lua_to_float(L, Index, T) :- lua_is_number(L, Index), 
+	lua_to_float_unsafe(L, Index, T).
 
-:- pred to_float_unsafe(lua_state::in, int::in int::out, io::di, io::uo) is det.
+:- pred lua_to_float_unsafe(lua::mdi, lua::muo, int::in int::out) is det.
 
-:- pragma foreign_proc("C", to_float_unsafe(L::in, N::in, T::out, _I::di, _O::uo),, 
+:- pragma foreign_proc("C", lua_to_float_unsafe(L::di, L1::muo, N::in, T::out), 
 	[promise_pure, will_not_call_mercury], 
-	"T = (MR_Float)lua_tonumber(L, N);").
+	"T = (MR_Float)lua_tonumber(L, N);
+	L1 = L; ").
 
-:- pragma foreign_proc("C", to_string(L::in, N::in, T::out, _I::di, _O::uo),, 
+:- pragma foreign_proc("C", lua_to_string(L::di, L1::muo, N::in, T::out), 
 	[promise_pure, will_not_call_mercury], "
 	T = (MR_String)lua_tostring(L, N);
-	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;").
+	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;
+	L1 = L; ").
 
-:- pragma foreign_proc("C", to_bool(L::in, N::in, T::out, _I::di, _O::uo),, 
+:- pragma foreign_proc("C", lua_to_bool(L::di, L1::muo, N::in, T::out), 
 	[promise_pure, will_not_call_mercury], "
 	T = lua_toboolean(L, N);
-	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;").
+	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;
+	L1 = L; ").
 
-:- pragma foreign_proc("C", to_thread(L::in, N::in, T::out, _I::di, _O::uo),, 
+:- pragma foreign_proc("C", lua_to_thread(L::di, L1::muo, N::in, T::out), 
 	[promise_pure, will_not_call_mercury], "
 	T = lua_tothread(L, N);
-	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;").
+	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;
+	L1 = L; ").
 
-:- pragma foreign_proc("C", to_c_function(L::in, N::in, T::out, _I::di, _O::uo),, 
+:- pragma foreign_proc("C", lua_to_c_function(L::di, L1::muo, N::in, T::out), 
 	[promise_pure, will_not_call_mercury], "
 	T = lua_tocfunction(L, N);
-	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;").
+	if (T = NULL) SUCCESS_INDICATOR = 0; else SUCCESS_INDICATOR = 1;
+	L1 = L; ").
 
-to_c_pointer(L, Index, T, !IO) :- is_lightuserdata(L, Index, !IO), 
-	to_lightuserdata_unsafe(L, Index, T, !IO).
+lua_to_c_pointer(L, Index, T) :- lua_is_lightuserdata(L, Index), 
+	lua_to_lightuserdata_unsafe(L, Index, T).
 
-:- pred to_c_pointer_unsafe(lua_state::in, int::in, c_pointer::out, io::di, 
-	io::uo) is det.
+:- pred lua_to_c_pointer_unsafe(lua::mdi, lua::muo, int::in, c_pointer::out) 
+	is det.
 
-:- pragma foreign_proc("C", to_c_pointer_unsafe(L::in, N::in, T::out, 
-	_I::di, _O::uo), [promise_pure, will_not_call_mercury], 
-	"T = lua_touserdata(L, N);").
+:- pragma foreign_proc("C", 
+	lua_to_c_pointer_unsafe(L::di, L1::muo, N::in, T::out),
+	[promise_pure, will_not_call_mercury], 
+	"T = lua_touserdata(L, N);
+	L1 = L; ").
 
-to_lightuserdata(L, N, T, !IO) :- to_c_pointer_unsafe(L, N, T, !IO).
+lua_to_lightuserdata(L, N, T) :- lua_to_c_pointer_unsafe(L, N, T).
 
 
 
