@@ -72,10 +72,9 @@ Planned features:
 
 :- interface.
 
-:- include_module lua.state, lua.value, lua.table, lua.c_function, 
-	lua.function, lua.userdata, lua.module.
+:- include_module lua.int, lua.float, lua.bool, lua.string,
+	lua.state, lua.list, lua.map, lua.userdata.
 
-:- import_module io, int, float, bool, string, list, lua.value, lua.state.
 
 %%%%%%%%%%%%%	
 % Lua Types %
@@ -94,51 +93,85 @@ Planned features:
 	lightuserdata.
 	
 % Non-Lua values return the 'none' lua type.    
-:- func type_of(T) = lua_type is det.
-:- pred is_type(T::in, lua_type::in) is semidet.
+:- pred (T::in, lua_type::out) is det.
+:- func type(T) = lua_type is det.
 
-:- pred is_nil(T::in) is semidet.
+
+
+
+%%%%%%%%%%%%%%%%%
+% Lua Interface %
+%%%%%%%%%%%%%%%%%
+
+/* The lua type represents an individual value instantiated in Lua. */
+
+:- type lua.
+
+:- 
+
+
+
+:- pred new(lua::in, lua::uo)
+
+:- pred next(lua, lua).
+:- mode next(in, in) is semidet.
+:- mode next(in, out) is semidet.
+:- mode next(out, in) is semidet.
+
+
+:- func next(lua) = lua.
+:- mode next(in) = in is semidet.
+:- mode next(in) = out is semidet.
+:- mode next(out) = in is semidet.
+
+
+:- pred previous(lua, lua).
+:- mode previous(in, in) is semidet.
+:- mode previous(in, out) is semidet.
+:- mode previous(out, in) is semidet.
+
+
+:- func previous(lua) = lua.
+:- mode previous(in) = in is semidet.
+:- mode previous(in) = out is semidet.
+:- mode previous(out) = in is semidet.
+
+
+:- pred top(lua::in) is semidet.
+
+:- 
+
+:- func [ T | lua ] = lua.
+:- mode [ in | in ] = in is semidet.
+:- mode [ in | out ] = in is semidet.
+
 
 %%%%%%%%%%%%%%
 % Lua Values %
 %%%%%%%%%%%%%%
 
-% Typeclass defined in lua.value
 
+:- typeclass lua(T) where [ 
+	% push a value on the top of lua's stack, and then return it.
+	pred to_stack(T, lua),
+	mode to_stack(in, in) is det,
 
-
-%%%%%%%%%%%%%%%%%
-% Lua Variables %
-%%%%%%%%%%%%%%%%%
-
-% Represents a lua varaible 
-:- type lua_var --->
-
-	% Value constructors
-	nil ;
-	value(int) ;
-	value(float) ;
-	value(bool) ;
-	value(string) ;
-	some [T] (value(T) => lua_value(T))
-	ref(state::lua_state, index::index) 
-
-	where equality is var_equal, comparison is var_compare.
+	some [T] (func from_stack(lua) = T)),
+	mode from_stack(in) = out is det,
+	mode from_stack(in) = in is semidet ].
+	 
 	
-:- func value(T) = lua_var <= lua_value(T).
+:- instance lua(lua).
+
+:- pred get(lua, K, V) <= (lua(K), lua(V)).
+:- mode get(in, in, in) is semidet.
+:- mode get(in, in, out) is semidet.
+:- mode get(in, out, in) is nondet.
+:- mode get(in, out, out) is nondet.
 
 
-:- type index.
+:- pred set(lua, k
 
-
-% Does not trigger metamethods
-:- pred var_equal(lua_var, lua_var) is semidet.
-:- pred var_compare(comparison_result::uo, lua_var::in, lua_var::in) is det.
-
-
-%%%%%%%%%%%%%%%%%%%
-% Lua Metamethods %
-%%%%%%%%%%%%%%%%%%%
 
 
 
@@ -152,6 +185,8 @@ Planned features:
 %%%%%%%%%%%%%%%%%%
 :- implementation.
 %%%%%%%%%%%%%%%%%%
+
+:- import_module io.
 
 :- type io == io.state
 
@@ -217,6 +252,7 @@ int luaAP_init_apollo(lua_State * L) {
 	
 	lua_newtable(L);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+
 	
 	lua_pushboolean(L, 0);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
@@ -236,73 +272,175 @@ int luaAP_init_apollo(lua_State * L) {
 	return 0;
 }
 
-int luaAP
-
 ").	
-%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%
+% The Lua State %
+%%%%%%%%%%%%%%%%%
+
+
+:- type lua_state.
+:- pragma foreign_type("C", lua_state, "lua_State *").
+
+:- type c_function.
+:- pragma foreign_type("C", c_function, "lua_CFunction").
 
 :- type index == int.
 
 :- pred valid_index(lua_state::in, index::in, io::di, io::uo) is semidet.
 
-valid_index(L, I, !IO) = I = global ; I = registry ; valid_stack_index(L, I, !IO).
+valid_index(L, I, !IO) :- I = global ; I = registry ; valid_stack_index(L, I, !IO).
 
 :- pred valid_stack_index(lua_state::in, index::in, io::di, io::uo) is semidet.
 
-valid_stack_index(L, I, !IO) :- I \= 0 , abs(I) =< get_top(L, !IO) .
+valid_stack_index(L, I, !IO) :- I \= 0 , abs(I) =< get_top(L, !IO).
 
 
 %%%%%%%%%%%%%	
 % Lua Types %
 %%%%%%%%%%%%%
 
-type_of(V) = Type :- 
-	V = ref(L, I) , Type = get_type(L, I, !IO) ; 
-	Type = none.
+% TODO type(V) = Type
+
+%%%%%%%%%%%%%%
+% Lua Values %
+%%%%%%%%%%%%%%
+
+:- typeclass lua(T) where [ 
+	% push a value on the top of lua's stack, and then return it.
+	pred to_stack(T, lua_state, lua_state),
+	mode to_stack(in, mdi, muo) is det,
+
+	some [T] (pred from_stack(int, T, lua_state, lua_state)),
+	mode from_stack(in, out, mdi, muo) is det,
+	mode from_stack(in, in, mdi, muo) is semidet ].
 	
-is_type(T, type_of(T)).
+:- type lua --->
 
-is_nil(T) :- type_of(T) = nil.
-
-
-%%%%%%%%%%%%%%%%%
-% Lua Refrences %
-%%%%%%%%%%%%%%%%%
-
-:- func global = index is det.
-
-:- pragma foreign_proc("C", global_index = I::out, 
-	[will_not_call_mercury, promise_pure],
-	"I = LUA_GLOBALINDEX;").
-	
-:- func registry = index is det.
-
-:- pragma foreign_proc("C", registry_index = I::out, 
-	[will_not_call_mercury, promise_pure],
-	"I = LUA_REGISTRYINDEX;").
+	stack(lua_state, index) ;
+	key(lua, lua) ;
+	global(lua_state, string) ;
+	registry(lua_state, string) ;
+	scope(lua_state, index) ;
+	ref(lua_state, index, int) ;
+	upvalue(lua_state, int) ;
 	
 
-%%%%%%%%%%%%%%%%%
-% Lua Variables %
-%%%%%%%%%%%%%%%%%
-
-:- type lua_var ---> ref(state::lua_state, index::index).
+%%%%%%%%%%%%%
+% Refrences %
+%%%%%%%%%%%%%
 
 
+%%%%%%%%%%%%
+% Trailing %
+%%%%%%%%%%%%
 
-:- instance lua_value(lua_var) where [
-	( push(L, Var, !IO) :- 
-		Var = ref(L1, I) , 
-		L = L1 -> push_value(L, I, !IO) ;
-			check_stack(L1, 1, !IO) ,
-			push_value(L1, I, !IO) ,
-			xmove(L1, L, 1, !IO)
-	),
+
+:- pragma require_feature_set([trailing]).
+
+
+:- pred locked(lua_state::in) is semidet.		
+:- pred locked(lua_state::in, lua_state::out) is semidet.
+
+ locked(L, L) :- locked(L).
+
+
+:- pragma foreign_proc("C", locked(L::in), 
+	[will_not_call_mercury, promise_pure], "
+	lua_checkstack(L, 1);
+	lua_getfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+	SUCCESS_INDICATOR = lua_toboolean(L, -1);
+	lua_pop(L, 1);").
+
+:- pred lock(lua::in, lua::muo) is det.
+
+:- pragma foreign_proc("C", lock(L::in, L1::out), 
+	[will_not_call_mercury, promise_pure], "
+	lua_pushboolean(L, 1);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+	L1 = L;
+").
+
+:- pred unlock(lua::mdi, lua::out) is det.
+
+:- pragma foreign_proc("C", unlock(L::mdi, L1::out), 
+	[will_not_call_mercury, promise_pure], "
+	lua_pushboolean(L, 0);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+	L1 = L;
+").
+
+:- pred unlock(lua::mdi) is det.
+
+unlock(L) :- unlock(L, _).
+
+:- pred choicepoint(lua::mdi, lua::muo) is det.
+
+:- pragma foreign_proc("C", choicepoint(L::mdi, L1::muo), 
+	[will_not_call_mercury, promise_pure], "
+	luaAP_choicepoint(L);
+	L1 = L;
+").
+
+:- pragma foreign_decl("C", "
+
+	typedef struct lua_Trail {
+		lua_State * L;
+		int top;
+		int ref;
+		} lua_Trail;
+
+	void luaAP_choicepoint(lua_State *, int);
+
+	void luaAP_untrail(lua_Trail *, MR_untrail_reason); 
+").
+
+:- pragma foreign_code("C", "
+
+	void luaAP_choicepoint(lua_State * L, int ref);
+	{
+		lua_Trail * t = malloc(sizeof(lua_Trail));
+		t.L = L;
+		t->ref = ref;
+		t->top = lua_gettop(L);
 		
-	( pull(L, I, !IO) = Var :- valid_index(L, I, !IO) , Var = ref(L, I) )
-].
+		MR_trail_function(luaAP_untrail, t);
+	}
 
-value(Var) = 
+	void luaAP_untrail(lua_Trail * t,
+        MR_untrail_reason reason)
+    {
+
+        switch(reason) 
+        {
+            case MR_undo:       /* Fall through. */
+            case MR_exception:  /* Fall through. */
+            case MR_retry:
+                lua_State L = t.L;
+       			int old = trail->top;
+				int top = lua_gettop(L);
+				if (old > top)
+					MR_fatal_error(
+	""Found more values on the Lua stack on backtrack than should be there."");
+				
+				if (old < top);
+				lua_settop(L, old);
+				
+				
+
+                
+                break;
+
+            case MR_solve:  /* Fall through */
+            case MR_commit: 
+                break;
+
+            default:
+                MR_fatal_error(""lua.state.m: unknown MR_untrail_reason"");
+        }
+    }
+").
+
 
 
 
