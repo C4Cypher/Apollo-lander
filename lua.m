@@ -78,6 +78,8 @@ Planned features:
 :- import_module bool.
 :- import_module string.
 :- import_module list.
+:- import_module assoc_list.
+:- import_module univ.
 
 :- pred init_lua(lua_state::in, io::di, io::uo).
 
@@ -164,26 +166,37 @@ Planned features:
 
 :- type table.
 
-:- pred get(table, lua_var, lua_var).
-:- mode get(table, in, in) is semidet.
+:- pred get(table, T, lua_var).
+:- mode get(in, in, in) is semidet.
 :- mode get(in, in, out) is det.
 :- mode get(in, out, in) is nondet.
 :- mode get(in, out, out) is nondet.
 
-:- func get(table, lua_var) = lua_var.
+:- func get(table, T) = lua_var.
 :- mode get(in, in) = in is semidet.
-:- mode get(in, in) = out is det.
-:- mode get(in, out) = in is nondet.
-:- mode get(in, out) = out is nondet.
+:- mode get(in, out) = out is det.
+:- mode get(out, in) = in is nondet.
+:- mode get(out, out) = out is nondet.
 
-:- func table ^ lua_var = lua_var.
+:- pred get(table, table, T, lua_var).
+:- mode get(di, uo, in, in) is semidet.
+:- mode get(di, uo, in, out) is det.
+:- mode get(di, uo, out, in) is nondet.
+:- mode get(di, uo, out, out) is nondet.
+
+:- func get(table, table, T) = lua_var.
+:- mode get(di, uo, in) = in is semidet.
+:- mode get(di, uo, in) = out is det.
+:- mode get(di, uo, out) = in is nondet.
+:- mode get(di, uo, out) = out is nondet.
+
+
+:- func table ^ T = lua_var.
 :- mode in ^ in = in is semidet.
 :- mode in ^ in = out is det.
 :- mode in ^ out = in is nondet.
 :- mode in ^ out = out is nondet.
 
-:- pred metatable(lua_var::in, table::out) is semidet.
-:- func metatable(lua_var) = table is semidet.
 
 :- pred new_table(lua_state, table::uo) is det.
 :- func new_table(lua_state) = (table::uo) is det.
@@ -191,10 +204,7 @@ Planned features:
 :- pred set(table::di, table::uo, lua_var::in) is semidet.
 :- func set(table::di, lua_var::in) = (table::uo) is semidet.
 
-:- func (table::di ^ lua_var::in := lua_var::in) = (table::uo) is semidet.
-
-:- pred set_metatable(lua_var::di, lua_var::uo, table::in) is semidet.
-:- func set_metatable(lua_var::di, lua_var::uo) = (table::out) is semidet.
+:- func (table::di ^ T::in := lua_var::in) = (table::uo) is semidet.
 
 :- pred lock_table(table::di, table::out) is det.
 :- func lock_table(table::di) = (table::out) is det.
@@ -205,7 +215,29 @@ Planned features:
 % Lua Userdata %
 %%%%%%%%%%%%%%%%
 
+:- typeclass userdata(T) where [
+	pred ud_name(T, string),
+	mode ud_name(in, in) is semidet,
+	mode ud_name(in, out) is semidet,
+	mode ud_name(out, in) is det,
+	mode ud_name(unused, out) is nondet,
+	
+	pred metatable(string, table),
+	mode metatable(in, out) is det,
+	
+].
+
+	
+
 :- type userdata.
+
+:- func userdata(T) = userdata.
+:- func some [T] some_value(userdata) = T.
+:- func value_of(userdata) = T is semidet.
+
+:- instance userdata(userdata).
+
+:- instance userdata(univ).
 
 
 %%%%%%%%%%%%%%%%%%
