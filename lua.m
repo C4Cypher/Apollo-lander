@@ -72,136 +72,54 @@ Planned features:
 
 :- interface.
 
-
-%%%%%%%%%%%%%%
-% Lua Values %
-%%%%%%%%%%%%%%
-
-:- type nil ---> nil.
-
+:- import_module io.
 :- import_module int.
-
 :- import_module float.
-
 :- import_module bool.
-
 :- import_module string.
+:- import_module list.
 
-:- type table.
+:- pred init_lua(lua_state::in, io::di, io::uo).
 
-:- type function.
+:- pred export_module(lua_state::in, string::in, lua_var::in, io::di, io::uo) is det.
+:- pred export_module_loader(lua_state::in, string::in, function::in, io::di, io::uo) is det.
 
-:- type c_function.
-
-:- type lua_state.
-
-:- type userdata.
 
 %%%%%%%%%%%%%%%%%
 % Lua variables %
 %%%%%%%%%%%%%%%%%
 
-:- type lua_var.
-
-:- pred is_nil(lua_var::in) is semidet.
-:- pred to_nil(lua_var::di) is det.
-:- pred to_nil(lua_var::di, lua_var::out) is det.
-:- func to_nil(lua_var::di) = (nil::in) is det.
-:- func nil(lua_var) = nil is semidet.
-
-:- pred is_int(lua_var::in) is semidet.
-:- pred to_int(lua_var::di, int::in) is det.
-:- pred to_int(lua_var::di, lua_var::out, int::in) is det.
-:- func to_int(lua_var::di, int::in) = (lua_var::out) is det.
-:- pred int(lua_var::in, int::out) is semidet.
-:- func int(lua_var) = int is semidet.
-
-:- pred is_float(lua_var::in) is semidet.
-:- pred to_float(lua_var::di, float::in) is det.
-:- pred to_float(lua_var::di, lua_var::out, float::in) is det.
-:- func to_float(lua_var::di, float::in) = (lua_var::out) is det.
-:- pred float(lua_var::in, float::out) is semidet.
-:- func float(lua_var) = float is semidet.
-
-:- pred is_bool(lua_var::in) is semidet.
-:- pred to_bool(lua_var::di, bool::in) is det.
-:- pred to_bool(lua_var::di, lua_var::out, bool::in) is det.
-:- func to_bool(lua_var::di, bool::in) = (lua_var::out) is det.
-:- pred bool(lua_var::in, bool::out) is semidet.
-:- func bool(lua_var) = bool is semidet.
-
-:- pred is_string(lua_var::in) is semidet.
-:- pred to_string(lua_var::di, string::in) is det.
-:- pred to_string(lua_var::di, lua_var::out, string::in) is det.
-:- func to_string(lua_var::di, lua_string::in) = (lua_var::out) is det.
-:- pred string(lua_var::in, string::out) is semidet.
-:- func string(lua_var) = string is semidet.
-
-:- pred is_table(lua_var::in) is semidet.
-:- pred to_table(lua_var, table).
-:- mode to_table(di, in) is det.
-:- mode to_table(di, di) is det.
-:- func to_table(lua_var) = table.
-:- mode to_table(di) = in is det.
-:- mode to_table(di) = di is det.
-:- func table(lua_var) = table is semidet.
+:- type lua_var
+	--->	nil
+	;	number(int)
+	;	number(float)
+	;	number(number)
+	;	bool(bool)
+	;	string(string)
+	;	table(table)
+	;	function(function)
+	;	function(c_function)
+	;	thread(lua_state)
+	;	userdata(c_pointer)
+	;	userdata(T)
+	;	userdata(userdata)
+	where equality is raw_equal.
+	
+:- pred raw_equal(lua_var::in, lua_var::in) is semidet.
 
 
-:- pred is_function(lua_var::in) is semidet.
-:- pred to_function(lua_var::di, function::in) is det.
-:- pred to_function(lua_var::di, lua_var::out, function::in) is det.
-:- func to_function(lua_var::di) = (lua_var::out) is det.
-:- pred function(lua_var::in, function::out) is semidet.
-:- func function(lua_var) = function is semidet.
+:- type number.
 
-:- pred is_c_function(lua_var::in) is semidet.
-:- pred to_c_function(lua_var::di, c_function::in) is det.
-:- pred to_c_function(lua_var::di, c_function::in) is det.
-:- func to_c_function(lua_var::di) = (lua_var::out) is det.
-:- pred c_function(lua_var::in, c_function::out) is semidet.
-:- func c_function(lua_var) = c_function is semidet.
-
-:- pred is_lua_state(lua_var::in) is semidet.
-:- pred to_lua_state(lua_var::di, lua_state::in) is det.
-:- pred to_lua_state(lua_var::di, lua_state::in) is det.
-:- func to_lua_state(lua_var::di) = (lua_var::out) is det.
-:- pred lua_state(lua_var::in, lua_state::out) is semidet.
-:- func lua_state(lua_var) = lua_state is semidet.
-
-:- pred is_userdata(lua_var::in) is semidet.
-:- pred to_userdata(lua_var::di, userdata::in) is det.
-:- pred to_userdata(lua_var::di, userdata::in) is det.
-:- func to_userdata(lua_var::di) = (lua_var::out) is det.
-:- pred userdata(lua_var::in, userdata::out) is semidet.
-:- func userdata(lua_var) = userdata is semidet.
-
-:- pred is_c_pointer(lua_var::in) is semidet.
-:- pred to_c_pointer(lua_var::di, c_pointer::in) is det.
-:- pred to_c_pointer(lua_var::di, c_pointer::in) is det.
-:- func to_c_pointer(lua_var::di) = (lua_var::out) is det.
-:- pred c_pointer(lua_var::in, c_pointer::out) is semidet.
-:- func c_pointer(lua_var) = c_pointer is semidet.
-
-:- import_module type_desc.
-
-:- pred is_a(lua_var::in, type_desc::in) is semidet.
-:- pred to(lua_var::di, T::in) is det <= metatable(T).
-:- pred to(lua_var::di, T::in) is det <= metatable(T).
-:- func to(lua_var::di) = (lua_var::out) is det <= metatable(T).
-:- pred from(lua_var::in, T::out) is semidet <= metatable(T).
-:- func from(lua_var) = T is semidet <= metatable(T).
 
 %%%%%%%%%%%%%%%%%
 % Lua Functions *
 %%%%%%%%%%%%%%%%%
 
-:- import_module io.
+:- type lua_state.
 
-:- type io_passing == pred(io, io).
-:- inst io_passing == bound(pred(di, uo) is det).
+:- type function.
 
-:- type lua_call == pred(lua_state).
-:- inst lua_call bound(pred(in) is det).
+:- type c_function.
 
 :- type lua_result
 	--->	ok
@@ -216,37 +134,80 @@ Planned features:
 :- pred load_string(string::in, function::out, lua_result::out) is det.
 :- pred load_file(string::in, function::out, lua_result::out) is det.
 
-:- pred make_call(pred(lua::in) is det, function::out) is det.
-:- pred make_function(
-	pred(
-		list(lua_var)::in,
-		in(func = (lua_var::uo) is semidet),
-		list(lua_var)::out
-	) is det.
+:- func export_pred(pred(lua_state, list(lua_var)) = function.
+:- mode export_pred(pred(in, out) is det) = out is det.
+:- mode export_pred(pred(in, out) is semidet) = out is det.
+% :- mode export_pred(pred(in, out) is multi) = out is det.
+% :- mode export_pred(pred(in, out) is nondet) = out is det.
 
-:- pred args(lua_state::in, list(lua_var)::out) is det.
-:- func args(lua_state) = list(lua_var).
+:- func export_io_pred(pred(lua_state, list(lua_var), io, io) = function.
+:- mode export_io_pred(pred(in, out, di, uo) is det) = out is det.
+:- mode export_io_pred(pred(in, out, di, uo) is semidet) = out is det.
+% :- mode export_io_pred(pred(in, out) is multi) = out is det.
+% :- mode export_io_pred(pred(in, out) is nondet) = out is det.
 
-:- pred return(lua_state, lua_var).
-:- mode return(in, in) is semidet.
-:- mode return(in, uo) is semidet.
-:- pred return(lua_state, lua_var, io, io).
-:- mode return(in, in, di, uo) is det.
-:- mode return(in, uo, di, uo) is det. 
 
+:- type args.
+
+:- pred args(lua_state::in, args::out) is semidet.
+:- func args(lua_state) = args is semidet.
+
+:- pred next_arg(args::in, args::out, lua_var::out) is semidet.
+:- pred next_arg(args::in, args::out) = (lua_var::out) is semidet.
+
+:- pred list_args(lua_state::in, list(lua_var)::out) is det.
+:- func list_args(lua_state) = list(lua_var).
 
 %%%%%%%%%%%%%%
 % Lua Tables %
 %%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%
-% Lua Metamethods %
-%%%%%%%%%%%%%%%%%%%
+:- type table.
 
-:- typeclass metatable(T) where [].
+:- pred get(table, lua_var, lua_var).
+:- mode get(table, in, in) is semidet.
+:- mode get(in, in, out) is det.
+:- mode get(in, out, in) is nondet.
+:- mode get(in, out, out) is nondet.
 
-:- pred index(T::in, 
-    
+:- func get(table, lua_var) = lua_var.
+:- mode get(in, in) = in is semidet.
+:- mode get(in, in) = out is det.
+:- mode get(in, out) = in is nondet.
+:- mode get(in, out) = out is nondet.
+
+:- func table ^ lua_var = lua_var.
+:- mode in ^ in = in is semidet.
+:- mode in ^ in = out is det.
+:- mode in ^ out = in is nondet.
+:- mode in ^ out = out is nondet.
+
+:- pred metatable(lua_var::in, table::out) is semidet.
+:- func metatable(lua_var) = table is semidet.
+
+:- pred new_table(lua_state, table::uo) is det.
+:- func new_table(lua_state) = (table::uo) is det.
+
+:- pred set(table::di, table::uo, lua_var::in) is semidet.
+:- func set(table::di, lua_var::in) = (table::uo) is semidet.
+
+:- func (table::di ^ lua_var::in := lua_var::in) = (table::uo) is semidet.
+
+:- pred set_metatable(lua_var::di, lua_var::uo, table::in) is semidet.
+:- func set_metatable(lua_var::di, lua_var::uo) = (table::out) is semidet.
+
+:- pred lock_table(table::di, table::out) is det.
+:- func lock_table(table::di) = (table::out) is det.
+
+
+
+%%%%%%%%%%%%%%%%
+% Lua Userdata %
+%%%%%%%%%%%%%%%%
+
+:- type userdata.
+
+
 %%%%%%%%%%%%%%%%%%
 :- implementation.
 %%%%%%%%%%%%%%%%%%
@@ -262,11 +223,7 @@ Planned features:
 
 :- type lua_ref ---> ref(lua_state, int).
 
-:- type lua_primitive
-	--->	value(int)
-	;	value(float)
-	;	value(bool)	
-	;	value(string).
+
 
 :- type lua_type 
 	--->	none
