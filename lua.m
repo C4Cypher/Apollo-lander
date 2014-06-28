@@ -1,74 +1,19 @@
+%-----------------------------------------------------------------------------%
+% vim: ft=mercury
+%-----------------------------------------------------------------------------%
+% Copyright (C) 2014 Charlie H. McGee IV.
+% This file may only be copied under the terms of the GNU Library General
+% Public License - see the file COPYING.LIB in the Mercury distribution.
+%-----------------------------------------------------------------------------%
+% 
+% File: lua.m.
+% Main author: C4Cypher.
+% Stability: low.
+% 
+%-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+
 :- module lua.
-
-/*
-%% lua.m - Apollo-lander
-
-Mercury is a purely declarative logic language. It is related to both Prolog and
-Haskell.[1] It features a strong, static, polymorphic type system, as well as a
-strong mode and determinism system.
-
-Apollo, the ancient Greek name for the planet Mercury, when observed just before
-dawn as a morning star
-
-The Apollo spacecraft was composed of three parts designed to accomplish the 
-American Apollo program's goal of landing astronauts on the Moon by the end of 
-the 1960s and returning them safely to Earth.
-
-Lua - A lightweight programming language with dynamic typing.
-From the Portuguese lua (“moon”). The inventors of the language were Brazilian.
-
-%%----------------------------------------------------------------------------%%
-
-This library is intended to provide a simple, easy to use interface between the
-Mercury functional/logic compiled programming language and the Lua Virtual 
-Machine in such a manner that it preserves the advantages of both environments.
-
-Mercury and Lua are vastly different programming languages.  
-
-Mercury is derived from Prolog, yet it is strongly-typed, functionally pure 
-language that is compiled to C and then to native binary code. Any imperitive 
-changes to the program state must be threaded through a state variable to 
-preserve purity, or otherwise explicitly marked so that it can be handled safely
-by the compiler.  The logical and functional purity of Mercury allow it's
-compiler to perform exstensive optimization, and to catch potential problems at
-compile-time that other languages would let through.
-
-Lua is an imperitave dynamically-typed scripting language that is compiled to 
-mid-level bytecode in realtime so that the interpreter (referred to as the Lua 
-Virtual Machine) can execute Lua scripts on the fly.  The only native data 
-structure is an efficiently implented hash-table.  Functions are treated as 
-first-class variables, and Lua has an exstensive C-API that easily handles 
-foreign data making it easy to bind to foreign code. This, coupled with the fact
-that it is small and very fast makes it a superb choice for an embedded 
-scripting language, or as glue-code between different environments.
-
-Lua may not be the best choice for embedding in a Mercury program, it's
-imperitive nature and the maleability of it's code would sacrifice much of the
-advantage offered by Mercury's purity.  However, in order to interact with the
-real world, Mercury provides language constructs for interacting with mutable
-state that can be clunky and akward.
-
-Apollo-lander is intended to allow Lua code to make calls on Mercury predicates
-in a controlled manner, allowing Mercury to query the state of the Lua VM
-without modifying it, and then returning values back to Lua in a manner that
-capitalizes on Lua's capability to use varadic function calls and return values.
-
-Lua functions may be called from Mercury, but only if the function in question
-originated in a controlled manner from the Apollo interface.  Lua functions
-passed as arguments to Mercury should be opaque, either passed back in return
-values.
-
-Planned features:
-	-Allow outside coders to define additional types that can be easily
-		passed to Lua as return values, using either userdata,
-		metatables and/or Lua's existing primitive types, without
-		compromising type-safety or having to resort to the Lua API.
-	-Allow Lua to make calls on non-deterministic predicates via iterators
-		and Mercury multithreading.
-	-Initial support is for Lua 5.1, eventual support for Lua 5.2
-	-Support for Lua coroutines
-
-*/
 
 :- interface.
 
@@ -81,134 +26,192 @@ Planned features:
 :- import_module assoc_list.
 :- import_module univ.
 
-:- pred init_lua(lua_state::in, io::di, io::uo).
-
-:- pred export_module(lua_state::in, string::in, lua_var::in, io::di, io::uo) is det.
-:- pred export_module_loader(lua_state::in, string::in, function::in, io::di, io::uo) is det.
-
-
-%%%%%%%%%%%%%%%%%
-% Lua variables %
-%%%%%%%%%%%%%%%%%
-
-:- type lua_var
-	--->	nil
-	;	number(int)
-	;	number(float)
-	;	number(number)
-	;	bool(bool)
-	;	string(string)
-	;	table(table)
-	;	function(function)
-	;	function(c_function)
-	;	thread(lua_state)
-	;	userdata(c_pointer)
-	;	userdata(T)
-	;	userdata(userdata)
-	where equality is raw_equal.
-	
-:- pred raw_equal(lua_var::in, lua_var::in) is semidet.
-
-
-:- type number.
-
-
-%%%%%%%%%%%%%%%%%
-% Lua Functions *
-%%%%%%%%%%%%%%%%%
-
+	% Represents the state of Lua, this is passed to and from C as 
+	% a lua_State *
+	%
 :- type lua_state.
 
-:- type function.
+	% Prepares a lua_State for interaction with Mercury
+	%
+:- pred init_lua(lua_state::in, io::di, io::uo).
 
+	% Passes a value to a lua_State's module loaders under the 
+	% given string name
+	%
+:- pred export_module(lua_state::in, string::in, T::in, io::di, io::uo) is det.
+
+	% Represents a refrence to a variable instantiated in Lua.
+	%
+:- type lua_var.
+
+	% Through the Lua State, a mercury value can be passed as the value 
+	% to a new lua_var.  int, float, bool, string and c_pointer are passed
+	% by value, while other types are passed by refrence.
+	% Example:  L ^ var(3) = Var
+	%
+:- pred var(lua_state, T, lua_var).
+:- mode var(in, in, in) is semidet.
+:- mode var(in, in, out) is det.
+:- mode var(in, out, in) is semidet.
+
+:- func var(lua_state, T) = lua_var.
+:- mode var(in, in) = (in) is semidet.
+:- mode var(in, in) = (out) is det.
+:- mode var(in, out) = (in) is semidet. 	
+
+	% In Lua, variables are not typed, values are.  Lua recognizes eight
+	% types.
+	%
+	% 'nil' represents the abscence of value. 
+	% 'number' is equivalent to float type.
+	% 'boolean' is equivalent to the bool type.
+	% 'string' is equivalent to the string type.
+	%
+	% 'table', a refrence to an associative array, used for lists and maps.
+	%	Unlike an assoc_list, a Lua table may not associate more than
+	%	one value with any given key, and thus, behaves more like the
+	% 	Mercury map type.
+	% 
+	% 'function' is a refrence to a Lua function, which are impure, 
+	%       may have a variable number of arguments, multiple return
+	%	values and can be passed freely like any other variable.
+	%
+	% 'userdata' is lua's type for handling foreign data, unless otherwise
+	%	noted, values stored as userdata are subject to collection by 		% 	Lua's Garbage Collector.
+	%
+	% 'lightuserdata' is seen in Lua as identical to userdata, but contains
+	%	a C pointer which will not be collected by Lua's GC.
+	%
+	% 'thread' is a lua_state, usually a coroutine, note that the main
+	% lua_state should not be treated like a coroutine.
+:- type lua_type 
+	--->	none
+	;	nil
+	;	boolean
+	;	lightuserdata
+	;	number
+	;	string
+	;	table
+	;	function
+	;	userdata
+	;	lightuserdata
+	;	thread.
+
+:- pred type(lua_var::in, lua_type::out)
+:- func type(lua_var) = nil.
+
+	% syntatic sugar for testing Lua variables against nil.
+	%
+:- func nil = (lua_var::in) is semidet.
+
+	% A typedef containing the signature for a C function pointer that may
+	% be passed to Lua as a Lua function
+	%
 :- type c_function.
 
-:- type lua_result
-	--->	ok
-	;	error(message::string, code::lua_error_code).
+	% Type to be thrown if Lua throws an error while interacting with
+	% Mercury.
+	%
+:- type lua_error ---> error(message::string, code::lua_error_code).
 
+	% 'runtime' represents a standard runtime error.
+	% 'memory' represents a memory allocation error.
+	% 'error' represents an error called while trying to handle an
+	%	error.
+	% 
 :- type lua_error_code
 	--->	runtime
 	;	memory
 	;	error.
 
+	% Accepts a string of Lua source code that is dynamically compiled
+	% into a Lua Function.  This function may not refrence any upvalues
+	% or global variables.
+	%
+:- pred load_string(lua_state::in, string::in, lua_var::out) is semidet.
+:- func load_string(lua_state, string) = lua_var is semidet.
 
-:- pred load_string(string::in, function::out, lua_result::out) is det.
-:- pred load_file(string::in, function::out, lua_result::out) is det.
+%TODO: Implement a version of load_string that accepts a 
+% string_builder or stream
 
-:- func export_pred(pred(lua_state, list(lua_var)) = function.
-:- mode export_pred(pred(in, out) is det) = out is det.
-:- mode export_pred(pred(in, out) is semidet) = out is det.
-% :- mode export_pred(pred(in, out) is multi) = out is det.
-% :- mode export_pred(pred(in, out) is nondet) = out is det.
+	% Pass a higher order call to Lua that may be called as a function.
+	%
+:- func export_pred(pred(lua_state, list(lua_var))) = function.
+:- mode export_pred(pred(in, out) is det) = (out) is det.
+:- mode export_pred(pred(in, out) is semidet) = (out) is det.
+% :- mode export_pred(pred(in, out) is multi) = (out) is det.
+% :- mode export_pred(pred(in, out) is nondet) = (out) is det.
 
-:- func export_io_pred(pred(lua_state, list(lua_var), io, io) = function.
-:- mode export_io_pred(pred(in, out, di, uo) is det) = out is det.
-:- mode export_io_pred(pred(in, out, di, uo) is semidet) = out is det.
-% :- mode export_io_pred(pred(in, out) is multi) = out is det.
-% :- mode export_io_pred(pred(in, out) is nondet) = out is det.
+	% The same as above, but with 
+:- func export_io_pred(pred(lua_state, list(lua_var), io, io)) = function.
+:- mode export_io_pred(pred(in, out, di, uo) is det) = (out) is det.
+:- mode export_io_pred(pred(in, out, di, uo) is semidet) = (out) is det.
+% :- mode export_io_pred(pred(in, out) is multi) = (out) is det.
+% :- mode export_io_pred(pred(in, out) is nondet) = (out) is det.
 
-
+	% For collecting arguments passed from Lua to Mercury in a 
+	% function call.
+	%
 :- type args.
 
 :- pred args(lua_state::in, args::out) is semidet.
 :- func args(lua_state) = args is semidet.
 
-:- pred next_arg(args::in, args::out, lua_var::out) is semidet.
-:- pred next_arg(args::in, args::out) = (lua_var::out) is semidet.
+:- pred arg(args::in, args::out, T::out) is semidet.
+:- func arg(args::in, args::out) = (T::out) is semidet.
 
+	% An alternative method
+	%
 :- pred list_args(lua_state::in, list(lua_var)::out) is det.
 :- func list_args(lua_state) = list(lua_var).
 
-%%%%%%%%%%%%%%
-% Lua Tables %
-%%%%%%%%%%%%%%
 
-:- type table.
-
-:- pred get(table, T, lua_var).
+	% Extract values from tables (without calling metamethods), note that
+	% for the det mode, the function will return nil if the key does not 
+	% exist. If the variable is not a table, the call will always fail
+	% or return nil.
+:- pred get(lua_var, K, lua_var).
 :- mode get(in, in, in) is semidet.
 :- mode get(in, in, out) is det.
 :- mode get(in, out, in) is nondet.
 :- mode get(in, out, out) is nondet.
 
-:- func get(table, T) = lua_var.
+:- func get(lua_var, K) = lua_var.
 :- mode get(in, in) = in is semidet.
 :- mode get(in, out) = out is det.
 :- mode get(out, in) = in is nondet.
 :- mode get(out, out) = out is nondet.
 
-:- pred get(table, table, T, lua_var).
-:- mode get(di, uo, in, in) is semidet.
-:- mode get(di, uo, in, out) is det.
-:- mode get(di, uo, out, in) is nondet.
-:- mode get(di, uo, out, out) is nondet.
-
-:- func get(table, table, T) = lua_var.
-:- mode get(di, uo, in) = in is semidet.
-:- mode get(di, uo, in) = out is det.
-:- mode get(di, uo, out) = in is nondet.
-:- mode get(di, uo, out) = out is nondet.
-
-
-:- func table ^ T = lua_var.
+:- func lua_var ^ T = lua_var.
 :- mode in ^ in = in is semidet.
 :- mode in ^ in = out is det.
 :- mode in ^ out = in is nondet.
 :- mode in ^ out = out is nondet.
 
 
-:- pred new_table(lua_state, table::uo) is det.
-:- func new_table(lua_state) = (table::uo) is det.
 
-:- pred set(table::di, table::uo, lua_var::in) is semidet.
-:- func set(table::di, lua_var::in) = (table::uo) is semidet.
+	% Lua table construction:
+	% { value, value, value } or
+	% { [key] = value, [key] = value, [key] = value } or
+	% { value, value, value, [key] = value, [key] = value }
+	% Note that any values added without the benefit of a key are indexed
+	% by integral value starting at 1.
+	%
+:- type table_constructor
+	---> 	{ }
+	;	{ { _ } }	
+	;	{ { table_array_constructor } }
+	;	{ { table_hash_constructor } }.
 
-:- func (table::di ^ T::in := lua_var::in) = (table::uo) is semidet.
+:- type table_arracy_constructor
+	---> 	_ , table_array_constructor
+	;	_ , table_hash_constructor.
 
-:- pred lock_table(table::di, table::out) is det.
-:- func lock_table(table::di) = (table::out) is det.
+:- type table_key_constructor ---> [ _ ]
 
+:- type table_hash_constructor
+	--->	table_key_constructor = _
+	; 	table_hash_constructor , table_hash_constructor.	
 
 
 %%%%%%%%%%%%%%%%
@@ -244,7 +247,7 @@ Planned features:
 :- implementation.
 %%%%%%%%%%%%%%%%%%
 
-:- pragma foreign_decl("C", "
+:- pragma foreign_decl("C", "//c
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -257,20 +260,10 @@ Planned features:
 
 
 
-:- type lua_type 
-	--->	none
-	;	nil
-	;	boolean
-	;	lightuserdata
-	;	number
-	;	string
-	;	table
-	;	function
-	;	userdata
-	;	lightuserdata.
+
 
 :- pragma foreign_enum("C", lua_type, [
-	none - LUA_TNONE,
+	none - "LUA_TNONE",
 	nil - "LUA_TNIL",
 	boolean - "LUA_TBOOLEAN",
 	lightuserdata - "LUA_TLIGHTUSERDATA",
@@ -456,4 +449,4 @@ get_table(L, I, !M, !IO) :-
 	
 
 
-    
+

@@ -242,7 +242,7 @@ unlock(L) :- unlock(L, _).
 	void luaAP_untrail(lua_Trail *, MR_untrail_reason); 
 ").
 
-:- pragma foreign_code("C", "
+:- pragma foreign_code("C", "//c
 
 	void luaAP_choicepoint(lua_State * L, int ref);
 	{
