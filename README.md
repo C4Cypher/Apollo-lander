@@ -15,7 +15,7 @@ the 1960s and returning them safely to Earth.
 Lua - A lightweight programming language with dynamic typing.
 From the Portuguese lua (“moon”). The inventors of the language were Brazilian.
 
-%%----------------------------------------------------------------------------%%
+==========================================================================================
 
 This library is intended to provide a simple, easy to use interface between the
 Mercury functional/logic compiled programming language and the Lua Virtual 
