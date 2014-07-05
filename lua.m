@@ -33,7 +33,7 @@
 
 	% Prepares a lua_State for interaction with Mercury
 	%
-:- pred init_lua(lua_state::in, io::di, io::uo).
+:- pred init_lua(lua_state::in, io::di, io::uo) is det.
 
 	% Passes a value to a lua_State's module loaders under the 
 	% given string name
@@ -47,17 +47,10 @@
 	% Through the Lua State, a mercury value can be passed as the value 
 	% to a new lua_var.  int, float, bool, string and c_pointer are passed
 	% by value, while other types are passed by refrence.
-	% Example:  L ^ var(3) = Var
+	% Example usage:  L ^ var(3) = Var
 	%
-:- pred var(lua_state, T, lua_var).
-:- mode var(in, in, in) is semidet.
-:- mode var(in, in, out) is det.
-:- mode var(in, out, in) is semidet.
-
-:- func var(lua_state, T) = lua_var.
-:- mode var(in, in) = (in) is semidet.
-:- mode var(in, in) = (out) is det.
-:- mode var(in, out) = (in) is semidet. 	
+:- pred var(lua_state::in, T::in, lua_var::out) is det.
+:- func var(lua_state, T) = lua_var is det.	
 
 	% In Lua, variables are not typed, values are.  Lua recognizes eight
 	% types.
@@ -84,6 +77,7 @@
 	%
 	% 'thread' is a lua_state, usually a coroutine, note that the main
 	% lua_state should not be treated like a coroutine.
+	%
 :- type lua_type 
 	--->	none
 	;	nil
@@ -214,12 +208,81 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+
+#define AP_TYPE ""luaAPOLLO_LANDER_MERCURY_TYPE""
+#define AP_MODULE ""luaAPOLLO_LANDER_MODULE""
+#define AP_READY ""luaAPOLLO_LANDER_READY""
+#define AP_LOCKED ""luaAPOLLO_LANDER_LOCKED""
+
 ").
 
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
+
+:- pragma foreign_proc("C", init_lua(L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "
+
+	/* Add tables to the registry. */
+	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_TYPE);
+	
+	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+
+	
+	lua_pushboolean(L, 0);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_LOCKED);
+
+	/* Add loader to package.loaders */
+	lua_getglobal(L, ""package"");
+	lua_getfield(L, 1, ""loaders"");
+	const lua_Integer length = (lua_Integer)lua_objlen(L, 1);
+	lua_pushinteger(L, length + 1);
+	lua_pushcfunction(L, luaAP_loader);
+	lua_settable(L, 2);
+	lua_pop(L, 2);
+	
+	/* Mark Apollo as ready */
+	lua_pushboolean(L, 1);
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_READY);
+").
+
+:- pragma foreign_proc("C", export_module(L::in, Name::in, M::in, _::di, _::uo),
+	[promise_pure, will_not_call_mercury], "
+
+	/* Push the module table onto the stack, then the module name and the
+		module itself. Assign the module, by name to the module table.*/
+	lua_getfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+	lua_pushstring(L, M);
+	luaAP_push(L, M, luaAP_mercury_type(M));
+	lua_setfield(L, -3);
+	lua_pop(L, 1);
+").
+
+
+	% Lua variables are refrenced in one of two ways.
+	% 1. They can be refrenced as arguments directly on the stack
+	% 2. They can be refrenced through the Lua registry.
+	%
+:- type lua_var 
+	---> 	index(lua_state, int)
+	;	ref(lua_state, int).
+
+	% A typeclass for the mercury primitive types that cleanly unify with
+	% Lua primitive values.
+	%
+:- typeclass raw_unify(T) where [
+	pred raw_unify(T, lua_var),
+	mode raw_unify(in, in) 
+]
+
+
+
+
+
+
 
 :- pragma foreign_enum("C", lua_type, [
 	none - "LUA_TNONE",
@@ -234,9 +297,34 @@
 	thread - "LUA_TTHREAD"
 ]).
 
-:- type lua_var ---> lua_var(state::lua_state, index::int).
 
-:- pragma foreign_proc("C", type(L::in, 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% :- pragma foreign_proc("C", type(L::in, 
 
 
 
