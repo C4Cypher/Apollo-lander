@@ -1,7 +1,0 @@
-<mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
-  <mime-type type="text/x-mercury">
-    <comment>Mercury Source</comment>
-    <!-- more translated comment elements -->
-    <glob pattern="*.m"/>
-  </mime-type>
-</mime-info>

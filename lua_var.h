@@ -1,9 +1,9 @@
-/* The luaAP_Ref class encapsulates a refrence to a value instantiated in Lua
+/* The luaAP_Var class encapsulates a refrence to a value instantiated in Lua
 this object will automatically remove the refrence when collected, allowing
 Lua to properly perform garbage collection. */
 
-#ifndef AP_LUA_REF_H_
-#define AP_LUA_REF_H_
+#ifndef AP_LUA_VAR_H_
+#define AP_LUA_VAR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,14 +18,15 @@ extern "C" {
 #endif
 
 #ifdef __cplusplus
-	class luaAP_Ref
+
+	class luaAP_Var
 	{
 	public:
 		// Constructor
-		luaAP_Ref(lua_State *, int);
+		luaAP_Var(lua_State *, int);
 
 		// Destructor - removes refrence from the registry
-		~luaAP_Ref(void);
+		~luaAP_Var(void);
 
 		// Retreives the refrenced Lua state
 		lua_State * get_state(void);
@@ -41,8 +42,8 @@ extern "C" {
 
 #else /* __cplusplus */
 
-	typedef struct luaAP_Ref
-		luaAP_Ref;
+	typedef struct luaAP_Var
+		luaAP_Var;
 
 #endif /* __cplusplus */
 
@@ -51,18 +52,18 @@ extern "C" {
 #endif
 
 /* Creates a new refrence from the stack */
-extern luaAP_Ref luaAP_new_ref(lua_State *);
+extern luaAP_Var luaAP_new_var(lua_State *);
 
 /* Retreives the refrenced Lua state */
-extern lua_State * luaAP_ref_state(luaAP_Ref);
+extern lua_State * luaAP_var_state(luaAP_Var);
 
 /* Push a refrence onto the provided stack */
-extern void luaAP_push_ref(lua_State *, luaAP_Ref);
+extern void luaAP_push_var(lua_State *, luaAP_Var);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* AP_LUA_REF_H_ */
+#endif /* AP_LUA_VAR_H_ */
 
 	
