@@ -87,7 +87,6 @@
 	;	table
 	;	function
 	;	userdata
-	;	lightuserdata
 	;	thread.
 
 :- pred type(lua_var::in, lua_type::out) is det.
