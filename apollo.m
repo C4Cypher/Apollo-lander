@@ -17,7 +17,7 @@
 %-----------------------------------------------------------------------------%
 
 
-:- module apollolander.
+:- module apollo.
 :- interface.
 
 :- import_module lua.
