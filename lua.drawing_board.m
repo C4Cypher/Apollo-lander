@@ -1,15 +1,14 @@
-:- module lua.state.
-
-% TODO: Implement pushing userdata.
-
-:- interface.
-
-:- import_module io, exception.
 
 
-/* This type represents a refrence to the Lua VM, in Mercury it should be 
-treated as a unique value, frozen in time, to preserve both Mercury's 
-declarative semantics and Lua's imperative semantics. */
+/* This file is a dumping ground, a proverbial rubbish bin for snippets 
+that I started to implement before realizing that I was on the wrong track.
+
+Some of this is garbage, but I wanted to hold onto some of this, temporarily
+in the event that I could use it again.  
+
+Please take anything you find here with a mountain of salt, and know that this
+file will not survive final implementation of the project. */
+
 :- type lua_state.
 
 :- pred do(lua_state, pred(lua_state, lua_state)).
