@@ -10,10 +10,11 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
+%
+% This file provides an external interface for the Apollo-Lander Library that
+% is loadable by Lua.
+%
 %-----------------------------------------------------------------------------%
-%
-% External interface for the Apollo-Lander Library that is loadable by Lua
-%
 %-----------------------------------------------------------------------------%
 
 
@@ -32,15 +33,15 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-TODO Remove this entirely. */ 
+TODO Remove this entirely, or not. */ 
 
 /* luaopen function as required by Lua package.load */
 extern int luaopen_apollo_lander(lua_State *);
 
-/* check to see if Apollo has already been initialized. */
+/* check to see if Apollo has already been initialized. TODO: Move to lua.m */
 extern int luaAP_apollo_ready(lua_State *); 
 
-/* lua_CFunction that prepares a lua_State for use with Apollo_lander */
+/* lua_CFunction that prepares a lua_State for use with Apollo_lander TODO: Does this even need to exist? It's redundant with lua.init_lua/1 */
 extern int luaAP_init_apollo(lua_State *);
 
 ").

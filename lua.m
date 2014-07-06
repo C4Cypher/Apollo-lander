@@ -10,6 +10,9 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
+% This file implements a manner to compile loadable Lua modules in the 
+% Mercury programming language.
+%
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
@@ -23,8 +26,7 @@
 :- import_module bool.
 :- import_module string.
 :- import_module list.
-:- import_module assoc_list.
-:- import_module univ.
+
 
 	% Represents the state of Lua, this is passed to and from C as 
 	% a lua_State *
@@ -42,14 +44,14 @@
 
 	% Represents a refrence to a variable instantiated in Lua.
 	%
-:- type lua_var where equality is raw_equal.
+:- type var where equality is raw_equal.
 
 
 	% In Lua, equality comparisons may induce side effects due to the
 	% usage of metatables. Explicitly calling raw_equal ensures a pure
 	% equality comparison.
 	%
-:- pred raw_equal(lua_var::in, lua_var::in) is semidet.
+:- pred raw_equal(var::in, var::in) is semidet.
 
 	% In Lua, variables are not typed, values are.  Lua recognizes eight
 	% types.
@@ -89,12 +91,12 @@
 	;	userdata
 	;	thread.
 
-:- pred type(lua_var::in, lua_type::out) is det.
-:- func type(lua_var) = lua_type.
+:- pred type(var::in, lua_type::out) is det.
+:- func type(var) = lua_type.
 
 
 	% Through the Lua State, a mercury value can be passed as the value 
-	% to a new lua_var.  int, float, bool, string and c_pointer are passed
+	% to a new Lua var.  int, float, bool, string and c_pointer are passed
 	% by value, while other types are passed by refrence.
 	%
 	% The following predicates will pass Mercury values to lua, instantiate
@@ -105,55 +107,55 @@
 	%
 	% Example usage:  L ^ int(3) = Var, Var = int(3)
 
-:- pred nil(lua_state::in, lua_var::out) is det.
-:- func nil(lua_state) = lua_var is det.
+:- pred nil(lua_state::in, var::out) is det.
+:- func nil(lua_state) = var is det.
 
-:- pred nil(lua_var::in) is semidet.
-:- func nil = (lua_var::in) is semidet.
+:- pred nil(var::in) is semidet.
+:- func nil = (var::in) is semidet.
 	
-:- pred int(lua_state::in, int::in, lua_var::out) is det.
-:- func int(lua_state, int) = lua_var is det.
+:- pred int(lua_state::in, int::in, var::out) is det.
+:- func int(lua_state, int) = var is det.
 	
-:- pred int(int::out, lua_var::in) is semidet.
-:- func int(int::out) = (lua_var::in) is semidet.
+:- pred int(int::out, var::in) is semidet.
+:- func int(int::out) = (var::in) is semidet.
 
-:- pred float(lua_state::in, float::in, lua_var::out) is det.
-:- func float(lua_state, float) = lua_var is det.
+:- pred float(lua_state::in, float::in, var::out) is det.
+:- func float(lua_state, float) = var is det.
 
-:- pred float(float::out, lua_var::in) is semidet.
-:- func float(float::out) = (lua_var::in) is semidet.
+:- pred float(float::out, var::in) is semidet.
+:- func float(float::out) = (var::in) is semidet.
 
-:- pred bool(lua_state::in, bool::in, lua_var::out) is det.
-:- func bool(lua_state, bool) = lua_var is det.
+:- pred bool(lua_state::in, bool::in, var::out) is det.
+:- func bool(lua_state, bool) = var is det.
 
-:- pred bool(bool::out, lua_var::in) is semidet.
-:- func bool(bool::out) = (lua_var::in) is semidet.
+:- pred bool(bool::out, var::in) is semidet.
+:- func bool(bool::out) = (var::in) is semidet.
 
-:- pred string(lua_state::in, string::in, lua_var::out) is det.
-:- func string(lua_state, string) = lua_var is det.
+:- pred string(lua_state::in, string::in, var::out) is det.
+:- func string(lua_state, string) = var is det.
 
-:- pred string(string::out, lua_var::in) is semidet.
-:- func string(string::out) = (lua_var::in) is semidet.
+:- pred string(string::out, var::in) is semidet.
+:- func string(string::out) = (var::in) is semidet.
 
-:- pred c_pointer(lua_state::in, c_pointer::in, lua_var::out) is det.
-:- func c_pointer(lua_state, c_pointer) = lua_var is det.
+:- pred c_pointer(lua_state::in, c_pointer::in, var::out) is det.
+:- func c_pointer(lua_state, c_pointer) = var is det.
 
-:- pred c_pointer(c_pointer::out, lua_var::in) is semidet.
-:- func c_pointer(c_pointer::out) = (lua_var::in) is semidet.
+:- pred c_pointer(c_pointer::out, var::in) is semidet.
+:- func c_pointer(c_pointer::out) = (var::in) is semidet.
 
 
-:- pred userdata(lua_state::in, T::in, lua_var::out) is det.
-:- func userdata(lua_state, T) = lua_var is det.
+:- pred userdata(lua_state::in, T::in, var::out) is det.
+:- func userdata(lua_state, T) = var is det.
 
-:- some [T] pred userdata(T::out, lua_var::in) is semidet.
-:- some [T] func userdata(T::out) = (lua_var::in) is semidet.
+:- some [T] pred userdata(T::out, var::in) is semidet.
+:- some [T] func userdata(T::out) = (var::in) is semidet.
 
 	% A polymorphic alternative to the above predicates, T will be tested
 	% against each of the above mentioned mercury types. Note that there is
 	% no deconstructive version of these predicates.
 	%
-:- pred var(lua_state::in, T::in, lua_var::out) is det.
-:- func var(lua_state, T) = lua_var is det.
+:- pred var(lua_state::in, T::in, var::out) is det.
+:- func var(lua_state, T) = var is det.
 
 
 	% Type to be thrown if Lua throws an error while interacting with
@@ -175,22 +177,22 @@
 	% into a Lua Function.  This function may not refrence any upvalues
 	% or global variables.
 	%
-:- pred load_string(lua_state::in, string::in, lua_var::out) is semidet.
-:- func load_string(lua_state, string) = lua_var is semidet.
+:- pred load_string(lua_state::in, string::in, var::out) is semidet.
+:- func load_string(lua_state, string) = var is semidet.
 
 %TODO: Implement a version of load_string that accepts a 
 % string_builder or stream
 
 	% Pass a higher order call to Lua that may be called as a function.
 	%
-:- func export_pred(pred(lua_state, list(lua_var))) = function.
+:- func export_pred(pred(lua_state, list(var))) = function.
 :- mode export_pred(pred(in, out) is det) = (out) is det.
 :- mode export_pred(pred(in, out) is semidet) = (out) is det.
 % :- mode export_pred(pred(in, out) is multi) = (out) is det.
 % :- mode export_pred(pred(in, out) is nondet) = (out) is det.
 
 	% The same as above, but with 
-:- func export_io_pred(pred(lua_state, list(lua_var), io, io)) = function.
+:- func export_io_pred(pred(lua_state, list(var), io, io)) = function.
 :- mode export_io_pred(pred(in, out, di, uo) is det) = (out) is det.
 :- mode export_io_pred(pred(in, out, di, uo) is semidet) = (out) is det.
 % :- mode export_io_pred(pred(in, out) is multi) = (out) is det.
@@ -209,27 +211,27 @@
 
 	% An alternative method
 	%
-:- pred list_args(lua_state::in, list(lua_var)::out) is det.
-:- func list_args(lua_state) = list(lua_var).
+:- pred list_args(lua_state::in, list(var)::out) is det.
+:- func list_args(lua_state) = list(var).
 
 
 	% Extract values from tables (without calling metamethods), note that
 	% the function will return nil if the key does not exist. 
 	% If the variable is not a table, the call will always fail.
 	%
-:- pred get(lua_var, T, lua_var).
+:- pred get(var, T, var).
 :- mode get(in, in, in) is semidet.
 :- mode get(in, in, out) is semidet. 
 :- mode get(in, out, in) is nondet.
 :- mode get(in, out, out) is nondet.
 
-:- func get(lua_var, T) = lua_var.
+:- func get(var, T) = var.
 :- mode get(in, in) = in is semidet.
 :- mode get(in, out) = out is semidet.
 :- mode get(in, out) = in is nondet.
 :- mode get(in, out) = out is nondet.
 
-:- func lua_var ^ T = lua_var.
+:- func var ^ T = var.
 :- mode in ^ in = in is semidet.
 :- mode in ^ in = out is semidet.
 :- mode in ^ out = in is nondet.
@@ -239,9 +241,12 @@
 
 
 
-%%%%%%%%%%%%%%%%%%
+
+%-----------------------------------------------------------------------------%
+
 :- implementation.
-%%%%%%%%%%%%%%%%%%
+
+:- import_module set.
 
 :- pragma foreign_decl("C", "
 #include <lua.h>
@@ -326,7 +331,7 @@ int luaAP_loader(lua_State * L) {
 ").
 
 
-:- pragma foreign_type("C", lua_var, "luaAP_Var").
+:- pragma foreign_type("C", var, "luaAP_Var").
 
 
 :- pragma foreign_proc("C", nil(L:in, V::out), 
