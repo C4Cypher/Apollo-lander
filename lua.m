@@ -35,7 +35,11 @@
 
 	% Prepares a lua_State for interaction with Mercury
 	%
-:- pred init_lua(lua_state::in, io::di, io::uo) is det.
+:- pred init(lua_state::in, io::di, io::uo) is det.
+
+	% Verify that Lua is prepared for interaction with Mercury
+	%
+:- pred lua_ready(lua_state::in) is semidet.
 
 	% Passes a value to a lua_State's module loaders under the 
 	% given string name
@@ -248,6 +252,11 @@
 
 :- import_module set.
 
+:- include_module userdata.
+:- import_module userdata.
+
+
+
 :- pragma foreign_decl("C", "
 #include <lua.h>
 #include <lauxlib.h>
@@ -287,8 +296,9 @@ int luaAP_loader(lua_State * L) {
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
-:- pragma foreign_proc("C", init_lua(L::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_decl("C", "extern void luaAP_init(lua_State *);").
+
+:- pragma foreign_code("C", "void luaAP_init(lua_State * L) {
 
 	/* Add tables to the registry. */
 	lua_newtable(L);
@@ -313,9 +323,27 @@ int luaAP_loader(lua_State * L) {
 	/* Mark Apollo as ready */
 	lua_pushboolean(L, 1);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_READY);
+}").
+
+:- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "luaAP_init(L);").
+
+:- pragma foreign_decl("C", "int luaAP_ready(lua_State *);").
+
+:- pragma foreign_code("C", "
+	/* check to see if Apollo has already been initialized. */
+	int luaAP_ready(lua_State * L) {
+		lua_checkstack(L, 1);
+		lua_getfield(L, LUA_REGISTRYINDEX, AP_READY);
+		int ready = lua_toboolean(L, 1);
+		lua_remove(L, 1);
+		return ready;
+	}
 ").
 
-:- pragma foreign_export("C", lua_init(in), "luaAP_init").
+:- pragma foreign_proc("C", lua_ready(L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "
+	SUCCESS_INDICATOR = luaAP_lua_
 
 :- pragma foreign_proc("C", export_module(L::in, Name::in, M::in, _::di, _::uo),
 	[promise_pure, will_not_call_mercury], "
@@ -333,6 +361,48 @@ int luaAP_loader(lua_State * L) {
 
 :- pragma foreign_type("C", var, "luaAP_Var").
 
+:- pragma foreign_proc("C", raw_equal(A::in, B::in),
+	[promise_pure, will_not_call_mercury], "
+	lua_State * L = luaAP_var_state(A);
+	lua_checkstack(L, 2);
+	luaAP_push_var(L, A);	
+	luaAP_push_var(L, B);
+	SUCCESS_INDICATOR = lua_rawequal(L, -2, -1);
+	lua_pop(2);
+").
+	
+
+
+
+:- pragma foreign_enum("C", lua_type, [
+	none - "LUA_TNONE",
+	nil - "LUA_TNIL",
+	boolean - "LUA_TBOOLEAN",
+	lightuserdata - "LUA_TLIGHTUSERDATA",
+	number - "LUA_TNUMBER",
+	string - "LUA_TSTRING",
+	table - "LUA_TTABLE",
+	function - "LUA_TFUNCTION",
+	userdata - "LUA_TUSERDATA",
+	thread - "LUA_TTHREAD"
+]).
+
+
+:- pragma foreign_proc("C", type(V:in, T::out), 
+	[promise_pure, will_not_call_mercury], "
+	lua_State * L = luaAP_var_state(V);
+	luaAP_push_var(V);
+	T = lua_type(L, -1);
+	lua_pop(L, 1);
+").
+
+type(V) = T :- type(V, T).
+
+
+	% This mutvar keeps a refrence to any Mercury variable passed to Lua
+	% to ensure that Mercury does not garbage collect said variable before
+	% Lua is finished with it.
+	%
 
 :- pragma foreign_proc("C", nil(L:in, V::out), 
 	[promise_pure, will_not_call_mercury], "
@@ -489,20 +559,5 @@ c_pointer(P) = V :- c_pointer(P, V).
 
 
 
-
-
-
-:- pragma foreign_enum("C", lua_type, [
-	none - "LUA_TNONE",
-	nil - "LUA_TNIL",
-	boolean - "LUA_TBOOLEAN",
-	lightuserdata - "LUA_TLIGHTUSERDATA",
-	number - "LUA_TNUMBER",
-	string - "LUA_TSTRING",
-	table - "LUA_TTABLE",
-	function - "LUA_TFUNCTION",
-	userdata - "LUA_TUSERDATA",
-	thread - "LUA_TTHREAD"
-]).
 
 

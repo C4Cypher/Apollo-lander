@@ -6,50 +6,47 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: apollo.m.
+% File: userdata.m.
 % Main author: C4Cypher.
 % Stability: low.
 % 
-%
-% This file provides an external interface for the Apollo-Lander Library that
-% is loadable by Lua.
+% This file provides Lua metamethods for Mercury variables passed to Lua.
+% It also provides the userdata typeclass, allowing instances to extend the
+% behavior of those metamethods when they are called Lua.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
+:- module userdata.
 
-:- module apollo.
 :- interface.
 
-:- import_module lua.
+:- type metamethod
+	--->	add	%	+
+	;	sub	%	-
+	;	mul	%	*
+	;	div	%	/
+	; 	mod	%	%
+	;	pow	%	^
+	;	unm	%	-
+	;	concat	%	..
+	;	len	%	#
+	;	eq	%	==
+	;	lt	%	<
+	;	le	%	<=
+	;	index	%	u[k]
+	;	newindex%	u[k] = v
+	;	call	%	u(...)
+	;	gc.
+
+
+:- typeclass userdata(T) where [
+	pred metamethod(metamethod, T, pred(lua_state, list(var)),
+	mode metamethod(in, in, out(pred(in, out) is det)) is nondet
+].
+
 
 :- implementation.
 
-:- pragma foreign_import_module("C", lua).
-
-:- pragma foreign_decl("C", "
-
-/* Will this compile without the includes?
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-TODO Remove this entirely, or not. */ 
-
-/* luaopen function as required by Lua package.load */
-extern int luaopen_apollo(lua_State *);
-
-").
-
-
-
-:- pragma foreign_code("C", "
-
-
-int luaopen_apollo(lua_State * L) {
-	if(!luaAP_ready(L))
-		return luaAP_init(L);
-	else
-		return 0;
-").	
 
 
