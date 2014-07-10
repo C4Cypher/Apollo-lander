@@ -109,7 +109,8 @@
 	%
 	% The Lua state is not required to deconstruct a lua variable
 	%
-	% Example usage:  L ^ int(3) = Var, Var = int(3)
+	% Example construction:  	L ^ int(3) = Var 
+	% Example deconstruction: 	Var = int(N), N = 3
 
 :- pred nil(lua_state::in, var::out) is det.
 :- func nil(lua_state) = var is det.
@@ -117,11 +118,13 @@
 :- pred nil(var::in) is semidet.
 :- func nil = (var::in) is semidet.
 	
+	
 :- pred int(lua_state::in, int::in, var::out) is det.
 :- func int(lua_state, int) = var is det.
 	
 :- pred int(int::out, var::in) is semidet.
 :- func int(int::out) = (var::in) is semidet.
+
 
 :- pred float(lua_state::in, float::in, var::out) is det.
 :- func float(lua_state, float) = var is det.
@@ -129,17 +132,20 @@
 :- pred float(float::out, var::in) is semidet.
 :- func float(float::out) = (var::in) is semidet.
 
+
 :- pred bool(lua_state::in, bool::in, var::out) is det.
 :- func bool(lua_state, bool) = var is det.
 
 :- pred bool(bool::out, var::in) is semidet.
 :- func bool(bool::out) = (var::in) is semidet.
 
+
 :- pred string(lua_state::in, string::in, var::out) is det.
 :- func string(lua_state, string) = var is det.
 
 :- pred string(string::out, var::in) is semidet.
 :- func string(string::out) = (var::in) is semidet.
+
 
 :- pred c_pointer(lua_state::in, c_pointer::in, var::out) is det.
 :- func c_pointer(lua_state, c_pointer) = var is det.
@@ -161,6 +167,48 @@
 :- pred var(lua_state::in, T::in, var::out) is det.
 :- func var(lua_state, T) = var is det.
 
+
+%-----------------------------------------------------------------------------%
+
+
+
+:- pred function(lua_state::in, T::in, var::out) is det <= function(T, A, R).
+:- func function(lua_state, T) = var is det <= function(T, A, R).
+
+	% Typeclass for values that can be passed to Lua to construct
+	% Lua functions.
+	%
+:- typeclass function(T, A, R) <= (args(A), return(R), (T -> A, R)) where [
+	func call_function(T, A) = R is det
+].
+
+	% Typeclass for values that can be passed from Lua as function
+	% arguments.
+	%
+:- typeclass args(T) where [
+	pred get_args(lua_state::in, T::out) is det
+].
+
+	% Typeclass for values that can be passed back to Lua as a 
+	% function return value.
+	%
+:- typeclass return(T) where [
+	pred to_return_value(lua_state::in, T::in, return::out) is det
+].
+
+
+:- type return
+	--->	nil
+	;	return(var)
+	;	return(list(var))
+	;	error(string).
+
+
+
+	% A typedef for a C function pointer that may be passed to Lua as 
+	% a Lua function as defined in the Lua C API.
+	%
+:- type c_function.
 
 	% Type to be thrown if Lua throws an error while interacting with
 	% Mercury.
@@ -289,10 +337,7 @@ int luaAP_loader(lua_State * L) {
 
 :- pragma foreign_type("C", lua_state, "lua_State *").
 
-	% A typedef containing the signature for a C function pointer that may
-	% be passed to Lua as a Lua function
-	%
-:- type c_function.
+
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
