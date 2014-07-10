@@ -515,6 +515,8 @@ int(L, I) = V :- int(L, I, V).
 
 int(I) = V :- int(I, V).
 
+to_int(V) = I :- int(I, V).
+
 :- pragma foreign_proc("C", float(L:in, F::in, V::out), 
 	[promise_pure, will_not_call_mercury], 
 	"lua_pushnumber(L, (lua_Number)F);
@@ -539,6 +541,8 @@ float(L, F) = V :- float(L, F, V).
 ").
 
 float(F) = V :- float(F, V).
+
+to_float(V) = F :- float(F, V).
 
 :- pragma foreign_proc("C", bool(L:in, B::in, V::out), 
 	[promise_pure, will_not_call_mercury], "
@@ -572,6 +576,8 @@ bool(L, B) = V :- bool(L, B, V).
 
 bool(B) = V :- bool(B, V).
 
+to_bool(V) = B :- bool(B, V).
+
 :- pragma foreign_proc("C", string(L:in, S::in, V::out), 
 	[promise_pure, will_not_call_mercury], 
 	"lua_pushstring(L, S);
@@ -596,6 +602,8 @@ string(L, S) = V :- string(L, S, V).
 ").
 
 string(S) = V :- string(S, V).
+
+to_string(V) = S :- string(S, V).
 
 :- pragma foreign_proc("C", c_pointer(L:in, P::in), 
 	[promise_pure, will_not_call_mercury], 
@@ -622,6 +630,42 @@ c_pointer(L, P) = V :- c_pointer(L, P, V).
 ").
 
 c_pointer(P) = V :- c_pointer(P, V).
+
+to_pointer(V) = P :- c_pointer(P, V).
+
+%-----------------------------------------------------------------------------%
+
+:- mutable(reserved, assoc_list(int, univ), set.init, ground, [untrailed]).
+
+:- impure pred intern(T::in) is det.
+
+intern(T) :- semipure get_reserved(R), impure set_reserved( insert(R, T) ).
+
+:- impure pred release(T::in) is det.
+
+release(T) :- semipure get_reserved(R), impure set_reserved( delete(R, T) ).
+
+:- impure pred push_userdata(lua_state::in, T::in).
+
+push_userdata(L, T) :- intern(T), 
+
+%-----------------------------------------------------------------------------%
+
+% function(lua_state::in, T::in, var::out)
+
+:- type mr_function ---> some(T) (mr_function(T) => function(T)).
+
+function(L, T, V) :- F = 'new mr_function'(T), intern(F), make_function(L, F, V).
+
+:- pred make_function(lua_state::in, mr_function::in, var::out).
+
+:- pragma foreign_proc("C", make_function(L::in, F::in, V::out), 
+	[promise_pure, will_not_call_mercury], "
+	
+
+:- pred lua_call_function(lua_state::in, mr_function::in) is det.
+
+
 
 
 
