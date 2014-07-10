@@ -111,6 +111,7 @@
 	%
 	% Example construction:  	L ^ int(3) = Var 
 	% Example deconstruction: 	Var = int(N), N = 3
+	% Alternate deconstruction: 	to_int(Var) = 3
 
 :- pred nil(lua_state::in, var::out) is det.
 :- func nil(lua_state) = var is det.
@@ -125,12 +126,16 @@
 :- pred int(int::out, var::in) is semidet.
 :- func int(int::out) = (var::in) is semidet.
 
+:- func to_int(var) = int is semidet.
+
 
 :- pred float(lua_state::in, float::in, var::out) is det.
 :- func float(lua_state, float) = var is det.
 
 :- pred float(float::out, var::in) is semidet.
 :- func float(float::out) = (var::in) is semidet.
+
+:- func to_float(var) = float is semidet.
 
 
 :- pred bool(lua_state::in, bool::in, var::out) is det.
@@ -139,12 +144,16 @@
 :- pred bool(bool::out, var::in) is semidet.
 :- func bool(bool::out) = (var::in) is semidet.
 
+:- func to_bool(var) = bool is semidet.
+
 
 :- pred string(lua_state::in, string::in, var::out) is det.
 :- func string(lua_state, string) = var is det.
 
 :- pred string(string::out, var::in) is semidet.
 :- func string(string::out) = (var::in) is semidet.
+
+:- func to_string(var) = string is semidet.
 
 
 :- pred c_pointer(lua_state::in, c_pointer::in, var::out) is det.
@@ -153,12 +162,9 @@
 :- pred c_pointer(c_pointer::out, var::in) is semidet.
 :- func c_pointer(c_pointer::out) = (var::in) is semidet.
 
+:- func to_pointer(var) = c_pointer is semidet.
 
-:- pred userdata(lua_state::in, T::in, var::out) is det.
-:- func userdata(lua_state, T) = var is det.
 
-:- some [T] pred userdata(T::out, var::in) is semidet.
-:- some [T] func userdata(T::out) = (var::in) is semidet.
 
 	% A polymorphic alternative to the above predicates, T will be tested
 	% against each of the above mentioned mercury types. Note that there is
@@ -170,38 +176,49 @@
 
 %-----------------------------------------------------------------------------%
 
-
-
-:- pred function(lua_state::in, T::in, var::out) is det <= function(T, A, R).
-:- func function(lua_state, T) = var is det <= function(T, A, R).
+	% Create a Lua function by passing a mercury value
+	%
+:- pred function(lua_state::in, T::in, var::out) is det <= function(T).
+:- func function(lua_state, T) = var is det <= function(T).
 
 	% Typeclass for values that can be passed to Lua to construct
 	% Lua functions.
 	%
-:- typeclass function(T, A, R) <= (args(A), return(R), (T -> A, R)) where [
-	func call_function(T, A) = R is det
+:- typeclass function(T) where [
+	func call_function(T, A) = R <= (args(A), return(R))
 ].
-
+	
 	% Typeclass for values that can be passed from Lua as function
 	% arguments.
 	%
 :- typeclass args(T) where [
-	pred get_args(lua_state::in, T::out) is det
+	func args(lua_state) = T
 ].
 
 	% Typeclass for values that can be passed back to Lua as a 
 	% function return value.
 	%
 :- typeclass return(T) where [
-	pred to_return_value(lua_state::in, T::in, return::out) is det
+	func return(lua_state, T) = return
 ].
 
 
+	% Acceptable return values for a Lua function
+	%
 :- type return
 	--->	nil
 	;	return(var)
 	;	return(list(var))
 	;	error(string).
+	
+
+
+
+
+
+
+
+
 
 
 
@@ -292,6 +309,11 @@
 
 
 
+:- pred userdata(lua_state::in, T::in, var::out) is det.
+:- func userdata(lua_state, T) = var is det.
+
+:- some [T] pred userdata(T::out, var::in) is semidet.
+:- some [T] func userdata(T::out) = (var::in) is semidet.
 
 
 %-----------------------------------------------------------------------------%
