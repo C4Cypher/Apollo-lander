@@ -166,6 +166,14 @@
 :- func c_pointer(c_pointer::out) = (var::in) is semidet.
 :- func to_pointer(var) = c_pointer is semidet.
 
+:- pred univ(lua_state, univ, var).
+:- mode univ(in, in, out) is det.
+:- mode univ(out, out, in) is semidet.
+:- func univ(lua_state, univ) = var is det.
+:- pred univ(univ::out, var::in) is semidet.
+:- func univ(univ::out) = (var::in) is semidet.
+:- func to_univ(var) = univ is semidet.
+
 
 
 	% A polymorphic alternative to the above predicates, T will be tested
@@ -336,10 +344,12 @@
 
 #include ""lua_var.h""
 
-#define AP_TYPE ""luaAPOLLO_LANDER_MERCURY_TYPE""
+#define AP_USERDATA ""luaAPOLLO_LANDER_MERCURY_USERDATA""
 #define AP_MODULE ""luaAPOLLO_LANDER_MODULE""
 #define AP_READY ""luaAPOLLO_LANDER_READY""
 #define AP_LOCKED ""luaAPOLLO_LANDER_LOCKED""
+
+#define AP_MERCURY_UNIV ""__mercury_univ""
 
 ").
 
@@ -371,7 +381,11 @@ int luaAP_loader(lua_State * L) {
 
 	/* Add tables to the registry. */
 	lua_newtable(L);
-	lua_setfield(L, LUA_REGISTRYINDEX, AP_TYPE);
+	
+	/* TODO: load metamethods for univ userdata */
+	
+	lua_setfield(L, LUA_REGISTRYINDEX, AP_USERDATA);
+	
 	
 	lua_newtable(L);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_MODULE);
@@ -474,25 +488,28 @@ type(V) = T :- type(V, T).
 	% to ensure that Mercury does not garbage collect said variable before
 	% Lua is finished with it.
 	%
-:- mutable(reserved, map(univ, int), set.init, ground, [untrailed]).
+:- mutable(reserved, map(univ, int), set.init, ground, [untrailed, attach_to_io_state]).
 
-:- impure pred intern(univ::in) is det.
+:- pred intern(univ::in, io::di, io::uo) is det.
 
-intern(U) :- semipure get_reserved(R),
-	if search(R, U, I) then impure set_reserved(det_update(R, U, I + 1)) 
-	else impure set_reserved(det_insert(R, U, 1)).
+intern(U, !IO) :- get_reserved(R, !IO),
+	if search(R, U, I) then set_reserved(det_update(R, U, I + 1), !IO) 
+	else impure set_reserved(det_insert(R, U, 1), !IO).
+	
+:- pragma foreign_export("C", intern(in, di, uo), "luaAP_intern").
 
-:- impure pred release(univ::in) is det.
+:- pred release(univ::in io::di, io::uo) is det.
 
-release(U) :- semipure get_reserved(R),
+release(U, !IO) :- semipure get_reserved(R),
 	if search(R, U, I) then ( 
 		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
 		else impure set_reserved(delete(R, U))
 	) else error(
 	"Attempted to release a Mercury value that was not interned.").
 
-:- impure pred push_univ(lua_state::in, univ::in).
+:- pragma foreign_export("C", release(in, di, uo), "luaAP_release").
 
+%-----------------------------------------------------------------------------%
 
 :- pragma foreign_proc("C", nil(L:in, V::out), 
 	[promise_pure, will_not_call_mercury], "
@@ -514,6 +531,7 @@ nil(V) :- nil(_, V).
 
 nil = V :- nil(V).
 
+
 :- pragma foreign_proc("C", int(L:in, I::in, V::out), 
 	[promise_pure, will_not_call_mercury], "
 	lua_pushinteger(L, (lua_Integer)I);
@@ -528,13 +546,12 @@ int(L, I) = V :- int(L, I, V).
 	luaAP_push_var(L, V);
 	if(lua_isnumber(L, -1) {
 		double number = (double)lua_tonumber(L, -1);
-		lua_pop(L, 1);
 		I = (MR_Integer)number;
 		SUCCESS_INDICATOR = !(I - number);
-	} else {
-		lua_pop(L, 1);
+	} else 
 		SUCCESS_INDICATOR = 0;
-	}
+		
+	lua_pop(L, 1);
 		
 ").
 
@@ -543,6 +560,7 @@ int(I, V) :- int(_, I, V).
 int(I) = V :- int(I, V).
 
 to_int(V) = I :- int(I, V).
+
 
 :- pragma foreign_proc("C", float(L:in, F::in, V::out), 
 	[promise_pure, will_not_call_mercury], 
@@ -558,12 +576,11 @@ float(L, F) = V :- float(L, F, V).
 	luaAP_push_var(L, V);
 	if(lua_isnumber(L, -1) {
 		F = (MR_Float)lua_tonumber(L, -1);
-		lua_pop(L, 1);
 		SUCCESS_INDICATOR = 1;
-	} else {
-		lua_pop(L, 1);
+	} else 
 		SUCCESS_INDICATOR = 0;
-	}
+		
+	lua_pop(L, 1);
 		
 ").
 
@@ -572,6 +589,7 @@ float(F, V) :- float(_, F, V).
 float(F) = V :- float(F, V).
 
 to_float(V) = F :- float(F, V).
+
 
 :- pragma foreign_proc("C", bool(L:in, B::in, V::out), 
 	[promise_pure, will_not_call_mercury], "
@@ -590,17 +608,16 @@ bool(L, B) = V :- bool(L, B, V).
 	luaAP_push_var(L, V);
 	if(lua_isboolean(L, -1) {
 		int boolean = lua_toboolean(L, -1);
-		lua_pop(L, 1);
 		if(boolean) 
 			B = MR_YES;
 		else
 			B = MR_NO;
 		SUCCESS_INDICATOR = 1;
-	} else {
-		lua_pop(L, 1);
+	} else 
 		SUCCESS_INDICATOR = 0;
-	}
 		
+	lua_pop(L, 1);
+
 ").
 
 bool(B, V) :- bool(_, B, V).
@@ -608,6 +625,7 @@ bool(B, V) :- bool(_, B, V).
 bool(B) = V :- bool(B, V).
 
 to_bool(V) = B :- bool(B, V).
+
 
 :- pragma foreign_proc("C", string(L:in, S::in, V::out), 
 	[promise_pure, will_not_call_mercury], 
@@ -619,17 +637,15 @@ string(L, S) = V :- string(L, S, V).
 
 :- pragma foreign_proc("C", string(L::out, S::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
-	lua_State * L = luaAP_var_state(V);
+	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isstring(L, -1) {
 		S = (MR_String)lua_tostring(L, -1);
-		lua_pop(L, 1);
 		SUCCESS_INDICATOR = 1;
-	} else {
-		lua_pop(L, 1);
+	} else 
 		SUCCESS_INDICATOR = 0;
-	}
-		
+	
+	lua_pop(L, 1);
 ").
 
 string(S, V) :- string(_, S, V).
@@ -637,6 +653,8 @@ string(S, V) :- string(_, S, V).
 string(S) = V :- string(S, V).
 
 to_string(V) = S :- string(S, V).
+
+
 
 :- pragma foreign_proc("C", c_pointer(L:in, P::in), 
 	[promise_pure, will_not_call_mercury], 
@@ -653,13 +671,12 @@ c_pointer(L, P) = V :- c_pointer(L, P, V).
 	luaAP_push_var(L, V);
 	if(lua_islightuserdata(L, -1) {
 		P = lua_tolightuserdata(L, -1);
-		lua_pop(L, 1);
-		SUCCESS_INDICATOR = 1;
-	} else {
-		lua_pop(L, 1);
-		SUCCESS_INDICATOR = 0;
-	}
 		
+		SUCCESS_INDICATOR = 1;
+	} else 
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);	
 ").
 
 c_pointer(P, V) :- c_pointer(_, P, V).
@@ -668,6 +685,59 @@ c_pointer(P) = V :- c_pointer(P, V).
 
 to_pointer(V) = P :- c_pointer(P, V).
 
+
+:- pragma foreign_proc("C", univ(L:in, U::in, V::out), 
+	[promise_pure, may_call_mercury], "
+	
+	/* Force Mercury to hold a refrence to the univ so
+	that it won't be garbage collected. */
+	luaAP_intern(U);
+	
+	/* Create a new Lua userdata and point it to the univ */
+	MR_Word * udata = lua_newuserdata(L, sizeof(MR_Word));
+	udata* = U;
+	
+	/* Assign our new userdata a metatable */
+	lua_getfield(L, LUA_REGISTRYINDEX, AP_USERDATA);
+	lua_setmetatable(L, -2);
+	
+	V = luaAP_new_var(L);
+").
+
+univ(L, S) = V :- univ(L, S, V).
+
+
+
+:- pragma foreign_proc("C", univ(L::out, U::out, V::in), 
+	[promise_pure, will_not_call_mercury], "
+	L = luaAP_var_state(V);
+	luaAP_push_var(L, V);
+	
+	/* Userdata will be a valid univ value only if it's
+	metatable contains a value at AP_MERCURY_UNIV. */
+	
+	if (luaL_getmetafield(L, -1, AP_MERCURY_UNIV)) {
+		
+		/* Remove the metafeild pushed by luaL_getmetafield */
+		lua_pop(L, 1);
+		
+		/* Extract the MR_Word pointer and derefrence it */
+		MR_Word * udata = (MR_Word *) lua_touserdata(L, -1);
+		U = udata*;
+		
+		
+		SUCCESS_INDICATOR = 1;
+	} else
+		SUCCESS_INDICATOR = 0;
+	
+	lua_pop(L, 1);	
+").
+
+univ(S, V) :- univ(_, S, V).
+
+univ(S) = V :- univ(S, V).
+
+to_univ(V) = S :- univ(S, V).
 
 
 
