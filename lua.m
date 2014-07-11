@@ -88,7 +88,8 @@
 	%	values and can be passed freely like any other variable.
 	%
 	% 'userdata' is lua's type for handling foreign data, unless otherwise
-	%	noted, values stored as userdata are subject to collection by 		% 	Lua's Garbage Collector.
+	%	noted, values stored as userdata are subject to collection by 	
+	% 	Lua's Garbage Collector.
 	%
 	% 'lightuserdata' is seen in Lua as identical to userdata, but contains
 	%	a C pointer which will not be collected by Lua's GC.
