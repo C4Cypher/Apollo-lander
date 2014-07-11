@@ -502,13 +502,15 @@ release(U) :- semipure get_reserved(R),
 
 nil(L) = V :- nil(L, V).
 
-:- pragma foreign_proc("C", nil(V::in), 
+:- pragma foreign_proc("C", nil(L::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
-	lua_State * L = luaAP_var_state(V);
+	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	SUCCESS_INDICATOR = lua_isnil(L, -1);
 	lua_pop(L, 1);
 ").
+
+nil(V) :- nil(_, V).
 
 nil = V :- nil(V).
 
@@ -520,9 +522,9 @@ nil = V :- nil(V).
 
 int(L, I) = V :- int(L, I, V).
 
-:- pragma foreign_proc("C", int(I::out, V::in), 
+:- pragma foreign_proc("C", int(L::out, I::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
-	lua_State * L = luaAP_var_state(V);
+	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isnumber(L, -1) {
 		double number = (double)lua_tonumber(L, -1);
@@ -536,6 +538,8 @@ int(L, I) = V :- int(L, I, V).
 		
 ").
 
+int(I, V) :- int(_, I, V).
+
 int(I) = V :- int(I, V).
 
 to_int(V) = I :- int(I, V).
@@ -548,9 +552,9 @@ to_int(V) = I :- int(I, V).
 
 float(L, F) = V :- float(L, F, V).
 
-:- pragma foreign_proc("C", float(F::out, V::in), 
+:- pragma foreign_proc("C", float(L::out, F::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
-	lua_State * L = luaAP_var_state(V);
+	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isnumber(L, -1) {
 		F = (MR_Float)lua_tonumber(L, -1);
@@ -562,6 +566,8 @@ float(L, F) = V :- float(L, F, V).
 	}
 		
 ").
+
+float(F, V) :- float(_, F, V).
 
 float(F) = V :- float(F, V).
 
@@ -578,9 +584,9 @@ to_float(V) = F :- float(F, V).
 
 bool(L, B) = V :- bool(L, B, V).
 
-:- pragma foreign_proc("C", bool(B::out, V::in), 
+:- pragma foreign_proc("C", bool(L::out, B::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
-	lua_State * L = luaAP_var_state(V);
+	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isboolean(L, -1) {
 		int boolean = lua_toboolean(L, -1);
@@ -597,6 +603,8 @@ bool(L, B) = V :- bool(L, B, V).
 		
 ").
 
+bool(B, V) :- bool(_, B, V).
+
 bool(B) = V :- bool(B, V).
 
 to_bool(V) = B :- bool(B, V).
@@ -609,7 +617,7 @@ to_bool(V) = B :- bool(B, V).
 
 string(L, S) = V :- string(L, S, V).
 
-:- pragma foreign_proc("C", string(S::out, V::in), 
+:- pragma foreign_proc("C", string(L::out, S::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
 	lua_State * L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
@@ -624,6 +632,8 @@ string(L, S) = V :- string(L, S, V).
 		
 ").
 
+string(S, V) :- string(_, S, V).
+
 string(S) = V :- string(S, V).
 
 to_string(V) = S :- string(S, V).
@@ -637,9 +647,9 @@ to_string(V) = S :- string(S, V).
 c_pointer(L, P) = V :- c_pointer(L, P, V).
 
 
-:- pragma foreign_proc("C", c_pointer(P::out, V::in), 
+:- pragma foreign_proc("C", c_pointer(L::out, P::out, V::in), 
 	[promise_pure, will_not_call_mercury], "
-	lua_State * L = luaAP_var_state(V);
+	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_islightuserdata(L, -1) {
 		P = lua_tolightuserdata(L, -1);
@@ -651,6 +661,8 @@ c_pointer(L, P) = V :- c_pointer(L, P, V).
 	}
 		
 ").
+
+c_pointer(P, V) :- c_pointer(_, P, V).
 
 c_pointer(P) = V :- c_pointer(P, V).
 
