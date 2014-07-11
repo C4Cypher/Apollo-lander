@@ -213,7 +213,7 @@
 :- mode var(out, out, in) is semidet.
 :- func to_var(lua_state, T) = var is det.
 :- pred from_var(var::in, T::out) is semidet.
-:- func from_var(var) = T is semidet
+:- func from_var(var) = T is semidet.
 :- pred det_from_var(var::in, T::out) is det.
 :- func det_from_var(var) = T is det.
 
