@@ -206,6 +206,8 @@
 	func args(lua_state) = T
 ].
 
+:- instance args(lua_state).
+
 	% Typeclass for values that can be passed back to Lua as a 
 	% function return value.
 	%
@@ -213,31 +215,28 @@
 	func return(lua_state, T) = return
 ].
 
+:- instance return(return).
 
 	% Acceptable return values for a Lua function
 	%
 :- type return
-	--->	nil
-	;	return(var)
+	--->	return(var)
 	;	return(list(var))
 	;	error(string).
 	
-
-
-
-
-
-
-
-
-
-
 
 	% A typedef for a C function pointer that may be passed to Lua as 
 	% a Lua function as defined in the Lua C API.
 	%
 :- type c_function.
 
+:- instance function(c_function).
+
+%-----------------------------------------------------------------------------%
+
+% TODO: coroutines?, iterators?, multi/nondet functions?
+
+%-----------------------------------------------------------------------------%
 
 
 
@@ -657,6 +656,10 @@ from_var(V) = T :- from_var(V, T).
 	% Lua is finished with it.
 	%
 :- mutable(reserved, map(univ, int), set.init, ground, [untrailed, attach_to_io_state]).
+
+	% TODO: Redesign reserved system so that refrences to univs are passed
+	% by integer index instead of by pointer?  Only if current implementation
+	% proves to be unstable/unworkable.
 
 :- pred intern(univ::in, io::di, io::uo) is det.
 
