@@ -290,7 +290,11 @@
 	% Under normal circumstances, Lua can't actually do anything with
 	% userdata. Attempts to use indexing, arithmetic or other operators
 	% will result in a lua error.  However, as with tables and functions,
-	% it is possible to assign
+	% it is possible to assign metatables to userdata, allowing one to
+	% extend the valid syntax with which Lua can interact with a given
+	% userdata.
+	
+	% TODO: implement the userdata(T) type.
 
 %-----------------------------------------------------------------------------%
 
