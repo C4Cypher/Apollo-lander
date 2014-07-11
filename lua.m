@@ -47,6 +47,16 @@
 	%
 :- pred export_module(lua_state::in, string::in, T::in, io::di, io::uo) is det.
 
+	% Throw an error in Lua. WARNING! This predicate sends an error to the
+	% Lua runtime and then performs a longjump OUT of the invoked function!
+	% I have no idea what effect longjumping out of Mercury code will have,
+	% nor do I know yet what will happen if an attempt is made to invoke
+	% Mercury after said longjump!
+	%
+	%  * UNSAFE *
+	%
+:- pred lua_error(lua_state::in, string::in) is erroneous.
+
 %-----------------------------------------------------------------------------%
 
 	% Represents a refrence to a variable instantiated in Lua.
@@ -396,6 +406,10 @@ int luaAP_loader(lua_State * L) {
 	lua_setfield(L, -3);
 	lua_pop(L, 1);
 ").
+
+:- pragma foreign_proc("C", lua_error(L::in, Error::in),
+	[promise_pure, will_not_call_mercury], "luaL_error(L, Error);").
+
 
 %-----------------------------------------------------------------------------%
 
