@@ -808,29 +808,74 @@ release(U, !IO) :- semipure get_reserved(R),
 
 function(L, T, V) :- 
 	F = 'new mr_function'(T), 
-	U = univ(F), 
-	make_function(L, U, V).
+	U = L ^ var(univ(F)), 
+	new_function(L, U, V).
 
-:- pred make_function(lua_state::in, mr_function::in, var::out).
+:- pred new_function(lua_state::in, var::in, var::out).
 
 :- pragma foreign_proc("C", make_function(L::in, F::in, V::out), 
 	[promise_pure, will_not_call_mercury], "
-	
-
+	luaAP_push_var(L, F);
+	lua_pushclosure(L, luaAP_call, 1);
+	V = luaAP_new_var(L);
+").
 
 
 :- func lua_call_function(lua_state::in, io::di, io::uo) = int is det.
 
-
+lua_call_function(L, !IO) = Num :-
+	(
+		univ(MF) = get_function_upvalue(L, !IO) 
+	; 
+		lua_error(L, "lua_call_function: Failed to load function") 
+	),
+	MF = mr_function(F),
+	call_function(F, args(L), R),
+	Return = return(R),
+	require_complete_switch 
+	( Return = nil ->
+		Num = 0
+	; Return = return(V:var) ->
+		push_var(L, V, !IO),
+		Num = 1
+	; Return = return(V:list(var)) ->
+		Num = push_list(V, !IO)
+	;
+		lua_error(L, "lua_call_function: Invalid return value")
+	).
+	
+:- pragma foreign_export("C", lua_call_function(in, di, uo) = out, "luaAP_call").
+		
 
 :- func get_function_upvalue(lua_state::in, io::di, io::uo) = univ is det.
 
 :- pragma foreign_proc("C", get_function_upvalue(L::in, _I::di, _O::uo) = (U::out),
 	[promise_pure, will_not_call_mercury], "
+	lua_pushvalue(L, lua_upvalueindex(AP_FUNCTION_UPVALUE));
 	
-	lua_upvalueindex
+	MR_Word * univ = luaAP_get_univ(L);
+	lua_pop(L, 1);
+	
+	assert(univ);
+	
+	U = univ*;
+").
+	
 
-AP_FUNCTION_UPVALUE
+:- pred push_var(lua_state::in, var::in, io::di, io::uo) is det.
+
+:- pragma foreign_proc("C", push_var(L::in, V::in, _I::di, _O::uo),
+	[promise_pure, will_not_call_mercury], "
+	luaAP_push_var(L, V);").
+	
+:- func push_list(lua_state, list(var), io::di, io::uo) = int is det.
+
+push_list(_, []) = 0.
+
+push_list(L, [V | M], !IO) = Num :- 
+	push_var(L, V, !IO), 
+	Num = push_list(L, M, !IO) + 1.
+
 
 
 
