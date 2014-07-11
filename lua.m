@@ -47,6 +47,8 @@
 	%
 :- pred export_module(lua_state::in, string::in, T::in, io::di, io::uo) is det.
 
+%-----------------------------------------------------------------------------%
+
 	% Represents a refrence to a variable instantiated in Lua.
 	%
 :- type var where equality is raw_equal.
@@ -98,6 +100,8 @@
 
 :- pred type(var::in, lua_type::out) is det.
 :- func type(var) = lua_type.
+
+%-----------------------------------------------------------------------------%
 
 
 	% Through the Lua State, a mercury value can be passed as the value 
@@ -423,6 +427,7 @@ int luaAP_loader(lua_State * L) {
 	lua_pop(L, 1);
 ").
 
+%-----------------------------------------------------------------------------%
 
 :- pragma foreign_type("C", var, "luaAP_Var").
 
@@ -463,11 +468,31 @@ int luaAP_loader(lua_State * L) {
 
 type(V) = T :- type(V, T).
 
+%-----------------------------------------------------------------------------%
 
 	% This mutvar keeps a refrence to any Mercury variable passed to Lua
 	% to ensure that Mercury does not garbage collect said variable before
 	% Lua is finished with it.
 	%
+:- mutable(reserved, map(univ, int), set.init, ground, [untrailed]).
+
+:- impure pred intern(univ::in) is det.
+
+intern(U) :- semipure get_reserved(R),
+	if search(R, U, I) then impure set_reserved(det_update(R, U, I + 1)) 
+	else impure set_reserved(det_insert(R, U, 1)).
+
+:- impure pred release(univ::in) is det.
+
+release(U) :- semipure get_reserved(R),
+	if search(R, U, I) then ( 
+		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
+		else impure set_reserved(delete(R, U))
+	) else error(
+	"Attempted to release a Mercury value that was not interned.").
+
+:- impure pred push_univ(lua_state::in, univ::in).
+
 
 :- pragma foreign_proc("C", nil(L:in, V::out), 
 	[promise_pure, will_not_call_mercury], "
@@ -631,26 +656,7 @@ c_pointer(P) = V :- c_pointer(P, V).
 
 to_pointer(V) = P :- c_pointer(P, V).
 
-%-----------------------------------------------------------------------------%
 
-:- mutable(reserved, map(univ, int), set.init, ground, [untrailed]).
-
-:- impure pred intern(univ::in) is det.
-
-intern(U) :- semipure get_reserved(R),
-	if search(R, U, I) then impure set_reserved(det_update(R, U, I + 1)) 
-	else impure set_reserved(det_insert(R, U, 1)).
-
-:- impure pred release(univ::in) is det.
-
-release(U) :- semipure get_reserved(R),
-	if search(R, U, I) then ( 
-		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
-		else impure set_reserved(delete(R, U))
-	) else error(
-	"Attempted to release a Mercury value that was not interned.").
-
-:- impure pred push_univ(lua_state::in, univ::in).
 
 
 
