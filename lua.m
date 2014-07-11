@@ -317,6 +317,8 @@
 
 #define AP_MERCURY_UNIV ""__mercury_univ""
 
+#define AP_FUNCTION_UPVALUE 1
+
 ").
 
 :- pragma foreign_code("C", "
@@ -686,6 +688,20 @@ univ(L, S) = V :- univ(L, S, V).
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	
+	MR_Word * univ = luaAP_get_univ(L)
+	
+	if(univ) {
+		U = univ*;
+		SUCCESS_INDICATOR = 1;
+	} else
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);
+
+").
+
+:- pragma foreign_code("C", " MR_Word * luaAP_get_univ(lua_State * L) {
+
 	/* Userdata will be a valid univ value only if it's
 	metatable contains a value at AP_MERCURY_UNIV. */
 	
@@ -696,15 +712,13 @@ univ(L, S) = V :- univ(L, S, V).
 		
 		/* Extract the MR_Word pointer and derefrence it */
 		MR_Word * udata = (MR_Word *) lua_touserdata(L, -1);
-		U = udata*;
 		
+		return udata;
 		
-		SUCCESS_INDICATOR = 1;
 	} else
-		SUCCESS_INDICATOR = 0;
-	
-	lua_pop(L, 1);	
-").
+		return 0;
+}").
+		
 
 univ(U, V) :- univ(_, U, V).
 
@@ -792,7 +806,10 @@ release(U, !IO) :- semipure get_reserved(R),
 
 :- type mr_function ---> some(T) (mr_function(T) => function(T)).
 
-function(L, T, V) :- F = 'new mr_function'(T), intern(F), make_function(L, F, V).
+function(L, T, V) :- 
+	F = 'new mr_function'(T), 
+	U = univ(F), 
+	make_function(L, U, V).
 
 :- pred make_function(lua_state::in, mr_function::in, var::out).
 
@@ -800,11 +817,20 @@ function(L, T, V) :- F = 'new mr_function'(T), intern(F), make_function(L, F, V)
 	[promise_pure, will_not_call_mercury], "
 	
 
-:- pred lua_call_function(lua_state::in, mr_function::in) is det.
+
+
+:- func lua_call_function(lua_state::in, io::di, io::uo) = int is det.
 
 
 
+:- func get_function_upvalue(lua_state::in, io::di, io::uo) = univ is det.
 
+:- pragma foreign_proc("C", get_function_upvalue(L::in, _I::di, _O::uo) = (U::out),
+	[promise_pure, will_not_call_mercury], "
+	
+	lua_upvalueindex
+
+AP_FUNCTION_UPVALUE
 
 
 
