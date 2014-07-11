@@ -117,6 +117,9 @@
 	% Example construction:  	L ^ int(3) = Var 
 	% Example deconstruction: 	Var = int(N), N = 3
 	% Alternate deconstruction: 	to_int(Var) = 3
+	%
+	% The det_to_Value functions are identical to the to_Value functions,
+	% Only they will will abort instead of failing. 
 
 
 :- pred nil(lua_state, var).
@@ -132,7 +135,10 @@
 :- func int(lua_state, int) = var is det.
 :- pred int(int::out, var::in) is semidet.
 :- func int(int::out) = (var::in) is semidet.
+:- pred to_int(var::in, int::out) is semidet.
 :- func to_int(var) = int is semidet.
+:- pred det_to_int(var::in, int::out) is det.
+:- func det_to_int(var) = int is det.
 
 :- pred float(lua_state, float, var).
 :- mode float(in, in, out) is det.
@@ -140,7 +146,10 @@
 :- func float(lua_state, float) = var is det.
 :- pred float(float::out, var::in) is semidet.
 :- func float(float::out) = (var::in) is semidet.
+:- pred to_float(var::in, float::out) is semidet.
 :- func to_float(var) = float is semidet.
+:- pred det_to_float(var::in) = float is det.
+:- func det_to_float(var) = float is det.
 
 :- pred bool(lua_state, bool, var).
 :- mode bool(in, in, out) is det.
@@ -148,7 +157,10 @@
 :- func bool(lua_state, bool) = var is det.
 :- pred bool(bool::out, var::in) is semidet.
 :- func bool(bool::out) = (var::in) is semidet.
+:- pred to_bool(var::in, bool::out) is semidet.
 :- func to_bool(var) = bool is semidet.
+:- pred det_to_bool(var::in, bool::out) is det.
+:- func det_to_bool(var) = bool is det.
 
 :- pred string(lua_state, string, var).
 :- mode string(in, in, out) is det.
@@ -156,7 +168,10 @@
 :- func string(lua_state, string) = var is det.
 :- pred string(string::out, var::in) is semidet.
 :- func string(string::out) = (var::in) is semidet.
+:- pred to_string(var::in, string::out) is semidet.
 :- func to_string(var) = string is semidet.
+:- pred det_to_string(var::in, string::out) is det.
+:- func det_to_string(var) = string is det.
 
 :- pred c_pointer(lua_state, c_pointer, var).
 :- mode c_pointer(in, in, out) is det.
@@ -164,15 +179,21 @@
 :- func c_pointer(lua_state, c_pointer) = var is det.
 :- pred c_pointer(c_pointer::out, var::in) is semidet.
 :- func c_pointer(c_pointer::out) = (var::in) is semidet.
+:- pred to_pointer(var::in, c_pointer::out) is semidet.
 :- func to_pointer(var) = c_pointer is semidet.
+:- pred det_to_pointer(var::in, c_pointer::out) is det.
+:- func det_to_pointer(var) = c_pointer is det.
 
 :- pred univ(lua_state, univ, var).
 :- mode univ(in, in, out) is det.
 :- mode univ(out, out, in) is semidet.
 :- func univ(lua_state, univ) = var is det.
 :- pred univ(univ::out, var::in) is semidet.
-:- func univ(univ::out) = (var::in) is semidet.
+%  func univ(univ::out) = (var::in) is semidet. Would conflict with univ.univ(T) = univ.
+:- pred to_univ(var::in, univ::out) is semidet.
 :- func to_univ(var) = univ is semidet.
+:- pred det_to_univ(var::in, univ::out) is det.
+:- func det_to_univ(var) = univ is det.
 
 	% A polymorphic alternative to the above predicates, T will be tested
 	% against each of the above mentioned mercury types. 
@@ -182,12 +203,29 @@
 :- mode var(out, out, in) is semidet.
 :- func to_var(lua_state, T) = var is det.
 :- pred from_var(var::in, T::out) is semidet.
-:- func from_var(var) = T is semidet.
+:- func from_var(var) = T is semidet
+:- pred det_from_var(var::in, T::out) is det.
+:- func det_from_var(var) = T is det.
 
 
 %-----------------------------------------------------------------------------%
-
-	% Create a Lua function by passing a mercury value
+	
+	% Lua functions are either compiled chunks of Lua source code, or
+	% are C function pointers as defined by the lua_CFunction typedef
+	% they are varadic, accepting variable numbers of arguments and
+	% return values.
+	% 
+	% Lua handles functions as first-class variables, they can be assigned
+	% to variables and passed as function arguments or return values in
+	% the same manner as any other value in Lua.
+	% 
+	% Lua functions are inherently impure.  Not only can they cause
+	% side effects
+	
+	
+	
+	% Create a Lua function by passing a mercury value, note that Mercury
+	% should not attempt to directly deconstruct
 	%
 :- pred function(lua_state::in, T::in, var::out) is det <= function(T).
 :- func function(lua_state, T) = var is det <= function(T).
@@ -196,7 +234,7 @@
 	% Lua functions.
 	%
 :- typeclass function(T) where [
-	func call_function(T, A) = R <= (args(A), return(R))
+	pred call_function(T::in, A::in, R::out, io::di, io::uo) <= (args(A), return(R))
 ].
 	
 	% Typeclass for values that can be passed from Lua as function
@@ -230,7 +268,7 @@
 	%
 :- type c_function.
 
-:- instance function(c_function).
+:- pred c_function(L
 
 %-----------------------------------------------------------------------------%
 
@@ -238,7 +276,11 @@
 
 %-----------------------------------------------------------------------------%
 
-
+	% Lua handles all foreign values with the userdata value type.
+	% Under normal circumstances, Lua can't actually do anything with
+	% userdata. Attempts to use indexing, arithmetic or other operators
+	% will result in a lua error.  However, as with tables and functions,
+	% it is possible to assign
 
 %-----------------------------------------------------------------------------%
 
@@ -448,7 +490,13 @@ int(I, V) :- int(_, I, V).
 
 int(I) = V :- int(I, V).
 
+to_int(V, I) :- int(I, V).
+
 to_int(V) = I :- int(I, V).
+
+det_to_int(V, I) :- to_int(V, I) ; convert_error("det_to_int", V, I).
+
+det_to_int(V) = I :- det_to_int(V, I).
 
 
 :- pragma foreign_proc("C", float(L:in, F::in, V::out), 
@@ -477,7 +525,13 @@ float(F, V) :- float(_, F, V).
 
 float(F) = V :- float(F, V).
 
+to_float(V, F) :- float(F, V).
+
 to_float(V) = F :- float(F, V).
+
+det_to_float(V, F) :- to_float(V, F) ; convert_error("det_to_float", V, F).
+
+det_to_float(V) = F :- det_to_float(V, F).
 
 
 :- pragma foreign_proc("C", bool(L:in, B::in, V::out), 
@@ -513,8 +567,13 @@ bool(B, V) :- bool(_, B, V).
 
 bool(B) = V :- bool(B, V).
 
+to_bool(V, B) :- bool(B, V).
+
 to_bool(V) = B :- bool(B, V).
 
+det_to_bool(V, B) :- to_bool(V, B) ; convert_error("det_to_bool", V, B).
+
+det_to_bool(V) = B :- det_to_bool(V, B).
 
 :- pragma foreign_proc("C", string(L:in, S::in, V::out), 
 	[promise_pure, will_not_call_mercury], 
@@ -541,8 +600,13 @@ string(S, V) :- string(_, S, V).
 
 string(S) = V :- string(S, V).
 
+to_string(V, S) :- string(S, V).
+
 to_string(V) = S :- string(S, V).
 
+det_to_string(V, S) :- to_string(V, S) ; convert_error("det_to_string", V, S).
+
+det_to_string(V) = S :- det_to_string(V, S).
 
 
 :- pragma foreign_proc("C", c_pointer(L:in, P::in), 
@@ -572,7 +636,13 @@ c_pointer(P, V) :- c_pointer(_, P, V).
 
 c_pointer(P) = V :- c_pointer(P, V).
 
+to_pointer(V, P) :- c_pointer(P, V).
+
 to_pointer(V) = P :- c_pointer(P, V).
+
+det_to_pointer(V, P) :- to_pointer(V, P) ; convert_error("det_to_pointer", V, P).
+
+det_to_pointer(V) = P :- det_to_pointer(V, P).
 
 
 :- pragma foreign_proc("C", univ(L:in, U::in, V::out), 
@@ -622,11 +692,17 @@ univ(L, S) = V :- univ(L, S, V).
 	lua_pop(L, 1);	
 ").
 
-univ(S, V) :- univ(_, S, V).
+univ(U, V) :- univ(_, U, V).
 
-univ(S) = V :- univ(S, V).
+univ(U) = V :- univ(U, V).
 
-to_univ(V) = S :- univ(S, V).
+to_univ(V, U) :- univ(U, V).
+
+to_univ(V) = U :- univ(U, V).
+
+det_to_univ(V, U) :- to_univ(V, U) ; convert_error("det_to_univ", V, U).
+
+det_to_univ(V) = U :- det_to_univ(V, U).
 
 
 var(L, T, V) :- 
@@ -648,6 +724,22 @@ to_var(L, T) = V :- var(L, T, V).
 from_var(V, T) :- var(_, T, V).
 
 from_var(V) = T :- from_var(V, T).
+
+det_from_var(V, T) :- from_var(V, T) ; convert_error("det_from_var", V, T).
+
+det_from_var(V) = T :- det_from_var(V, T).
+
+
+:- pred convert_error(string::in, F::in, T::in) is erroneous.
+
+% Adapted from the body of univ.det_univ_to_type by fjh.
+convert_error(FuncName, From, To) :- 
+        FromTypeName = type_name(univ_type(From)),
+        ToTypeName = type_name(type_of(To)),
+        string.append_list([FuncName, ": conversion failed\n",
+            "\tFrom Type: ", FromTypeName, "\n",
+            "\tTo Type: ", ToTypeName], ErrorString),
+        error(ErrorString).
 
 %-----------------------------------------------------------------------------%
 
