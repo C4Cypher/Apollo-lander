@@ -397,32 +397,7 @@ int luaAP_loader(lua_State * L) {
 
 type(V) = T :- type(V, T).
 
-%-----------------------------------------------------------------------------%
 
-	% This mutvar keeps a refrence to any Mercury variable passed to Lua
-	% to ensure that Mercury does not garbage collect said variable before
-	% Lua is finished with it.
-	%
-:- mutable(reserved, map(univ, int), set.init, ground, [untrailed, attach_to_io_state]).
-
-:- pred intern(univ::in, io::di, io::uo) is det.
-
-intern(U, !IO) :- get_reserved(R, !IO),
-	if search(R, U, I) then set_reserved(det_update(R, U, I + 1), !IO) 
-	else impure set_reserved(det_insert(R, U, 1), !IO).
-	
-:- pragma foreign_export("C", intern(in, di, uo), "luaAP_intern").
-
-:- pred release(univ::in io::di, io::uo) is det.
-
-release(U, !IO) :- semipure get_reserved(R),
-	if search(R, U, I) then ( 
-		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
-		else impure set_reserved(delete(R, U))
-	) else error(
-	"Attempted to release a Mercury value that was not interned.").
-
-:- pragma foreign_export("C", release(in, di, uo), "luaAP_release").
 
 %-----------------------------------------------------------------------------%
 
@@ -675,6 +650,32 @@ from_var(V, T) :- var(_, T, V).
 
 from_var(V) = T :- from_var(V, T).
 
+%-----------------------------------------------------------------------------%
+
+	% This mutvar keeps a refrence to any Mercury variable passed to Lua
+	% to ensure that Mercury does not garbage collect said variable before
+	% Lua is finished with it.
+	%
+:- mutable(reserved, map(univ, int), set.init, ground, [untrailed, attach_to_io_state]).
+
+:- pred intern(univ::in, io::di, io::uo) is det.
+
+intern(U, !IO) :- get_reserved(R, !IO),
+	if search(R, U, I) then set_reserved(det_update(R, U, I + 1), !IO) 
+	else impure set_reserved(det_insert(R, U, 1), !IO).
+	
+:- pragma foreign_export("C", intern(in, di, uo), "luaAP_intern").
+
+:- pred release(univ::in io::di, io::uo) is det.
+
+release(U, !IO) :- semipure get_reserved(R),
+	if search(R, U, I) then ( 
+		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
+		else impure set_reserved(delete(R, U))
+	) else error(
+	"Attempted to release a Mercury value that was not interned.").
+
+:- pragma foreign_export("C", release(in, di, uo), "luaAP_release").
 
 %-----------------------------------------------------------------------------%
 
