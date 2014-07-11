@@ -400,7 +400,8 @@ int luaAP_loader(lua_State * L) {
 
 :- pragma foreign_proc("C", lua_ready(L::in, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "
-	SUCCESS_INDICATOR = luaAP_lua_
+	SUCCESS_INDICATOR = luaAP_lua_ready(L);
+").
 
 :- pragma foreign_proc("C", export_module(L::in, Name::in, M::in, _::di, _::uo),
 	[promise_pure, will_not_call_mercury], "
