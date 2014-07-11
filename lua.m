@@ -174,14 +174,15 @@
 :- func univ(univ::out) = (var::in) is semidet.
 :- func to_univ(var) = univ is semidet.
 
-
-
 	% A polymorphic alternative to the above predicates, T will be tested
-	% against each of the above mentioned mercury types. Note that there is
-	% no deconstructive version of these predicates.
+	% against each of the above mentioned mercury types. 
 	%
-:- pred var(lua_state::in, T::in, var::out) is det.
-:- func var(lua_state, T) = var is det.
+:- pred var(lua_state, T, var).
+:- mode var(in, in, out) is det.
+:- mode var(out, out, in) is semidet.
+:- func to_var(lua_state, T) = var is det.
+:- pred from_var(var::in, T::out) is semidet.
+:- func from_var(var) = T is semidet.
 
 
 %-----------------------------------------------------------------------------%
@@ -237,93 +238,7 @@
 	%
 :- type c_function.
 
-	% Type to be thrown if Lua throws an error while interacting with
-	% Mercury.
-	%
-:- type lua_error ---> error(message::string, code::lua_error_code).
 
-	% 'runtime' represents a standard runtime error.
-	% 'memory' represents a memory allocation error.
-	% 'error' represents an error called while trying to handle an
-	%	error.
-	% 
-:- type lua_error_code
-	--->	runtime
-	;	memory
-	;	error.
-
-	% Accepts a string of Lua source code that is dynamically compiled
-	% into a Lua Function.  This function may not refrence any upvalues
-	% or global variables.
-	%
-:- pred load_string(lua_state::in, string::in, var::out) is semidet.
-:- func load_string(lua_state, string) = var is semidet.
-
-%TODO: Implement a version of load_string that accepts a 
-% string_builder or stream
-
-	% Pass a higher order call to Lua that may be called as a function.
-	%
-:- func export_pred(pred(lua_state, list(var))) = function.
-:- mode export_pred(pred(in, out) is det) = (out) is det.
-:- mode export_pred(pred(in, out) is semidet) = (out) is det.
-% :- mode export_pred(pred(in, out) is multi) = (out) is det.
-% :- mode export_pred(pred(in, out) is nondet) = (out) is det.
-
-	% The same as above, but with 
-:- func export_io_pred(pred(lua_state, list(var), io, io)) = function.
-:- mode export_io_pred(pred(in, out, di, uo) is det) = (out) is det.
-:- mode export_io_pred(pred(in, out, di, uo) is semidet) = (out) is det.
-% :- mode export_io_pred(pred(in, out) is multi) = (out) is det.
-% :- mode export_io_pred(pred(in, out) is nondet) = (out) is det.
-
-	% For collecting arguments passed from Lua to Mercury in a 
-	% function call.
-	%
-:- type args.
-
-:- pred args(lua_state::in, args::out) is semidet.
-:- func args(lua_state) = args is semidet.
-
-:- pred arg(args::in, args::out, T::out) is semidet.
-:- func arg(args::in, args::out) = (T::out) is semidet.
-
-	% An alternative method
-	%
-:- pred list_args(lua_state::in, list(var)::out) is det.
-:- func list_args(lua_state) = list(var).
-
-
-	% Extract values from tables (without calling metamethods), note that
-	% the function will return nil if the key does not exist. 
-	% If the variable is not a table, the call will always fail.
-	%
-:- pred get(var, T, var).
-:- mode get(in, in, in) is semidet.
-:- mode get(in, in, out) is semidet. 
-:- mode get(in, out, in) is nondet.
-:- mode get(in, out, out) is nondet.
-
-:- func get(var, T) = var.
-:- mode get(in, in) = in is semidet.
-:- mode get(in, out) = out is semidet.
-:- mode get(in, out) = in is nondet.
-:- mode get(in, out) = out is nondet.
-
-:- func var ^ T = var.
-:- mode in ^ in = in is semidet.
-:- mode in ^ in = out is semidet.
-:- mode in ^ out = in is nondet.
-:- mode in ^ out = out is nondet.
-
-
-
-
-:- pred userdata(lua_state::in, T::in, var::out) is det.
-:- func userdata(lua_state, T) = var is det.
-
-:- some [T] pred userdata(T::out, var::in) is semidet.
-:- some [T] func userdata(T::out) = (var::in) is semidet.
 
 
 %-----------------------------------------------------------------------------%
@@ -740,6 +655,25 @@ univ(S) = V :- univ(S, V).
 to_univ(V) = S :- univ(S, V).
 
 
+var(L, T, V) :- 
+	U = univ(T),
+	( U = univ(I:int) ->
+		int(L, I, V)
+	; U = univ(F:float) ->
+		float(L, F, V)
+	; U = univ(B:bool) ->
+		bool(L, B, V)
+	; U = univ(S:string) ->
+		string(L, S, V)
+	; U = univ(P:c_pointer) ->
+		float(L, P, V)
+	; univ(L, U, V).
+
+to_var(L, T) = V :- var(L, T, V).
+
+from_var(V, T) :- var(_, T, V).
+
+from_var(V) = T :- from_var(V, T).
 
 
 %-----------------------------------------------------------------------------%
