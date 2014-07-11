@@ -26,6 +26,7 @@
 :- import_module bool.
 :- import_module string.
 :- import_module list.
+:- import_module univ.
 
 
 	% Represents the state of Lua, this is passed to and from C as 
@@ -107,61 +108,58 @@
 	% them in Lua variables, and then return a refrence to the new Lua 
 	% variable back to Mercury.
 	%
-	% The Lua state is not required to deconstruct a lua variable
+	% The Lua state may be omitted to deconstruct a lua variable
 	%
 	% Example construction:  	L ^ int(3) = Var 
 	% Example deconstruction: 	Var = int(N), N = 3
 	% Alternate deconstruction: 	to_int(Var) = 3
 
-:- pred nil(lua_state::in, var::out) is det.
-:- func nil(lua_state) = var is det.
 
+:- pred nil(lua_state, var).
+:- mode nil(in, out) is det.
+:- mode nil(out, in) is semidet.
 :- pred nil(var::in) is semidet.
+:- func nil(lua_state) = var is det.
 :- func nil = (var::in) is semidet.
 	
-	
-:- pred int(lua_state::in, int::in, var::out) is det.
+:- pred int(lua_state, int, var).
+:- mode int(in, in, out) is det.
+:- mode int(out, out, in) is semidet.
 :- func int(lua_state, int) = var is det.
-	
 :- pred int(int::out, var::in) is semidet.
 :- func int(int::out) = (var::in) is semidet.
-
 :- func to_int(var) = int is semidet.
 
-
-:- pred float(lua_state::in, float::in, var::out) is det.
+:- pred float(lua_state, float, var).
+:- mode float(in, in, out) is det.
+:- mode float(out, out, in) is semidet.
 :- func float(lua_state, float) = var is det.
-
 :- pred float(float::out, var::in) is semidet.
 :- func float(float::out) = (var::in) is semidet.
-
 :- func to_float(var) = float is semidet.
 
-
-:- pred bool(lua_state::in, bool::in, var::out) is det.
+:- pred bool(lua_state, bool, var).
+:- mode bool(in, in, out) is det.
+:- mode bool(out, out, in) is semidet.
 :- func bool(lua_state, bool) = var is det.
-
 :- pred bool(bool::out, var::in) is semidet.
 :- func bool(bool::out) = (var::in) is semidet.
-
 :- func to_bool(var) = bool is semidet.
 
-
-:- pred string(lua_state::in, string::in, var::out) is det.
+:- pred string(lua_state, string, var).
+:- mode string(in, in, out) is det.
+:- mode string(out, out, in) is semidet.
 :- func string(lua_state, string) = var is det.
-
 :- pred string(string::out, var::in) is semidet.
 :- func string(string::out) = (var::in) is semidet.
-
 :- func to_string(var) = string is semidet.
 
-
-:- pred c_pointer(lua_state::in, c_pointer::in, var::out) is det.
+:- pred c_pointer(lua_state, c_pointer, var).
+:- mode c_pointer(in, in, out) is det.
+:- mode c_pointer(out, out, in) is semidet.
 :- func c_pointer(lua_state, c_pointer) = var is det.
-
 :- pred c_pointer(c_pointer::out, var::in) is semidet.
 :- func c_pointer(c_pointer::out) = (var::in) is semidet.
-
 :- func to_pointer(var) = c_pointer is semidet.
 
 
@@ -637,22 +635,22 @@ to_pointer(V) = P :- c_pointer(P, V).
 
 :- mutable(reserved, map(univ, int), set.init, ground, [untrailed]).
 
-:- impure pred intern(T::in) is det.
+:- impure pred intern(univ::in) is det.
 
-intern(T) :- semipure get_reserved(R), U = univ(T),
+intern(U) :- semipure get_reserved(R),
 	if search(R, U, I) then impure set_reserved(det_update(R, U, I + 1)) 
 	else impure set_reserved(det_insert(R, U, 1)).
 
-:- impure pred release(T::in) is det.
+:- impure pred release(univ::in) is det.
 
-release(T) :- semipure get_reserved(R), U = univ(T),
+release(U) :- semipure get_reserved(R),
 	if search(R, U, I) then ( 
 		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
 		else impure set_reserved(delete(R, U))
 	) else error(
 	"Attempted to release a Mercury value that was not interned.").
 
-:- impure pred push_userdata(lua_state::in, T::in).
+:- impure pred push_univ(lua_state::in, univ::in).
 
 
 
