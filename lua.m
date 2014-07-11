@@ -278,7 +278,9 @@
 	%
 :- type c_function.
 
-:- pred c_function(L
+% TODO: Either move c_function to the implementation, or add predicates for it.
+
+% TODO: Deconstruct functions into string/c_function/univ?
 
 %-----------------------------------------------------------------------------%
 
