@@ -635,19 +635,26 @@ to_pointer(V) = P :- c_pointer(P, V).
 
 %-----------------------------------------------------------------------------%
 
-:- mutable(reserved, assoc_list(int, univ), set.init, ground, [untrailed]).
+:- mutable(reserved, map(univ, int), set.init, ground, [untrailed]).
 
 :- impure pred intern(T::in) is det.
 
-intern(T) :- semipure get_reserved(R), impure set_reserved( insert(R, T) ).
+intern(T) :- semipure get_reserved(R), U = univ(T),
+	if search(R, U, I) then impure set_reserved(det_update(R, U, I + 1)) 
+	else impure set_reserved(det_insert(R, U, 1)).
 
 :- impure pred release(T::in) is det.
 
-release(T) :- semipure get_reserved(R), impure set_reserved( delete(R, T) ).
+release(T) :- semipure get_reserved(R), U = univ(T),
+	if search(R, U, I) then ( 
+		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
+		else impure set_reserved(delete(R, U))
+	) else error(
+	"Attempted to release a Mercury value that was not interned.").
 
 :- impure pred push_userdata(lua_state::in, T::in).
 
-push_userdata(L, T) :- intern(T), 
+
 
 %-----------------------------------------------------------------------------%
 
