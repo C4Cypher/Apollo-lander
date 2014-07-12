@@ -299,6 +299,30 @@
 	
 	% TODO: implement the userdata(T) type.
 
+:- type metamethod
+	--->	add	%	+
+	;	sub	%	-
+	;	mul	%	*
+	;	div	%	/
+	; 	mod	%	%
+	;	pow	%	^
+	;	unm	%	-
+	;	concat	%	..
+	;	len	%	#
+	;	eq	%	==
+	;	lt	%	<
+	;	le	%	<=
+	;	index	%	u[k]
+	;	newindex%	u[k] = v
+	;	call	%	u(...)
+	;	gc.
+
+
+:- typeclass userdata(T) where [
+	pred metamethod(metamethod, T, pred(lua_state, list(var)),
+	mode metamethod(in, in, out(pred(in, out) is det)) is nondet
+].
+
 %-----------------------------------------------------------------------------%
 
 :- implementation.
