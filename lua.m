@@ -45,7 +45,7 @@
 	% Passes a value to a lua_State's module loaders under the 
 	% given string name
 	%
-:- pred export_module(lua_state::in, string::in, T::in, io::di, io::uo) is det.
+%:- pred export_module(lua_state::in, string::in, T::in, io::di, io::uo) is det.
 
 	% Throw an error in Lua. WARNING! This predicate sends an error to the
 	% Lua runtime and then performs a longjump OUT of the invoked function!
@@ -61,7 +61,7 @@
 
 	% Represents a refrence to a variable instantiated in Lua.
 	%
-:- type var where equality is raw_equal.
+:- type var.
 
 
 	% In Lua, equality comparisons may induce side effects due to the
@@ -132,89 +132,129 @@
 	% The det_to_Value functions are identical to the to_Value functions,
 	% Only they will will abort instead of failing. 
 
+	% nil
 
-:- pred nil(lua_state, var).
-:- mode nil(in, out) is det.
-:- mode nil(out, in) is semidet.
+:- pred nil(var, lua_state).
+:- mode nil(out, in) is det.
+:- mode nil(in, out) is semidet.
+
+:- func nil(lua_state) = var.
+:- mode nil(in) = out is det.
+:- mode nil(out) = in is semidet.
+
 :- pred nil(var::in) is semidet.
-:- func nil(lua_state) = var is det.
 :- func nil = (var::in) is semidet.
 	
-:- pred int(lua_state, int, var).
-:- mode int(in, in, out) is det.
-:- mode int(out, out, in) is semidet.
-:- func int(lua_state, int) = var is det.
-:- pred int(int::out, var::in) is semidet.
-:- func int(int::out) = (var::in) is semidet.
+	% int
+
+:- pred int(int, var, lua_state).
+:- mode int(in, out, in) is det.
+:- mode int(out, in, out) is semidet.
+
+:- func int(int, lua_state) = var.
+:- mode int(in, in) = out is det.
+:- mode int(out, out) = in is semidet.
+
 :- pred to_int(var::in, int::out) is semidet.
 :- func to_int(var) = int is semidet.
+
 :- pred det_to_int(var::in, int::out) is det.
 :- func det_to_int(var) = int is det.
 
-:- pred float(lua_state, float, var).
-:- mode float(in, in, out) is det.
-:- mode float(out, out, in) is semidet.
-:- func float(lua_state, float) = var is det.
-:- pred float(float::out, var::in) is semidet.
-:- func float(float::out) = (var::in) is semidet.
+	% float
+
+:- pred float(float, var, lua_state).
+:- mode float(in, out, in) is det.
+:- mode float(out, in, out) is semidet.
+
+:- func float(float, lua_state) = var.
+:- mode float(in, in) = out is det.
+:- mode float(out, out) = in is semidet.
+
 :- pred to_float(var::in, float::out) is semidet.
 :- func to_float(var) = float is semidet.
-:- pred det_to_float(var::in) = float is det.
+
+:- pred det_to_float(var::in, float::out) is det.
 :- func det_to_float(var) = float is det.
 
-:- pred bool(lua_state, bool, var).
-:- mode bool(in, in, out) is det.
-:- mode bool(out, out, in) is semidet.
-:- func bool(lua_state, bool) = var is det.
-:- pred bool(bool::out, var::in) is semidet.
-:- func bool(bool::out) = (var::in) is semidet.
+	% bool
+
+:- pred bool(bool, var, lua_state).
+:- mode bool(in, out, in) is det.
+:- mode bool(out, in, out) is semidet.
+
+:- func bool(bool, lua_state) = var.
+:- mode bool(in, in) = out is det.
+:- mode bool(out, out) = in is semidet.
+
 :- pred to_bool(var::in, bool::out) is semidet.
 :- func to_bool(var) = bool is semidet.
+
 :- pred det_to_bool(var::in, bool::out) is det.
 :- func det_to_bool(var) = bool is det.
 
-:- pred string(lua_state, string, var).
-:- mode string(in, in, out) is det.
-:- mode string(out, out, in) is semidet.
-:- func string(lua_state, string) = var is det.
-:- pred string(string::out, var::in) is semidet.
-:- func string(string::out) = (var::in) is semidet.
+	% string
+
+:- pred string(string, var, lua_state).
+:- mode string(in, out, in) is det.
+:- mode string(out, in, out) is semidet.
+
+:- func string(string, lua_state) = var.
+:- mode string(in, in) = out is det.
+:- mode string(out, out) = in is semidet.
+
 :- pred to_string(var::in, string::out) is semidet.
 :- func to_string(var) = string is semidet.
+
 :- pred det_to_string(var::in, string::out) is det.
 :- func det_to_string(var) = string is det.
 
-:- pred c_pointer(lua_state, c_pointer, var).
-:- mode c_pointer(in, in, out) is det.
-:- mode c_pointer(out, out, in) is semidet.
-:- func c_pointer(lua_state, c_pointer) = var is det.
-:- pred c_pointer(c_pointer::out, var::in) is semidet.
-:- func c_pointer(c_pointer::out) = (var::in) is semidet.
+	% c_pointer
+
+:- pred c_pointer(c_pointer, var, lua_state).
+:- mode c_pointer(in, out, in) is det.
+:- mode c_pointer(out, in, out) is semidet.
+
+:- func c_pointer(c_pointer, lua_state) = var.
+:- mode c_pointer(in, in) = out is det.
+:- mode c_pointer(out, out) = in is semidet.
+
 :- pred to_pointer(var::in, c_pointer::out) is semidet.
 :- func to_pointer(var) = c_pointer is semidet.
+
 :- pred det_to_pointer(var::in, c_pointer::out) is det.
 :- func det_to_pointer(var) = c_pointer is det.
 
-:- pred univ(lua_state, univ, var).
-:- mode univ(in, in, out) is det.
-:- mode univ(out, out, in) is semidet.
-:- func univ(lua_state, univ) = var is det.
-:- pred univ(univ::out, var::in) is semidet.
-%  func univ(univ::out) = (var::in) is semidet. Would conflict with univ.univ(T) = univ.
+	% univ
+
+:- pred univ(univ, var, lua_state).
+:- mode univ(in, out, in) is det.
+:- mode univ(out, in, out) is semidet.
+
+:- func univ(univ, lua_state) = var.
+:- mode univ(in, in) = out is det.
+:- mode univ(out, out) = in is semidet.
+
 :- pred to_univ(var::in, univ::out) is semidet.
 :- func to_univ(var) = univ is semidet.
+
 :- pred det_to_univ(var::in, univ::out) is det.
 :- func det_to_univ(var) = univ is det.
 
 	% A polymorphic alternative to the above predicates, T will be tested
 	% against each of the above mentioned mercury types. 
 	%
-:- pred var(lua_state, T, var).
-:- mode var(in, in, out) is det.
-:- mode var(out, out, in) is semidet.
-:- func to_var(lua_state, T) = var is det.
+:- pred var(T, var, lua_state).
+:- mode var(in, out, in) is det.
+:- mode var(out, in, out) is semidet.
+
+:- func var(T, lua_state) = var.
+:- mode var(in, in) = out is det.
+:- mode var(out, out) = in is semidet.
+
 :- pred from_var(var::in, T::out) is semidet.
 :- func from_var(var) = T is semidet.
+
 :- pred det_from_var(var::in, T::out) is det.
 :- func det_from_var(var) = T is det.
 
@@ -245,14 +285,16 @@
 	% Lua functions.
 	%
 :- typeclass function(T) where [
-	pred call_function(T::in, A::in, R::out, io::di, io::uo) <= (args(A), return(R))
+	(some [A, R] pred call_function(T, A, R, io, io) 
+		=> (args(A), return(R))),
+	(mode call_function(in, in, out, di, uo) is det)
 ].
 	
 	% Typeclass for values that can be passed from Lua as function
 	% arguments.
 	%
 :- typeclass args(T) where [
-	func args(lua_state) = T
+	func args(lua_state) = T 
 ].
 
 :- instance args(lua_state).
@@ -269,9 +311,10 @@
 	% Acceptable return values for a Lua function
 	%
 :- type return
-	--->	return(var)
-	;	return(list(var))
-	;	error(string).
+	--->	nil	
+	;	return_var(var)
+	;	return_list(list(var))
+	;	return_error(string).
 	
 
 	% A typedef for a C function pointer that may be passed to Lua as 
@@ -299,6 +342,7 @@
 	
 	% TODO: implement the userdata(T) type.
 
+/*  TODO Change metamethod names to avoid conflicts with Mercury
 :- type metamethod
 	--->	add	%	+
 	;	sub	%	-
@@ -316,30 +360,24 @@
 	;	newindex%	u[k] = v
 	;	call	%	u(...)
 	;	gc.
+*/
 
 
-:- typeclass userdata(T) where [
-	pred metamethod(metamethod, T, pred(lua_state, list(var)),
-	mode metamethod(in, in, out(pred(in, out) is det)) is nondet
-].
 
 %-----------------------------------------------------------------------------%
 
 :- implementation.
 
-:- import_module set.
+:- import_module map.
+:- import_module type_desc.
 
-:- include_module userdata.
-:- import_module userdata.
-
-
-
-:- pragma foreign_decl("C", "
+:- pragma foreign_decl("C", 
+"
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
 
-#include ""lua_var.h""
+#include <gc.h>
 
 #define AP_USERDATA ""luaAPOLLO_LANDER_MERCURY_USERDATA""
 #define AP_MODULE ""luaAPOLLO_LANDER_MODULE""
@@ -352,7 +390,8 @@
 
 ").
 
-:- pragma foreign_code("C", "
+:- pragma foreign_code("C", 
+"
 
 /* take the provided module name and attempt to load an apollo module
 passes any additional arguments. */
@@ -366,13 +405,13 @@ int luaAP_loader(lua_State * L) {
 	return 0;
 }
 
-";).
+").
 
-:- pragma foreign_type("C", lua_state, "lua_State *").
+:- pragma foreign_type("C", lua_state, "lua_State *",
+	[can_pass_as_mercury_type]).
 
-
-
-:- pragma foreign_type("C", c_function, "lua_CFunction").
+:- pragma foreign_type("C", c_function, "lua_CFunction",
+	[can_pass_as_mercury_type, stable]).
 
 :- pragma foreign_decl("C", "extern void luaAP_init(lua_State *);").
 
@@ -412,7 +451,8 @@ int luaAP_loader(lua_State * L) {
 
 :- pragma foreign_decl("C", "int luaAP_ready(lua_State *);").
 
-:- pragma foreign_code("C", "
+:- pragma foreign_code("C", 
+"
 	/* check to see if Apollo has already been initialized. */
 	int luaAP_ready(lua_State * L) {
 		lua_checkstack(L, 1);
@@ -423,23 +463,26 @@ int luaAP_loader(lua_State * L) {
 	}
 ").
 
-:- pragma foreign_proc("C", lua_ready(L::in, _I::di, _O::uo), 
+:- pragma foreign_proc("C", lua_ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaAP_lua_ready(L);
 ").
 
-:- pragma foreign_proc("C", export_module(L::in, Name::in, M::in, _::di, _::uo),
-	[promise_pure, will_not_call_mercury], "
-
-	/* Push the module table onto the stack, then the module name and the
-		module itself. Assign the module, by name to the module table.*/
-	lua_getfield(L, LUA_REGISTRYINDEX, AP_MODULE);
-	lua_pushstring(L, M);
-	/* TODO Fix this:
-	luaAP_push(L, M, luaAP_mercury_type(M)); */
-	lua_setfield(L, -3);
-	lua_pop(L, 1);
-").
+% TODO Fix this:
+%:- pragma foreign_proc("C", export_module(L::in, Name::in, M::in,
+%	_I::di, _O::uo),
+%	[promise_pure, will_not_call_mercury], 
+%"
+%
+%	/* Push the module table onto the stack, then the module name and the
+%		module itself. Assign the module, by name to the module table.*/
+%	lua_getfield(L, LUA_REGISTRYINDEX, AP_MODULE);
+%	lua_pushstring(L, M);
+%	
+%	luaAP_push(L, M, luaAP_mercury_type(M)); 
+%	lua_setfield(L, -3);
+%	lua_pop(L, 1);
+%").
 
 :- pragma foreign_proc("C", lua_error(L::in, Error::in),
 	[promise_pure, will_not_call_mercury], "luaL_error(L, Error);").
@@ -447,10 +490,11 @@ int luaAP_loader(lua_State * L) {
 
 %-----------------------------------------------------------------------------%
 
-:- pragma foreign_type("C", var, "luaAP_Var").
+:- pragma foreign_type("C", var, "luaAP_Var", []) where equality is raw_equal.
 
 :- pragma foreign_proc("C", raw_equal(A::in, B::in),
-	[promise_pure, will_not_call_mercury], "
+	[promise_pure, will_not_call_mercury], 
+"
 	lua_State * L = luaAP_var_state(A);
 	lua_checkstack(L, 2);
 	luaAP_push_var(L, A);	
@@ -458,11 +502,60 @@ int luaAP_loader(lua_State * L) {
 	SUCCESS_INDICATOR = lua_rawequal(L, -2, -1);
 	lua_pop(2);
 ").
+
+:- pred state(lua_state::out, var::in) is det.
+:- func state(var) = lua_state is det.
+
+:- pragma foreign_proc("C", state(L::out, V::in),
+	[promise_pure, will_not_call_mercury],
+	"L = luaAP_var_state(V);").
+
+state(V) = L :- state(L, V).
+
 	
+:- pragma foreign_code("C",
+"
+
+/* Creates a new refrence from the stack */
+luaAP_Var luaAP_new_var(lua_State * L, int index) {
+	int id = luaL_ref(L, LUA_REGISTRYINDEX);
+	luaAP_Var * new_var = GC_MALLOC(sizeof(luaAP_Var));
+	new_var->state = L;
+	new_var->id = id;
+	GC_REGISTER_FINALIZER(new_var, luaAP_finalize_var, NULL, NULL);
+	return new_var*;
+}
+
+/* Retreives the refrenced Lua state */
+lua_State * luaAP_var_state(luaAP_Var var) {
+	return var.state;
+}
+
+/* Push a refrence onto the provided stack */
+void luaAP_push_var(lua_State * L, luaAP_Var var) {
+	if (var.id == LUA_REFNIL) {
+		lua_pushnil(L);
+	}
+	else if (L == var.state) {
+		lua_rawgeti(L, LUA_REGISTRYINDEX, var.id);
+	}
+	else {
+		lua_checkstack(var.state, 1);
+		lua_rawgeti(var.state, LUA_REGISTRYINDEX, id);
+		lua_xmove(var.state, L, 1);
+	}
+}
+
+/* Remove Lua's refrence to the var in the registry */
+void luaAP_finalize_var(luaAP_Var * var, void * dummy) {
+	luaL_unref(state, LUA_REGISTRYINDEX, id);
+}
+
+").
 
 
-
-:- pragma foreign_enum("C", lua_type, [
+:- pragma foreign_enum("C", lua_type/0, 
+[
 	none - "LUA_TNONE",
 	nil - "LUA_TNIL",
 	boolean - "LUA_TBOOLEAN",
@@ -476,8 +569,9 @@ int luaAP_loader(lua_State * L) {
 ]).
 
 
-:- pragma foreign_proc("C", type(V:in, T::out), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", type(V::in, T::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	lua_State * L = luaAP_var_state(V);
 	luaAP_push_var(V);
 	T = lua_type(L, -1);
@@ -490,37 +584,39 @@ type(V) = T :- type(V, T).
 
 %-----------------------------------------------------------------------------%
 
-:- pragma foreign_proc("C", nil(L:in, V::out), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", nil(V::out, L::in), 
+	[promise_pure, will_not_call_mercury], 
+"
 	lua_pushnil(L);
 	V = luaAP_new_var(L);
 ").
 
-nil(L) = V :- nil(L, V).
+nil(L) = V :- nil(V, L).
 
-:- pragma foreign_proc("C", nil(L::out, V::in), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", nil(V::in, L::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	SUCCESS_INDICATOR = lua_isnil(L, -1);
 	lua_pop(L, 1);
 ").
 
-nil(V) :- nil(_, V).
+nil(V) :- nil(V, _).
 
 nil = V :- nil(V).
 
 
-:- pragma foreign_proc("C", int(L:in, I::in, V::out), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", int(I::in, V::out, L::in), 
+	[promise_pure, will_not_call_mercury], 
+"
 	lua_pushinteger(L, (lua_Integer)I);
 	V = luaAP_new_var(L);
 ").
 
-int(L, I) = V :- int(L, I, V).
-
-:- pragma foreign_proc("C", int(L::out, I::out, V::in), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", int(I::out, V::in, L::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isnumber(L, -1) {
@@ -534,29 +630,27 @@ int(L, I) = V :- int(L, I, V).
 		
 ").
 
-int(I, V) :- int(_, I, V).
+int(I, L) = V :- int(I, V, L).
+ 
+to_int(V, I) :- int(I, V, _).
 
-int(I) = V :- int(I, V).
+to_int(V) = I :- to_int(V, I).
 
-to_int(V, I) :- int(I, V).
-
-to_int(V) = I :- int(I, V).
-
-det_to_int(V, I) :- to_int(V, I) ; convert_error("det_to_int", V, I).
+det_to_int(V, I) :- to_int(V, I) ; convert_error(V ^ state, "det_to_int", V, I).
 
 det_to_int(V) = I :- det_to_int(V, I).
 
 
-:- pragma foreign_proc("C", float(L:in, F::in, V::out), 
+:- pragma foreign_proc("C", float(F::in, V::out, L::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushnumber(L, (lua_Number)F);
+"
+	lua_pushnumber(L, (lua_Number)F);
 	V = luaAP_new_var(L);
 ").
 
-float(L, F) = V :- float(L, F, V).
-
-:- pragma foreign_proc("C", float(L::out, F::out, V::in), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", float(F::out, V::in, L::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isnumber(L, -1) {
@@ -569,21 +663,23 @@ float(L, F) = V :- float(L, F, V).
 		
 ").
 
-float(F, V) :- float(_, F, V).
+float(F, L) = V :- float(F, V, L).
 
-float(F) = V :- float(F, V).
+to_float(V, F) :- float(F, V, _).
 
-to_float(V, F) :- float(F, V).
+to_float(V) = F :- to_float(V, F).
 
-to_float(V) = F :- float(F, V).
-
-det_to_float(V, F) :- to_float(V, F) ; convert_error("det_to_float", V, F).
+det_to_float(V, F) :- 
+		to_float(V, F)
+	 ; 
+		convert_error(V ^ state, "det_to_float", V, F).
 
 det_to_float(V) = F :- det_to_float(V, F).
 
 
-:- pragma foreign_proc("C", bool(L:in, B::in, V::out), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", bool(B::in, V::out, L::in), 
+	[promise_pure, will_not_call_mercury], 
+"
 	if (B == MR_YES)
 		lua_pushboolean(L, 1);
 	else
@@ -591,10 +687,9 @@ det_to_float(V) = F :- det_to_float(V, F).
 	V = luaAP_new_var(L);
 ").
 
-bool(L, B) = V :- bool(L, B, V).
-
-:- pragma foreign_proc("C", bool(L::out, B::out, V::in), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", bool(B::out, V::in, L::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isboolean(L, -1) {
@@ -611,28 +706,29 @@ bool(L, B) = V :- bool(L, B, V).
 
 ").
 
-bool(B, V) :- bool(_, B, V).
+bool(B, L) = V :- bool(B, V, L).
 
-bool(B) = V :- bool(B, V).
+to_bool(V, B) :- bool(B, V, _).
 
-to_bool(V, B) :- bool(B, V).
+to_bool(V) = B :- to_bool(V, B).
 
-to_bool(V) = B :- bool(B, V).
-
-det_to_bool(V, B) :- to_bool(V, B) ; convert_error("det_to_bool", V, B).
+det_to_bool(V, B) :- 
+		to_bool(V, B) 
+	; 
+		convert_error(V ^ state, "det_to_bool", V, B).
 
 det_to_bool(V) = B :- det_to_bool(V, B).
 
-:- pragma foreign_proc("C", string(L:in, S::in, V::out), 
+:- pragma foreign_proc("C", string(S::in, V::out, L::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushstring(L, S);
+"
+	lua_pushstring(L, S);
 	V = luaAP_new_var(L);
 ").
 
-string(L, S) = V :- string(L, S, V).
-
-:- pragma foreign_proc("C", string(L::out, S::out, V::in), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", string(S::out, V::in, L::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_isstring(L, -1) {
@@ -644,30 +740,30 @@ string(L, S) = V :- string(L, S, V).
 	lua_pop(L, 1);
 ").
 
-string(S, V) :- string(_, S, V).
+string(S, L) = V :- string(S, V, L).
 
-string(S) = V :- string(S, V).
+to_string(V, S) :- string(S, V, _).
 
-to_string(V, S) :- string(S, V).
+to_string(V) = S :- to_string(V, S).
 
-to_string(V) = S :- string(S, V).
-
-det_to_string(V, S) :- to_string(V, S) ; convert_error("det_to_string", V, S).
+det_to_string(V, S) :- 
+		to_string(V, S)
+	; 
+		convert_error(V ^ state, "det_to_string", V, S).
 
 det_to_string(V) = S :- det_to_string(V, S).
 
 
-:- pragma foreign_proc("C", c_pointer(L:in, P::in), 
+:- pragma foreign_proc("C", c_pointer(P::in, V::out, L::in), 
 	[promise_pure, will_not_call_mercury], 
-	"lua_pushlightuserdata(L, P);
+"
+	lua_pushlightuserdata(L, P);
 	V = luaAP_new_var(L);
 ").
 
-c_pointer(L, P) = V :- c_pointer(L, P, V).
-
-
-:- pragma foreign_proc("C", c_pointer(L::out, P::out, V::in), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", c_pointer(P::out, V::in, L::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
 	if(lua_islightuserdata(L, -1) {
@@ -680,20 +776,21 @@ c_pointer(L, P) = V :- c_pointer(L, P, V).
 	lua_pop(L, 1);	
 ").
 
-c_pointer(P, V) :- c_pointer(_, P, V).
+c_pointer(P, L) = V :- c_pointer(P, V, L).
 
-c_pointer(P) = V :- c_pointer(P, V).
+to_pointer(V, P) :- c_pointer(P, V, _).
 
-to_pointer(V, P) :- c_pointer(P, V).
+to_pointer(V) = P :- to_pointer(V, P).
 
-to_pointer(V) = P :- c_pointer(P, V).
-
-det_to_pointer(V, P) :- to_pointer(V, P) ; convert_error("det_to_pointer", V, P).
+det_to_pointer(V, P) :- 
+		to_pointer(V, P) 
+	; 
+		convert_error(V ^ state, "det_to_pointer", V, P).
 
 det_to_pointer(V) = P :- det_to_pointer(V, P).
 
 
-:- pragma foreign_proc("C", univ(L:in, U::in, V::out), 
+:- pragma foreign_proc("C", univ(U::in, V::out, L::in), 
 	[promise_pure, may_call_mercury], "
 	
 	/* Force Mercury to hold a refrence to the univ so
@@ -711,11 +808,7 @@ det_to_pointer(V) = P :- det_to_pointer(V, P).
 	V = luaAP_new_var(L);
 ").
 
-univ(L, S) = V :- univ(L, S, V).
-
-
-
-:- pragma foreign_proc("C", univ(L::out, U::out, V::in), 
+:- pragma foreign_proc("C", univ(U::out, V::in, L::out), 
 	[promise_pure, will_not_call_mercury], "
 	L = luaAP_var_state(V);
 	luaAP_push_var(L, V);
@@ -751,55 +844,93 @@ univ(L, S) = V :- univ(L, S, V).
 		return 0;
 }").
 		
+univ(U, L) = V :- univ(U, V, L).
 
-univ(U, V) :- univ(_, U, V).
+to_univ(V, U) :- univ(U, V, _).
 
-univ(U) = V :- univ(U, V).
+to_univ(V) = U :- to_univ(V, U).
 
-to_univ(V, U) :- univ(U, V).
-
-to_univ(V) = U :- univ(U, V).
-
-det_to_univ(V, U) :- to_univ(V, U) ; convert_error("det_to_univ", V, U).
+det_to_univ(V, U) :- 
+		to_univ(V, U) 
+	; 
+		convert_error(V ^ state, "det_to_univ", V, U).
 
 det_to_univ(V) = U :- det_to_univ(V, U).
 
 
-var(L, T, V) :- 
+var(T::in, V::out, L::in) :- 
 	U = univ(T),
 	( U = univ(I:int) ->
-		int(L, I, V)
+		V = L ^ int(I)
 	; U = univ(F:float) ->
-		float(L, F, V)
+		V = L ^ float(F)
 	; U = univ(B:bool) ->
-		bool(L, B, V)
+		V = L ^ bool(B)
 	; U = univ(S:string) ->
-		string(L, S, V)
+		V = L ^ string(S)
 	; U = univ(P:c_pointer) ->
-		float(L, P, V)
-	; univ(L, U, V).
+		V = L ^ c_pointer(P)
+	; 
+		V = L ^ univ(U)
+	).
 
-to_var(L, T) = V :- var(L, T, V).
 
-from_var(V, T) :- var(_, T, V).
+var(T::out, V::in, L::out) :-
+	some_value(V, X, L),
+	( univ(Y:univ) = univ(X) ->
+		univ(T) = univ(univ(Y):univ)
+	;
+		univ(T) = univ(x)
+	).  
+	
+:- pragma promise_pure(var/3).
+
+var(T, L) = V :- var(T, V, L).
+
+from_var(V, T) :- var(T, V, _).
 
 from_var(V) = T :- from_var(V, T).
 
-det_from_var(V, T) :- from_var(V, T) ; convert_error("det_from_var", V, T).
+det_from_var(V, T) :- 
+		from_var(V, T) 
+	; 
+		convert_error(V ^ state, "det_from_var", V, T).
 
 det_from_var(V) = T :- det_from_var(V, T).
 
+:- some [T] pred some_value(var::in, T::out, lua_state::out) is semidet.
 
-:- pred convert_error(string::in, F::in, T::in) is erroneous.
+some_value(V, T, L) :-
+	L = V ^ state,
+	(I = to_int(V) ->
+		T = I
+	; F = to_float(V) ->
+		T = F
+	; B = to_bool(V) ->
+		T = B
+	; S = to_string(V) ->
+		T = S
+	; P = to_pointer(V) ->
+		T = P
+	; 
+		T = to_univ(V)
+	).
+
+
+:- pred convert_error(lua_state, string, F, T).
+:- mode convert_error(in, in, in,  in)  is erroneous.
+:- mode convert_error(in, in, in,  out)  is erroneous.
+:- mode convert_error(in, in, out, in)  is erroneous.
+:- mode convert_error(in, in, out,  out)  is erroneous.
 
 % Adapted from the body of univ.det_univ_to_type by fjh.
-convert_error(FuncName, From, To) :- 
-        FromTypeName = type_name(univ_type(From)),
+convert_error(L, FuncName, From, To) :- 
+        FromTypeName = type_name(type_of(From)),
         ToTypeName = type_name(type_of(To)),
         string.append_list([FuncName, ": conversion failed\n",
             "\tFrom Type: ", FromTypeName, "\n",
             "\tTo Type: ", ToTypeName], ErrorString),
-        error(ErrorString).
+        lua_error(L, ErrorString).
 
 %-----------------------------------------------------------------------------%
 
@@ -807,7 +938,7 @@ convert_error(FuncName, From, To) :-
 	% to ensure that Mercury does not garbage collect said variable before
 	% Lua is finished with it.
 	%
-:- mutable(reserved, map(univ, int), set.init, ground, [untrailed, attach_to_io_state]).
+:- mutable(reserved, map(univ, int), map.init, ground, [untrailed, attach_to_io_state]).
 
 	% TODO: Redesign reserved system so that refrences to univs are passed
 	% by integer index instead of by pointer?  Only if current implementation
@@ -815,74 +946,95 @@ convert_error(FuncName, From, To) :-
 
 :- pred intern(univ::in, io::di, io::uo) is det.
 
-intern(U, !IO) :- get_reserved(R, !IO),
-	if search(R, U, I) then set_reserved(det_update(R, U, I + 1), !IO) 
-	else impure set_reserved(det_insert(R, U, 1), !IO).
-	
+intern(U, !IO) :- 
+	get_reserved(R, !IO),
+	( search(R, U, I) ->
+		set_reserved(det_update(R, U, I + 1), !IO) 
+	;
+		set_reserved(det_insert(R, U, 1), !IO)
+	).
+
 :- pragma foreign_export("C", intern(in, di, uo), "luaAP_intern").
 
-:- pred release(univ::in io::di, io::uo) is det.
+:- pred release(lua_state::in, univ::in, io::di, io::uo) is det.
 
-release(U, !IO) :- semipure get_reserved(R),
-	if search(R, U, I) then ( 
-		if I > 1 then impure set_reserved(det_update(R, U, I - 1))
-		else impure set_reserved(delete(R, U))
-	) else error(
-	"Attempted to release a Mercury value that was not interned.").
 
-:- pragma foreign_export("C", release(in, di, uo), "luaAP_release").
+release(L, U, !IO) :- get_reserved(R, !IO),
+	( search(R, U, I) -> 
+		( I > 1 -> 
+			set_reserved(det_update(R, U, I - 1), !IO)
+		;
+			set_reserved(delete(R, U), !IO)
+		)
+	;
+		lua_error(L, 
+			string.append_list(
+			["Attempted to release a Mercury type: ",
+			type_name(univ_type(U)),
+			" that was not interned."])
+		)
+	).
+
+
+
+:- pragma foreign_export("C", release(in, in, di, uo), "luaAP_release").
 
 %-----------------------------------------------------------------------------%
 
-% function(lua_state::in, T::in, var::out)
 
-:- type mr_function ---> some(T) (mr_function(T) => function(T)).
+:- type mr_function ---> some [T] (mr_function(T) => function(T)).
 
 function(L, T, V) :- 
 	F = 'new mr_function'(T), 
-	U = L ^ var(univ(F)), 
+	U = (L ^ var(univ(F:mr_function))), 
 	new_function(L, U, V).
+
+function(L, T) = V :- function(L, T, V).
 
 :- pred new_function(lua_state::in, var::in, var::out).
 
-:- pragma foreign_proc("C", make_function(L::in, F::in, V::out), 
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", new_function(L::in, F::in, V::out), 
+	[promise_pure, will_not_call_mercury], 
+"
 	luaAP_push_var(L, F);
 	lua_pushclosure(L, luaAP_call, 1);
 	V = luaAP_new_var(L);
 ").
 
 
-:- func lua_call_function(lua_state::in, io::di, io::uo) = int is det.
+:- func lua_call_function(lua_state::in, io::di, io::uo) = (int::out) is det.
 
 lua_call_function(L, !IO) = Num :-
+	MF = mr_function(F),	
 	(
-		univ(MF) = get_function_upvalue(L, !IO) 
+		 get_function_upvalue(L, univ(MF), !IO) 
 	; 
 		lua_error(L, "lua_call_function: Failed to load function") 
 	),
-	MF = mr_function(F),
-	call_function(F, args(L), R),
-	Return = return(R),
-	require_complete_switch 
+	A = args(L),
+	call_function(F, A, R, !IO),
+	Return = return(L, R),
+	require_complete_switch [Num]
 	( Return = nil ->
 		Num = 0
-	; Return = return(V:var) ->
+	; Return = return_var(V:var) ->
 		push_var(L, V, !IO),
 		Num = 1
-	; Return = return(V:list(var)) ->
-		Num = push_list(V, !IO)
-	;
-		lua_error(L, "lua_call_function: Invalid return value")
+	; 
+		Return = return_list(V:list(var)),
+		push_list(L, V, Num, !IO)
 	).
 	
-:- pragma foreign_export("C", lua_call_function(in, di, uo) = out, "luaAP_call").
+:- pragma foreign_export("C", 
+	lua_call_function(in, di, uo) = out, "luaAP_call").
 		
 
-:- func get_function_upvalue(lua_state::in, io::di, io::uo) = univ is det.
+:- pred get_function_upvalue(lua_state::in, univ::out, io::di, io::uo) is det.
 
-:- pragma foreign_proc("C", get_function_upvalue(L::in, _I::di, _O::uo) = (U::out),
-	[promise_pure, will_not_call_mercury], "
+:- pragma foreign_proc("C", 
+	get_function_upvalue(L::in, U::out, _I::di, _O::uo),
+	[promise_pure, will_not_call_mercury], 
+"
 	lua_pushvalue(L, lua_upvalueindex(AP_FUNCTION_UPVALUE));
 	
 	MR_Word * univ = luaAP_get_univ(L);
@@ -897,16 +1049,22 @@ lua_call_function(L, !IO) = Num :-
 :- pred push_var(lua_state::in, var::in, io::di, io::uo) is det.
 
 :- pragma foreign_proc("C", push_var(L::in, V::in, _I::di, _O::uo),
-	[promise_pure, will_not_call_mercury], "
+	[promise_pure, will_not_call_mercury], 
+"
 	luaAP_push_var(L, V);").
 	
-:- func push_list(lua_state, list(var), io::di, io::uo) = int is det.
+:- pred push_list(lua_state::in, list(var)::in, int::out, io::di, io::uo)
+	is det.
 
-push_list(_, []) = 0.
+push_list(_, [], 0, !IO).
 
-push_list(L, [V | M], !IO) = Num :- 
+push_list(L, [V | M], Num + 1, !IO) :- 
 	push_var(L, V, !IO), 
-	Num = push_list(L, M, !IO) + 1.
+	push_list(L, M, Num, !IO).
+
+:- instance args(lua_state) where [ args(L) = L ].
+
+:- instance return(return) where [ return(_, R) = R ].
 
 
 

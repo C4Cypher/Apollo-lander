@@ -70,10 +70,9 @@ extern void luaAP_push_var(lua_State *, luaAP_Var);
 		int id;
 	} luaAP_Var;
 
-void luaAP_finalize_var(luaAP_Var * var, void * dummy) {
-	luaL_unref(state, LUA_REGISTRYINDEX, id);
-}
 
+
+/* Creates a new refrence from the stack */
 luaAP_Var luaAP_new_var(lua_State * L, int index) {
 	int id = luaL_ref(L, LUA_REGISTRYINDEX);
 	luaAP_Var * new_var = GC_MALLOC(sizeof(luaAP_Var));
@@ -83,6 +82,7 @@ luaAP_Var luaAP_new_var(lua_State * L, int index) {
 	return new_var*;
 }
 
+/* Retreives the refrenced Lua state */
 lua_State * luaAP_var_state(luaAP_Var var) {
 	return var.state;
 }
@@ -100,6 +100,11 @@ void luaAP_push_var(lua_State * L, luaAP_Var var) {
 		lua_rawgeti(var.state, LUA_REGISTRYINDEX, id);
 		lua_xmove(var.state, L, 1);
 	}
+}
+
+/* Remove Lua's refrence to the var in the registry */
+void luaAP_finalize_var(luaAP_Var * var, void * dummy) {
+	luaL_unref(state, LUA_REGISTRYINDEX, id);
 }
 
 #endif /* AP_LUA_USE_VAR_CLASS */
