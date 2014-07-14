@@ -78,6 +78,14 @@
 
 :- interface.
 
+:- import_module io.
+
+:- use_module lua.
+
+:- type lua_state == lua.state.
+
+
+:- implementation.
 
 
 
@@ -85,3 +93,6 @@
 
 
 
+:- interface.
+
+:- pred main(io::di, io::uo) is det.
