@@ -57,10 +57,10 @@
 % and invoke exported Mercury predicates and functions from a dynamic library,
 % Mercury would be able to interact with the calling Lua state and it's
 % instantiated variables as immutable values and data structures in a manner
-% preserves Mercury's pure declarative semantics.  Furthermore, synergies
-% with Lua's C API and language features would allow Mercury code to define
-% methods for Lua to interact with Mercury values passed to Lua as if they
-% were native Lua objects.  
+% that preserves Mercury's pure declarative semantics.  Furthermore, 
+% synergies with Lua's C API and language features would allow Mercury code 
+% to define methods for Lua to interact with Mercury values passed to Lua as 
+% if they were native Lua objects.  
 %
 % This would allow Lua programmers the ability to take advantage of the speed 
 % and stability of compiled Mercury modules. It would also make it easier
@@ -73,3 +73,15 @@
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
+
+:- module apollo.
+
+:- interface.
+
+
+
+
+
+
+
+
