@@ -20,7 +20,7 @@
 
 :- interface.
 
-:- import_module io.
+:- use_module io.
 :- import_module int.
 :- import_module float.
 :- import_module bool.
@@ -28,11 +28,12 @@
 :- import_module list.
 :- import_module univ.
 
+:- type io == io.state.
 
 	% Represents the state of Lua, this is passed to and from C as 
 	% a lua_State *
 	%
-:- type lua_state.
+:- type lua.state.
 
 	% Prepares a lua_State for interaction with Mercury
 	%
@@ -40,52 +41,114 @@
 
 	% Verify that Lua is prepared for interaction with Mercury
 	%
-:- pred ready(lua_state::in) is semidet.
+:- pred lua.ready(lua_state::in) is semidet.
 
 
-	% Throw an error in Lua. WARNING! This predicate sends an error to the
-	% Lua runtime and then performs a longjump OUT of the invoked function!
-	% I have no idea what effect longjumping out of Mercury code will have,
-	% nor do I know yet what will happen if an attempt is made to invoke
-	% Mercury after said longjump!
-	%
-	%  * UNSAFE *
-	%
-:- pred lua_error(lua_state::in, string::in) is erroneous.
 
 %-----------------------------------------------------------------------------%
 
 
-:- type var
-	---> 	nil
-	;	int(int)
-	;	float(float)
-	;	bool(bool)
-	;	string(string)
-	;	c_pointer(c_pointer)
-	;	univ_var(univ)
-
-	where equality is var_equals.
+:- type lua.var.
 
 
-;	lightuserdata
-	;	number
-	;	string
-	;	table
-	;	function
-	;	userdata
-	;	thread.
 
-:- pred var(T::in, var::out) is det.
+	% passing nil to and from Lua 
+	
+:- pred is_nil(var::in) is semidet.
 
-:- func var(T) = var is det.
+:- pred push_nil(state::in, var::out) is det.
+:- func push_nil(state) = var is det.
 
-:- func table(T) = var is det <= table(T).
-:- func function(T) = var is det <= function(T).
-:- func userdata(T) = var is det <= userdata(T).
 
+	% int type cast
+
+:- pred to_int(var::in, int::out) is semidet.
+:- func to_int(var) = int is semidet.
+
+:- pred push_int(state::in, int::in, var::out) is det.
+:- func push_int(state, int) = var is det.
+
+
+	% float type cast
+	
+:- pred to_float(var::in, float::out) is semidet.
+:- func to_float(var) = float is semidet.
+
+:- pred push_float(state::in, float::in, var::out) is det.
+:- func push_float(state, float) = var is det.
+
+
+	% bool type cast
+
+:- pred to_bool(var::in, bool::out) is semidet.
+:- func to_bool(var) = bool is semidet.
+
+:- pred push_bool(state::in, bool::in, var::out) is det.
+:- func push_bool(state, bool) = var is det.
+
+
+	% string type cast
+
+:- pred to_string(var::in, string::out) is semidet.
+:- func to_string(var) = string is semidet.
+
+:- pred push_string(state::in, string::in, var::out) is det.
+:- func push_string(state, string) = var is det.
+
+
+	% c_pointer passing
+
+:- pred to_pointer(var::in, c_pointer::out) is semidet.
+:- func to_pointer(var) = c_pointer is semidet.
+
+:- pred push_pointer(state::in, c_pointer::in, var::out) is det.
+:- func push_pointer(state, c_pointer) = var is det.
+
+
+	% table passing
+
+:- pred to_table(var::in, table::out) is semidet.
+:- func to_table(var) = table is semidet.
+
+:- pred push_table(state::in, table::in, var::out) is det.
+:- func push_table(state, table) = var is det.
+
+
+	% function passing
+
+:- pred to_function(var::in, function::out) is semidet.
+:- func to_function(var) = function is semidet.
+
+:- pred push_function(state::in, function::in, var::out) is det.
+:- func push_function(state, function) = var is det.
+
+
+	% coroutine passing
+
+:- pred to_thread(var::in, state::out) is semidet.
+:- func to_thread(var) = state is semidet.
+
+:- pred push_thread(state::in, state::in, var::out) is det.
+:- func push_thread(state, state) = var is det.
+
+
+	% userdata passing
+
+:- some [T] pred from_userdata(var::in, T::out) is semidet.
+:- some [T] func from_userdata(var) =  is semidet.
+
+:- pred push_userdata(state::in, T::in, var::out) is det.
+:- func push_userdata(state, T) = var is det.
+
+
+
+:- pred ref_state(ref::in, lua_state::out) is det.
+:- func ref_state(ref) = lua_state is det.
 
 :- pred var_equals(var::in, var::in) is semidet.
+
+%-----------------------------------------------------------------------------%
+
 
 	% In Lua, variables are not typed, values are.  Lua recognizes eight
 	% types.
@@ -126,33 +189,46 @@
 	;	userdata
 	;	thread.
 
-:- pred lua_type(var::in, lua_type::out) is det.
-:- func lua_type(var) = lua_type.
+:- pred lua.type(var::in, lua_type::out) is det.
+:- func lua.type(var) = lua_type.
 
 %-----------------------------------------------------------------------------%
 
-	% Represents a refrence to a variable instantiated in Lua.
+	% Represents a refrence to a Lua table
 	%
-:- type ref.
+:- type lua.table.
 
-:- pred ref_state(ref::in, lua_state::out) is det.
-:- func ref_state(ref) = lua_state is det.
+	% new_table(L, New_Table)
+	% Create a new, unique, empty table.
+	%
+:- pred new_table(state::in, table::uo) is det.
+:- func new_table(state) = table.
+:- mode new_table(in) = uo is det.
+
+	% new_table(L, Metatable, New_table)
+	% Create a new table and assign a metatable to it
+	%
+:- pred new_table(state::in, table::in, table::uo) is det.
+:- func new_table(state, table) = table.
+:- mode new_table(in, in) = uo is det.
+
+	% get(Table, Key, Value)
+	% Perform a raw lookup on a Lua table.
+	% Wil always return nil on lookups to nil keys.
+	%
+:- pred get(table, var, var).
+:- mode get(in, in, out) is det.
+:- mode get(in, out, out) is nondet.
+:- func get(table, var) = var is det.
 
 
-
-:- pred ref_equals(ref::in, ref::in) is semidet.
-
-
-:- pred ref_type(ref::in, lua_type::out) is det.
-:- func ref_type(ref) = lua_type is det.
-
-
-
-%-----------------------------------------------------------------------------%
-
-% TODO: Tables
-
-:- typeclass table(T) where [].
+	% set(Table0, Table, Key, Value)
+	% Perform a raw destructive update on a unique table.
+	% Will ignore attempts to assign to nil key. 
+	%
+:- pred set(table::di, table::uo, var::in, var::in) is det.
+:- func set(table, var, var) = table.
+:- mode set(ui, in, in) = uo is det.
 
 %-----------------------------------------------------------------------------%
 	
@@ -169,40 +245,7 @@
 	% side effects
 	
 
-	% Typeclass for values that can be passed to Lua to construct
-	% Lua functions.
-	%
-:- typeclass function(T) where [
-	(some [A, R] pred call_function(T, A, R, io, io) 
-		=> (args(A), return(R))),
-	(mode call_function(in, in, out, di, uo) is det)
-].
-	
-	% Typeclass for values that can be passed from Lua as function
-	% arguments.
-	%
-:- typeclass args(T) where [
-	func args(lua_state) = T 
-].
 
-:- instance args(lua_state).
-
-	% Typeclass for values that can be passed back to Lua as a 
-	% function return value.
-	%
-:- typeclass return(T) where [
-	func return(lua_state, T) = return
-].
-
-:- instance return(return).
-
-	% Acceptable return values for a Lua function
-	%
-:- type return
-	--->	nil	
-	;	return_var(var)
-	;	return_list(list(var))
-	;	return_error(string).
 	
 
 	% A typedef for a C function pointer that may be passed to Lua as 
