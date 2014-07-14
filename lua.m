@@ -30,15 +30,25 @@
 
 :- type io == io.state.
 
-	% Represents the state of Lua, this is passed to and from C as 
-	% a lua_State *
+%-----------------------------------------------------------------------------%
+%
+% The Lua state
+%
+
+	% The state type is a refrence to the Lua state, also known as the
+	% Lua Virtual Machine.  This type is defined in lua.h as
+	% the C type "lua_State *". Note that as a convention borrowed from 
+	% the C API, operations that query or manipulate the Lua state will
+	% use the variable term 'L' to refer to the Lua state.
 	%
 :- type lua.state.
 
+	% init(L, !IO).
 	% Prepares a lua_State for interaction with Mercury
 	%
 :- pred lua.init(lua_state::in, io::di, io::uo) is det.
 
+	%
 	% Verify that Lua is prepared for interaction with Mercury
 	%
 :- pred lua.ready(lua_state::in) is semidet.
@@ -46,22 +56,76 @@
 
 
 %-----------------------------------------------------------------------------%
+%
+% Variables
+%
 
+% A Lua variable can be used to store any value that can be stored as a 
+% C type.  Furthermore, because variables are instantiated and stored within
+% the Lua state, Mercury cannot construct, deconstruct, equality test or 
+% refrence Lua variables directly like it can C types. These operations are
+% handled by the C API.
+%
+% Another thing to note is the fact that the lifetimes of Lua variables are
+% manged by the Lua garbage collector, a mark and sweep collector not unlike
+% the Bohem GC. 
+%
+% The current implementation of this library places reservations on and
+% registers finalizer callbacks with variables passed by refrence between
+% Mercury and Lua in such a manner that a Variable passed to it's non-native 
+% environment will not be collected by it's own garbage collector until the
+% non-native garbage collector calls the finalizer associated with it.
 
+ 
+	% The var type represents an indirect refrence to a variable 
+	% instantiated in Lua. So long as Mercury does not garbage collect 
+	% the var, Lua will not garbage collect the refrenced variable.
+	%
 :- type lua.var.
 
+%-----------------------------------------------------------------------------%
+%
+% Passing data between Mercury and Lua 
+%	
 
+% Mercury has no equivalent to the Lua nil value.  In Lua, nil does represent
+% the empty list, but the abscence of value, similar to the SQL NULL value.
 
-	% passing nil to and from Lua 
-	
+	% is_nil(Var).
+	% Check to see if Var is a nil value. 
+	%
 :- pred is_nil(var::in) is semidet.
 
+	% push_nil(L, Var) <=> push_nil(L) = Var.
+	% Create a new Lua variable with a value of nil.
+	%
 :- pred push_nil(state::in, var::out) is det.
 :- func push_nil(state) = var is det.
 
 
-	% int type cast
+% The following procedures all carry the same type and mode signatures, and
+% all have the same purpose, but for different types.
+%
+% to_Type(Var, Type) <=> to_Type(Var) = Type.
+% These will accept a Lua variable and return the associated Mercury variable 
+% of the corresponding Type, failing if the type of the Lua variable is not
+% convertable to Type.
+%
+% push_Type(Type, Var) <=> push_Type(Type) = Var.
+% These will accept the corresponding Mercury Type and return a Lua variable
+% storing that Type.  If Lua cannot allocate the memory for a new variable,
+% it will abort.
+%
+% Note that when passing numeric values, Lua will implicitly cast strings
+% to numbers and back if the string represents a numeric value. 
+% For example, in Lua, "3" == 3 will evaluate to true.
 
+	% Mercury int values will be converted to floats before being stored
+	% as Lua numbers.
+	%
+	% push_int will fail when attempting to pass a number that has a 
+	% non-zero fraction part. 
+	%
 :- pred to_int(var::in, int::out) is semidet.
 :- func to_int(var) = int is semidet.
 
@@ -69,8 +133,10 @@
 :- func push_int(state, int) = var is det.
 
 
-	% float type cast
-	
+	% Both Mercury floats and Lua numbers are represented in C by a
+	% double precision floating point value, as a result, to_float
+	% will never fail if the Lua variable is garunteed to be a number. 
+	%
 :- pred to_float(var::in, float::out) is semidet.
 :- func to_float(var) = float is semidet.
 
@@ -78,17 +144,24 @@
 :- func push_float(state, float) = var is det.
 
 
-	% bool type cast
+% Lua boolean values differently than C does. In Lua, any value that is not
+% false or nil will evaluate to 'true' when Lua expects a boolean value. 
 
 :- pred to_bool(var::in, bool::out) is semidet.
 :- func to_bool(var) = bool is semidet.
+
+	% explicit_bool will test the type of the Lua variable, failing if
+	% it is any Lua type other than boolean.
+	%
+:- pred explicit_bool(var::in, bool::out) is semidet.
+:- func explicit_bool(var) = bool is semidet.
 
 :- pred push_bool(state::in, bool::in, var::out) is det.
 :- func push_bool(state, bool) = var is det.
 
 
-	% string type cast
-
+% Lua strings behave similarly to Mercury strings and Char * pointers.
+% The only notable difference is the fact that Lua internalizes 
 :- pred to_string(var::in, string::out) is semidet.
 :- func to_string(var) = string is semidet.
 
