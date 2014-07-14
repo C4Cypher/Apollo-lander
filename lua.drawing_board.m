@@ -1,5 +1,3 @@
-
-
 /* This file is a dumping ground, a proverbial rubbish bin for snippets 
 that I started to implement before realizing that I was on the wrong track.
 
@@ -8,6 +6,208 @@ in the event that I could use it again.
 
 Please take anything you find here with a mountain of salt, and know that this
 file will not survive final implementation of the project. */
+
+
+:- pred convert_error(lua_state, string, F, T).
+:- mode convert_error(in, in, in,  in)  is erroneous.
+:- mode convert_error(in, in, in,  out)  is erroneous.
+:- mode convert_error(in, in, out, in)  is erroneous.
+:- mode convert_error(in, in, out,  out)  is erroneous.
+
+% Adapted from the body of univ.det_univ_to_type by fjh.
+convert_error(L, FuncName, From, To) :- 
+        FromTypeName = type_name(type_of(From)),
+        ToTypeName = type_name(type_of(To)),
+        string.append_list([FuncName, ": conversion failed\n",
+            "\tFrom Type: ", FromTypeName, "\n",
+            "\tTo Type: ", ToTypeName], ErrorString),
+        lua_error(L, ErrorString).
+
+
+
+:- pragma foreign_proc("C", var_to_ref(L::in, Var::in, Reg::in, Ref::out), 
+	[promise_pure, may_call_mercury], 
+"	Ref = luaAP_get_ref(L, Var, Reg);").	
+
+:- pragma foreign_proc("C", var_to_ref(L::out, Var::out, Ref::in), 
+	[promise_pure, will_not_call_mercury], "
+	L = luaAP_ref_state(Ref);
+	luaAP_push_ref(L, Ref);
+	
+	Var = luaAP_get_var(L)
+	
+	if(Var)
+		SUCCESS_INDICATOR = 1;
+	else
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);
+
+").
+
+
+
+
+
+	% Through the Lua State, a mercury value can be passed as the value 
+	% to a new Lua var.  int, float, bool, string and c_pointer are passed
+	% by value, while other types are passed by refrence.
+	%
+	% The following predicates will pass Mercury values to lua, instantiate
+	% them in Lua variables, and then return a refrence to the new Lua 
+	% variable back to Mercury.
+	%
+	% The Lua state may be omitted to deconstruct a lua variable
+	%
+	% Example construction:  	L ^ int(3) = Var 
+	% Example deconstruction: 	Var = int(N), N = 3
+	% Alternate deconstruction: 	to_int(Var) = 3
+	%
+	% The det_to_Value functions are identical to the to_Value functions,
+	% Only they will will abort instead of failing. 
+
+	% Lua type conversions *
+
+	% The nil Lua type indicates abscence of value. This stands in contrast
+	% to Lisp where 'nil' refers to the empty list ('[]' in Mercury).
+	% Mercury has little use for a 'nil' or 'null' type (outside of compiler
+	% invocation) due to the fact that Mercury can fail and backtrack if
+	% the abscence of value is encountered. The following predicates allows
+	% Mercury to test Lua variables against, and create Lua variables with
+	% nil values.
+	
+	% int
+
+:- pred int(int, var, lua_state).
+:- mode int(in, out, in) is det.
+:- mode int(out, in, out) is semidet.
+
+:- func int(int, lua_state) = var.
+:- mode int(in, in) = out is det.
+:- mode int(out, out) = in is semidet.
+
+:- pred to_int(var::in, int::out) is semidet.
+:- func to_int(var) = int is semidet.
+
+:- pred det_to_int(var::in, int::out) is det.
+:- func det_to_int(var) = int is det.
+
+	% float
+
+:- pred float(float, var, lua_state).
+:- mode float(in, out, in) is det.
+:- mode float(out, in, out) is semidet.
+
+:- func float(float, lua_state) = var.
+:- mode float(in, in) = out is det.
+:- mode float(out, out) = in is semidet.
+
+:- pred to_float(var::in, float::out) is semidet.
+:- func to_float(var) = float is semidet.
+
+:- pred det_to_float(var::in, float::out) is det.
+:- func det_to_float(var) = float is det.
+
+	% bool
+
+:- pred bool(bool, var, lua_state).
+:- mode bool(in, out, in) is det.
+:- mode bool(out, in, out) is semidet.
+
+:- func bool(bool, lua_state) = var.
+:- mode bool(in, in) = out is det.
+:- mode bool(out, out) = in is semidet.
+
+:- pred to_bool(var::in, bool::out) is semidet.
+:- func to_bool(var) = bool is semidet.
+
+:- pred det_to_bool(var::in, bool::out) is det.
+:- func det_to_bool(var) = bool is det.
+
+	% string
+
+:- pred string(string, var, lua_state).
+:- mode string(in, out, in) is det.
+:- mode string(out, in, out) is semidet.
+
+:- func string(string, lua_state) = var.
+:- mode string(in, in) = out is det.
+:- mode string(out, out) = in is semidet.
+
+:- pred to_string(var::in, string::out) is semidet.
+:- func to_string(var) = string is semidet.
+
+:- pred det_to_string(var::in, string::out) is det.
+:- func det_to_string(var) = string is det.
+
+	% c_pointer
+
+:- pred c_pointer(c_pointer, var, lua_state).
+:- mode c_pointer(in, out, in) is det.
+:- mode c_pointer(out, in, out) is semidet.
+
+:- func c_pointer(c_pointer, lua_state) = var.
+:- mode c_pointer(in, in) = out is det.
+:- mode c_pointer(out, out) = in is semidet.
+
+:- pred to_pointer(var::in, c_pointer::out) is semidet.
+:- func to_pointer(var) = c_pointer is semidet.
+
+:- pred det_to_pointer(var::in, c_pointer::out) is det.
+:- func det_to_pointer(var) = c_pointer is det.
+
+	% univ
+
+:- pred univ(univ, var, lua_state).
+:- mode univ(in, out, in) is det.
+:- mode univ(out, in, out) is semidet.
+
+:- func univ(univ, lua_state) = var.
+:- mode univ(in, in) = out is det.
+:- mode univ(out, out) = in is semidet.
+
+:- pred to_univ(var::in, univ::out) is semidet.
+:- func to_univ(var) = univ is semidet.
+
+:- pred det_to_univ(var::in, univ::out) is det.
+:- func det_to_univ(var) = univ is det.
+
+	% A polymorphic alternative to the above predicates, T will be tested
+	% against each of the above mentioned mercury types. 
+	%
+:- pred var(T, var, lua_state).
+:- mode var(in, out, in) is det.
+:- mode var(out, in, out) is semidet.
+
+:- func var(T, lua_state) = var.
+:- mode var(in, in) = out is det.
+%:- mode var(out, out) = in is semidet.
+
+:- pred from_var(var::in, T::out) is semidet.
+:- func from_var(var) = T is semidet.
+
+:- pred det_from_var(var::in, T::out) is det.
+:- func det_from_var(var) = T is det.
+
+
+
+:- some [T] pred some_value(var::in, T::out, lua_state::out) is semidet.
+
+some_value(V, T, L) :-
+	L = V ^ state,
+	(I = to_int(V) ->
+		T = I
+	; F = to_float(V) ->
+		T = F
+	; B = to_bool(V) ->
+		T = B
+	; S = to_string(V) ->
+		T = S
+	; P = to_pointer(V) ->
+		T = P
+	; 
+		T = to_univ(V)
+	).
 
 
 	% Type to be thrown if Lua throws an error while interacting with
