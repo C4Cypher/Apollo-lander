@@ -85,6 +85,36 @@
 :- type lua_state == lua.state.
 
 
+
+
+	% Typeclass for values that can be passed from Lua as function
+	% arguments.
+	%
+:- typeclass args(T) where [
+	func args(lua_state) = T 
+].
+
+:- instance args(lua_state).
+
+	% Typeclass for values that can be passed back to Lua as a 
+	% function return value.
+	%
+:- typeclass return(T) where [
+	func return(lua_state, T) = return
+].
+
+:- instance return(return).
+
+	% Acceptable return values for a Lua function
+	%
+:- type return
+	--->	nil	
+	;	return_var(var)
+	;	return_list(list(var))
+	;	return_error(string).
+	
+
+
 :- implementation.
 
 
