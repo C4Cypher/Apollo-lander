@@ -36,16 +36,12 @@
 
 	% Prepares a lua_State for interaction with Mercury
 	%
-:- pred init(lua_state::in, io::di, io::uo) is det.
+:- pred lua.init(lua_state::in, io::di, io::uo) is det.
 
 	% Verify that Lua is prepared for interaction with Mercury
 	%
-:- pred lua_ready(lua_state::in) is semidet.
+:- pred ready(lua_state::in) is semidet.
 
-	% Passes a value to a lua_State's module loaders under the 
-	% given string name
-	%
-%:- pred export_module(lua_state::in, string::in, T::in, io::di, io::uo) is det.
 
 	% Throw an error in Lua. WARNING! This predicate sends an error to the
 	% Lua runtime and then performs a longjump OUT of the invoked function!
@@ -68,11 +64,17 @@
 	;	string(string)
 	;	c_pointer(c_pointer)
 	;	univ_var(univ)
-	;	ref(ref)
-	;	some [T] (table_var(T) => table(T))
-	;	some [F] (function_var(F) => function(F)) 
-	;	some [U] (userdata_var(U) => userdata(U))
+
 	where equality is var_equals.
+
+
+;	lightuserdata
+	;	number
+	;	string
+	;	table
+	;	function
+	;	userdata
+	;	thread.
 
 :- pred var(T::in, var::out) is det.
 
