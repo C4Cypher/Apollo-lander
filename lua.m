@@ -10,8 +10,9 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% This file implements a manner to compile loadable Lua modules in the 
-% Mercury programming language.
+% This file presents a simple library interface meant to facilitate the 
+% writing of compiled libraries in the Mercury programming language that can 
+% be easily loaded and used from within the Lua programming language.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
