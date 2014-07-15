@@ -17,57 +17,65 @@ From the Portuguese lua (“moon”). The inventors of the language were Brazili
 
 ==========================================================================================
 
-This library is intended to provide a simple, easy to use interface between the
-Mercury functional/logic compiled programming language and the Lua Virtual 
-Machine in such a manner that it preserves the advantages of both environments.
+If you are reading this, you should no doubt be aware that Mercury is a
+strict language.  This is not merely about having a strict static type
+or mode system. Mercury was designed with a very specific set of semantics
+in mind.  
 
-Mercury and Lua are vastly different programming languages.  
+Mercury is intended to be a purely declarative language, without 
+side-effects, and the Melbourne Mercury Compiler was designed specifically 
+to optimize code written with those strict, declarative semantics in mind.  
+While the language does allow you to deviate from those semantics, there 
+is a price to be paid in efficiency and ease-of use.  To do so is generally
+considered to be a 'bad idea'.
 
-Mercury is derived from Prolog, yet it is strongly-typed, functionally pure 
-language that is compiled to C and then to native binary code. Any imperitive 
-changes to the program state must be threaded through a state variable to 
-preserve purity, or otherwise explicitly marked so that it can be handled safely
-by the compiler.  The logical and functional purity of Mercury allow it's
-compiler to perform exstensive optimization, and to catch potential problems at
-compile-time that other languages would let through.
+In contrast, the Lua programming language is known for flexibility,
+extendability and for ease of code customization on the fly.  Using syntax
+influenced by Ada and Eiffel, and borrowing a few functional programming
+features from Lisp, Lua is simple, lightweight and easy to understand.
 
-Lua is an imperitave dynamically-typed scripting language that is compiled to 
-mid-level bytecode in realtime so that the interpreter (referred to as the Lua 
-Virtual Machine) can execute Lua scripts on the fly.  The only native data 
-structure is an efficiently implented hash-table.  Functions are treated as 
-first-class variables, and Lua has an exstensive C-API that easily handles 
-foreign data making it easy to bind to foreign code. This, coupled with the fact
-that it is small and very fast makes it a superb choice for an embedded 
-scripting language, or as glue-code between different environments.
+One of Lua's most notable features is it's extendability.  There are a
+multitude of ways to extend Lua's syntax and modify it's behavior,
+allowing one to define and use Lua with their own semantics, tailored
+to the programmer's needs.
+This, coupled with a similarly simple stack based C API, makes Lua a very
+popular choice for embedding in or binding to foreign languages and
+environments.
 
-Lua may not be the best choice for embedding in a Mercury program, it's
-imperitive nature and the maleability of it's code would sacrifice much of the
-advantage offered by Mercury's purity.  However, in order to interact with the
-real world, Mercury provides language constructs for interacting with mutable
-state that can be clunky and akward.
+For a Mercury programmer, to attempt to embed Lua in Mercury might seem
+counter-intuitive (if not outright insane).  Trying to work around
+Lua's dynamic, impure and unpredictable nature would run counter to
+Mercury's strengths and would be a nightmare to implement.
 
-Apollo-lander is intended to allow Lua code to make calls on Mercury predicates
-in a controlled manner, allowing Mercury to query the state of the Lua VM
-without modifying it, and then returning values back to Lua in a manner that
-capitalizes on Lua's capability to use varadic function calls and return values.
+At the same time, the way Lua's C API is implemented, if Lua were to load
+and invoke exported Mercury predicates and functions from a dynamic library,
+Mercury would be able to interact with the calling Lua state and it's
+instantiated variables as immutable values and data structures in a manner
+that preserves Mercury's pure declarative semantics.  Furthermore, 
+synergies with Lua's C API and language features would allow Mercury code 
+to define methods for Lua to interact with Mercury values passed to Lua as 
+if they were native Lua objects.  
 
-Lua functions may be called from Mercury, but only if the function in question
-originated in a controlled manner from the Apollo interface.  Lua functions
-passed as arguments to Mercury should be opaque, either passed back in return
-values.
+This would allow Lua programmers the ability to take advantage of the speed 
+and stability of compiled Mercury modules. It would also make it easier
+to embed Mercury in foreign code, and bind Mercury to foreign libraries and
+languages.
+ 
+For these reasons, this module is intended to provide a simple way to pass 
+both data and procedure between Mercury 
+and Lua in an efficient and seamless manner.
+===========================================================================================
 
-Planned features:
+Files
+-----
 
--Allow outside coders to define additional types that can be easily
-	passed to Lua as return values, using either userdata,
-	metatables and/or Lua's existing primitive types, without
-	compromising type-safety or having to resort to the Lua API.
+lua.m		A library to facilitate the writing of Mercury modules that are callable
+		from Lua.
+		
+apollo.m	A Lua module written using lua.m that will allow Lua scripts to generate
+		mercury modules that export predicates that are safe to call from Mercury.
 
--Allow Lua to make calls on non-deterministic predicates via iterators
-	and Mercury multithreading.
 
--Initial support is for Lua 5.1, eventual support for Lua 5.2
 
--Support for Lua coroutines
 
-[1] http://www.haskell.org/haskellwiki/Haskell
+
