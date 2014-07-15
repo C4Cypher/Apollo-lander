@@ -161,7 +161,17 @@
 
 
 % Lua strings behave similarly to Mercury strings and Char * pointers.
-% The only notable difference is the fact that Lua internalizes 
+% The only notable difference is the fact that Lua internalizes any new
+% string that isn't already instantiated in Lua.  If two strings are equal in
+% Lua, then behind the scenes, they are refrencing the same address.  This 
+% makes table lookups and equality tests very efficient, at the cost of making
+% string concatenation VERY expensive.
+%
+% Because of this, a string value is not garbage collected by Lua until all
+% string variables with that value are no longer in use.  This allows some
+% interesting tricks for managing the lifetime of variables (especially for
+% memoizing) through the use of string keys in weak tables.
+ 
 :- pred to_string(var::in, string::out) is semidet.
 :- func to_string(var) = string is semidet.
 
@@ -169,7 +179,11 @@
 :- func push_string(state, string) = var is det.
 
 
-	% c_pointer passing
+% C pointer types can be passed to Lua using a special variation of the
+% Lua userdata type called lightuserdata.  Unlike full userdata, pointers
+% passed as lightuserdata cannot be assigned metatables, and are not 
+% managed by the Lua garbage collector.  As a result, be careful when passing
+% pointers as lightuserdata that might be garbage collected by Mercury.
 
 :- pred to_pointer(var::in, c_pointer::out) is semidet.
 :- func to_pointer(var) = c_pointer is semidet.
@@ -178,7 +192,10 @@
 :- func push_pointer(state, c_pointer) = var is det.
 
 
-	% table passing
+% In Lua, the only native data-structure is the table.  I'table', a refrence to an associative array, used for lists and maps.
+% Unlike an assoc_list, a Lua table may not associate more than
+% one value with any given key, and thus, behaves more like the
+% Mercury map type.
 
 :- pred to_table(var::in, table::out) is semidet.
 :- func to_table(var) = table is semidet.
@@ -187,7 +204,11 @@
 :- func push_table(state, table) = var is det.
 
 
-	% function passing
+% Lua functions are impure, lexically scoped, may have a variable number of
+% arguments and return values, can be curried, can be passed freely as first
+% class variables.  For the sake of stability and sanity, Lua functions may
+% not be invoked directly from Mercury using this Library, only passed as
+% variables.
 
 :- pred to_function(var::in, function::out) is semidet.
 :- func to_function(var) = function is semidet.
@@ -213,6 +234,8 @@
 :- pred push_userdata(state::in, T::in, var::out) is det.
 :- func push_userdata(state, T) = var is det.
 
+:- pred push_userdata(state::in, table::in, T::in, var::out) is det.
+:- func push_userdata(state, table, T) = var is det.
 
 
 :- pred ref_state(ref::in, lua_state::out) is det.
@@ -266,8 +289,18 @@
 :- func lua.type(var) = lua_type.
 
 %-----------------------------------------------------------------------------%
+%
+% Lua tables
+%
 
-	% Represents a refrence to a Lua table
+	% Represents a refrence to a Lua table.  Note that for the purposes
+	% of this library, values may only be assigned to unique tables,
+	% created in Mercury.  Any tables that have been exposed to Lua
+	% execution must be considered immutable to preserve Mercury's
+	% pure declarative semantics.
+	%
+	% This type is identical to the var type, but with a garuntee that
+	% the value held by table is, in fact, a Lua table.
 	%
 :- type lua.table.
 
@@ -305,37 +338,54 @@
 
 %-----------------------------------------------------------------------------%
 	
-	% Lua functions are either compiled chunks of Lua source code, or
-	% are C function pointers as defined by the lua_CFunction typedef
-	% they are varadic, accepting variable numbers of arguments and
-	% return values.
-	% 
-	% Lua handles functions as first-class variables, they can be assigned
-	% to variables and passed as function arguments or return values in
-	% the same manner as any other value in Lua.
-	% 
-	% Lua functions are inherently impure.  Not only can they cause
-	% side effects
-	
+% Lua functions are either compiled chunks of Lua source code, or are C
+% function pointers as defined by the C type "lua_CFunction". Lua functions 
+% are varadic, accepting variable numbers of arguments and
+% return values.
+% 
+% Lua handles functions as first-class variables, they can be assigned
+% to variables and passed as function arguments or return values in
+% the same manner as any other value in Lua.
+% 
+% Lua functions are inherently impure.  Not only can they cause
+% side effects to variables passed as arguments, but they are lexically 
+% scoped, allowing side effects on any local variable declared in a scope
+% outside of the function's scope.
+%
+% This fact effectively removes any way of determining a Lua function's purity
+% outside of compiling a function directly with calls like loadstring and
+% dostring, or passing a lua_CFunction function pointer.
 
+	% A refrence to a 
+	% This type is identical to the var type, but with a garuntee that
+	% the value held by table is, in fact, a Lua table.
+	% 
+:- type lua.function.
 
-	
+	% Construct a Lua function from a higher order term.
+	%
+:- pred function((func(state) = list(var))::in, function::out) is det.
+:- func function(func(state) = list(var)) = function is det.
 
 	% A typedef for a C function pointer that may be passed to Lua as 
 	% a Lua function as defined in the Lua C API.
 	%
-:- type c_function.
+:- type lua.c_function.
 
-% TODO: Either move c_function to the implementation, or add predicates for it.
+	% Construct a Lua function from a C function pointer.
+	%
+:- pred c_function(c_function::in, function::out) is det.
+:- func c_function(c_function) = function is det.
 
-% TODO: Deconstruct functions into string/c_function/univ?
 
 %-----------------------------------------------------------------------------%
 
 % TODO: coroutines?, iterators?, multi/nondet functions?
 
 %-----------------------------------------------------------------------------%
-
+%
+% Userdata
+%
 	% Lua handles all foreign values with the userdata value type.
 	% Under normal circumstances, Lua can't actually do anything with
 	% userdata. Attempts to use indexing, arithmetic or other operators
