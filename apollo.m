@@ -78,47 +78,30 @@
 
 :- interface.
 
-:- import_module io.
+:- import_module lua.
+:- import_module string.
 
-:- use_module lua.
-
-:- type lua_state == lua.state.
-
-
-
-
-	% Typeclass for values that can be passed from Lua as function
-	% arguments.
+	% import_lua(LuaScript__mlua, MercuryModule__m).
+	% 
+	% This predicate accepts a Lua script, loads apollo as a Lua module
+	% into the environment of a fresh Lua state, and then uses it to run 
+	% the script, generating the source code for a Mercury module based
+	% off of the script's callbacks to apollo.
 	%
-:- typeclass args(T) where [
-	func args(lua_state) = T 
-].
+:- pred import_lua(string::in, string::out) is det.
 
-:- instance args(lua_state).
-
-	% Typeclass for values that can be passed back to Lua as a 
-	% function return value.
+	% Accepts a filename for a Lua script, passes the text of the script
+	% to import_lua, and then generates a new text file with the same
+	% filename, but with the file extention replaced with '.m'
 	%
-:- typeclass return(T) where [
-	func return(lua_state, T) = return
-].
-
-:- instance return(return).
-
-	% Acceptable return values for a Lua function
-	%
-:- type return
-	--->	nil	
-	;	return_var(var)
-	;	return_list(list(var))
-	;	return_error(string).
-	
-
+:- pred main(io::di, io::uo) is det.
 
 :- implementation.
 
 
-
+:- pragma foreign_decl("C",
+"
+extern
 
 
 
