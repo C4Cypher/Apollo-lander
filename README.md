@@ -64,16 +64,22 @@ languages.
 For these reasons, this module is intended to provide a simple way to pass 
 both data and procedure between Mercury 
 and Lua in an efficient and seamless manner.
+
 ===========================================================================================
 
-Files
+
+lua.m		
 -----
 
-lua.m		A library to facilitate the writing of Mercury modules that are callable
-		from Lua.
+A library to facilitate the writing of Mercury modules that are callable from Lua.
+	
+	
 		
-apollo.m	A Lua module written using lua.m that will allow Lua scripts to generate
-		mercury modules that export predicates that are safe to call from Mercury.
+apollo.m
+--------
+
+A Lua module written using lua.m that will allow Lua scripts to generate mercury modules 
+that export predicates that are safe to call from Mercury.
 
 
 
