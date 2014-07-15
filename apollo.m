@@ -99,8 +99,8 @@
 :- implementation.
 
 
-:- pragma foreign_decl("C",
-"
+:- pragma foreign_decl("C", "extern int luaopen_apollo(lua_State *);").
+
 extern
 
 
