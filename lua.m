@@ -21,10 +21,6 @@
 :- interface.
 
 :- use_module io.
-:- import_module int.
-:- import_module float.
-:- import_module bool.
-:- import_module string.
 :- import_module list.
 :- import_module univ.
 
@@ -85,7 +81,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Passing data between Mercury and Lua 
+% Passing values between Mercury and Lua 
 %	
 
 % Mercury has no equivalent to the Lua nil value.  In Lua, nil does represent
@@ -191,11 +187,34 @@
 :- pred push_pointer(state::in, c_pointer::in, var::out) is det.
 :- func push_pointer(state, c_pointer) = var is det.
 
+%-----------------------------------------------------------------------------%
+%
+% Lua objects/refrence types
+%
 
-% In Lua, the only native data-structure is the table.  I'table', a refrence to an associative array, used for lists and maps.
-% Unlike an assoc_list, a Lua table may not associate more than
-% one value with any given key, and thus, behaves more like the
-% Mercury map type.
+% These types represent lua.vars of a specific Lua type.  In terms of Lua 
+% semantics, these variables are passed by refrence, not by value. 
+% 
+% This is important to keep in mind when performing equality tests.  
+% An equality test on two of these variables created seperately will fail, 
+% even if they both have the same literal value. Equality will succeed when
+% two refrence type variables refrence the same memory adress. 
+%
+% Note that the refrences discussed here are NOT normal C pointers, but values 
+% internal to Lua's register-based VM.  As a result, (with the exception of 
+% userdata) these values cannot be instantiated outside of Lua, only refrenced.
+%
+% Lua variables with assigned refrence types may be assigned metatables, 
+% Lua tables that store metadata about 
+
+	% In Lua, the only native data-structure is the table. The Lua table
+	% is implemented with a hybrid array/hash table data structure,
+	% allowing tables to be efficiently used in the place of arrays, lists
+	% maps and sets. 
+	%
+	% Tables may be assigned metatables, which can store metadata about
+	% 
+
 
 :- pred to_table(var::in, table::out) is semidet.
 :- func to_table(var) = table is semidet.
@@ -219,17 +238,15 @@
 
 	% coroutine passing
 
-:- pred to_thread(var::in, state::out) is semidet.
-:- func to_thread(var) = state is semidet.
+:- pred to_thread(var::in, thread::out) is semidet.
+:- func to_thread(var) = thread is semidet.
 
-:- pred push_thread(state::in, state::in, var::out) is det.
-:- func push_thread(state, state) = var is det.
+:- pred push_thread(state::in, thread::in, var::out) is det.
+:- func push_thread(state, thread) = var is det.
 
 
 	% userdata passing
 
-:- some [T] pred from_userdata(var::in, T::out) is semidet.
-:- some [T] func from_userdata(var) =  is semidet.
 
 :- pred push_userdata(state::in, T::in, var::out) is det.
 :- func push_userdata(state, T) = var is det.
@@ -293,15 +310,12 @@
 % Lua tables
 %
 
-	% Represents a refrence to a Lua table.  Note that for the purposes
-	% of this library, values may only be assigned to unique tables,
-	% created in Mercury.  Any tables that have been exposed to Lua
-	% execution must be considered immutable to preserve Mercury's
-	% pure declarative semantics.
-	%
-	% This type is identical to the var type, but with a garuntee that
-	% the value held by table is, in fact, a Lua table.
-	%
+
+% For the purposes of this library, values may only be assigned to unique 
+% tables created in Mercury.  Any tables that have been exposed to Lua
+% execution must be considered immutable to preserve Mercury's
+% pure declarative semantics.
+
 :- type lua.table.
 
 	% new_table(L, New_Table)
@@ -362,21 +376,29 @@
 	% 
 :- type lua.function.
 
+:- type lua.mr_function == (func(state) = list(var))
+
 	% Construct a Lua function from a higher order term.
 	%
-:- pred function((func(state) = list(var))::in, function::out) is det.
-:- func function(func(state) = list(var)) = function is det.
+:- pred function(mr_function::in, function::out) is det.
+:- func function(mr_function) = function is det.
 
 	% A typedef for a C function pointer that may be passed to Lua as 
 	% a Lua function as defined in the Lua C API.
 	%
 :- type lua.c_function.
 
-	% Construct a Lua function from a C function pointer.
+	% Construct a Lua closure from a C function pointer.
 	%
 :- pred c_function(c_function::in, function::out) is det.
 :- func c_function(c_function) = function is det.
 
+
+
+	% Construct a Lua function from a C function pointer.
+	%
+:- pred c_function(c_function::in, function::out) is det.
+:- func c_function(c_function) = function is det.
 
 %-----------------------------------------------------------------------------%
 
@@ -419,11 +441,15 @@
 */
 
 
-
+%-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
 :- implementation.
 
+:- import_module int.
+:- import_module float.
+:- import_module bool.
+:- import_module string.
 :- import_module map.
 :- import_module type_desc.
 
@@ -597,6 +623,8 @@ var(T, V) :-
 	).
 
 var(T) = V :- var(T, V).
+
+
 
 
 
