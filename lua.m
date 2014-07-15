@@ -85,108 +85,7 @@
 % Passing values between Mercury and Lua 
 %	
 
-% Mercury has no equivalent to the Lua nil value.  In Lua, nil does represent
-% the empty list, but the abscence of value, similar to the SQL NULL value.
 
-	% is_nil(Var).
-	% Check to see if Var is a nil value. 
-	%
-:- pred is_nil(var::in) is semidet.
-
-	% push_nil(L, Var) <=> push_nil(L) = Var.
-	% Create a new Lua variable with a value of nil.
-	%
-:- pred push_nil(state::in, var::out) is det.
-:- func push_nil(state) = var is det.
-
-
-% The following procedures all carry the same type and mode signatures, and
-% all have the same purpose, but for different types.
-%
-% to_Type(Var, Type) <=> to_Type(Var) = Type.
-% These will accept a Lua variable and return the associated Mercury variable 
-% of the corresponding Type, failing if the type of the Lua variable is not
-% convertable to Type.
-%
-% push_Type(Type, Var) <=> push_Type(Type) = Var.
-% These will accept the corresponding Mercury Type and return a Lua variable
-% storing that Type.  If Lua cannot allocate the memory for a new variable,
-% it will abort.
-%
-% Note that when passing numeric values, Lua will implicitly cast strings
-% to numbers and back if the string represents a numeric value. 
-% For example, in Lua, "3" == 3 will evaluate to true.
-
-	% Mercury int values will be converted to floats before being stored
-	% as Lua numbers.
-	%
-	% push_int will fail when attempting to pass a number that has a 
-	% non-zero fraction part. 
-	%
-:- pred to_int(var::in, int::out) is semidet.
-:- func to_int(var) = int is semidet.
-
-:- pred push_int(state::in, int::in, var::out) is det.
-:- func push_int(state, int) = var is det.
-
-
-	% Both Mercury floats and Lua numbers are represented in C by a
-	% double precision floating point value, as a result, to_float
-	% will never fail if the Lua variable is garunteed to be a number. 
-	%
-:- pred to_float(var::in, float::out) is semidet.
-:- func to_float(var) = float is semidet.
-
-:- pred push_float(state::in, float::in, var::out) is det.
-:- func push_float(state, float) = var is det.
-
-
-% Lua boolean values differently than C does. In Lua, any value that is not
-% false or nil will evaluate to 'true' when Lua expects a boolean value. 
-
-:- pred to_bool(var::in, bool::out) is semidet.
-:- func to_bool(var) = bool is semidet.
-
-	% explicit_bool will test the type of the Lua variable, failing if
-	% it is any Lua type other than boolean.
-	%
-:- pred explicit_bool(var::in, bool::out) is semidet.
-:- func explicit_bool(var) = bool is semidet.
-
-:- pred push_bool(state::in, bool::in, var::out) is det.
-:- func push_bool(state, bool) = var is det.
-
-
-% Lua strings behave similarly to Mercury strings and Char * pointers.
-% The only notable difference is the fact that Lua internalizes any new
-% string that isn't already instantiated in Lua.  If two strings are equal in
-% Lua, then behind the scenes, they are refrencing the same address.  This 
-% makes table lookups and equality tests very efficient, at the cost of making
-% string concatenation VERY expensive.
-%
-% Because of this, a string value is not garbage collected by Lua until all
-% string variables with that value are no longer in use.  This allows some
-% interesting tricks for managing the lifetime of variables (especially for
-% memoizing) through the use of string keys in weak tables.
- 
-:- pred to_string(var::in, string::out) is semidet.
-:- func to_string(var) = string is semidet.
-
-:- pred push_string(state::in, string::in, var::out) is det.
-:- func push_string(state, string) = var is det.
-
-
-% C pointer types can be passed to Lua using a special variation of the
-% Lua userdata type called lightuserdata.  Unlike full userdata, pointers
-% passed as lightuserdata cannot be assigned metatables, and are not 
-% managed by the Lua garbage collector.  As a result, be careful when passing
-% pointers as lightuserdata that might be garbage collected by Mercury.
-
-:- pred to_pointer(var::in, c_pointer::out) is semidet.
-:- func to_pointer(var) = c_pointer is semidet.
-
-:- pred push_pointer(state::in, c_pointer::in, var::out) is det.
-:- func push_pointer(state, c_pointer) = var is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -551,7 +450,7 @@ int luaAP_loader(lua_State * L) {
 	lua_settable(L, 2);
 	lua_pop(L, 2);
 	
-	/* Mark Apollo as ready */
+	/* Mark Lua as ready */
 	lua_pushboolean(L, 1);
 	lua_setfield(L, LUA_REGISTRYINDEX, AP_READY);
 }").
@@ -563,7 +462,7 @@ int luaAP_loader(lua_State * L) {
 
 :- pragma foreign_code("C", 
 "
-	/* check to see if Apollo has already been initialized. */
+	/* check to see if Lua has already been initialized. */
 	int luaAP_ready(lua_State * L) {
 		lua_checkstack(L, 1);
 		lua_getfield(L, LUA_REGISTRYINDEX, AP_READY);
@@ -573,108 +472,298 @@ int luaAP_loader(lua_State * L) {
 	}
 ").
 
-:- pragma foreign_proc("C", lua_ready(L::in), 
+:- pragma foreign_proc("C", ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaAP_lua_ready(L);
 ").
 
-% TODO Fix this:
-%:- pragma foreign_proc("C", export_module(L::in, Name::in, M::in,
-%	_I::di, _O::uo),
-%	[promise_pure, will_not_call_mercury], 
-%"
+
+
+
+
+
+%-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+
+% The following procedures all carry the same type and mode signatures, and
+% all have the same purpose, but for different types.
 %
-%	/* Push the module table onto the stack, then the module name and the
-%		module itself. Assign the module, by name to the module table.*/
-%	lua_getfield(L, LUA_REGISTRYINDEX, AP_MODULE);
-%	lua_pushstring(L, M);
-%	
-%	luaAP_push(L, M, luaAP_mercury_type(M)); 
-%	lua_setfield(L, -3);
-%	lua_pop(L, 1);
-%").
+% to_Type(Var, Type) <=> to_Type(Var) = Type.
+% These will accept a Lua variable and return the associated Mercury variable 
+% of the corresponding Type, failing if the type of the Lua variable is not
+% convertable to Type.
+%
+% push_Type(Type, Var) <=> push_Type(Type) = Var.
+% These will accept the corresponding Mercury Type and return a Lua variable
+% storing that Type.  If Lua cannot allocate the memory for a new variable,
+% it will abort.
+%
+% Note that when passing numeric values, Lua will implicitly cast strings
+% to numbers and back if the string represents a numeric value. 
+% For example, in Lua, "3" == 3 will evaluate to true.
+%-----------------------------------------------------------------------------%
 
-:- pragma foreign_proc("C", lua_error(L::in, Error::in),
-	[promise_pure, will_not_call_mercury], "luaL_error(L, Error);").
 
-:- pragma terminates(lua_error/2).
+% Mercury has no equivalent to the Lua nil value.  In Lua, nil does represent
+% the empty list, but the abscence of value, similar to the SQL NULL value.
+
+	
+	% Check to see if Var is a nil value. 
+	%
+:- pred is_nil(var::in) is semidet.
+
+
+	% Create a new Lua variable with a value of nil.
+	%
+:- pred push_nil(state::in, var::out) is det.
+:- func push_nil(state) = var is det.
+
+push_nil(S) = V :- push_nil(S, V).
+
+:- pragma foreign_proc("C", is_nil(Var), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_State * L = luaAP_ref_state(Var);
+	luaAP_push_ref(L, Var);
+	SUCCESS_INDICATOR = lua_isnil(L, -1);
+	lua_pop(L, 1);
+").
+
+
+
+:- pragma foreign_proc("C", push_nil(L::in, Var::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_pushnil(L);
+	Ref = luaAP_new_ref(L);
+").
 
 
 %-----------------------------------------------------------------------------%
 
 
-var(T, V) :- 
-	( univ(T) = univ(T1:int) ->
-		V = int(T1) 
-	; univ(T) = univ(T1:float) ->
-		V = float(T1)
-	; univ(T) = univ(T1:bool) ->
-		V = bool(T1)
-	; univ(T) = univ(T1:string) ->
-		V = string(T1)
-	; univ(T) = univ(T1:c_pointer) ->
-		V = c_pointer(T1)
-	; univ(T) = univ(T1:ref) ->
-		V = ref(T1)
-	; univ(T) = univ(T1:univ) ->
-		V = univ_var(T1)
-	;
-		U = univ(T),
-		V = univ_var(U)
-	).
-
-var(T) = V :- var(T, V).
 
 
+	% Mercury int values will be converted to floats before being stored
+	% as Lua numbers.
+	%
+	% push_int will fail when attempting to pass a number that has a 
+	% non-zero fraction part. 
+	%
+:- pred to_int(var::in, int::out) is semidet.
+:- func to_int(var) = int is semidet.
 
+:- pred push_int(state::in, int::in, var::out) is det.
+:- func push_int(state, int) = var is det.
 
+:- pragma foreign_proc("C", to_int(L::out, Int::out, Ref::in), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_State * L = luaAP_ref_state(Ref);
+	luaAP_push_ref(L, Ref);
+	if(lua_isnumber(L, -1) {
+		double number = (double)lua_tonumber(L, -1);
+		I = (MR_Integer)number;
+		SUCCESS_INDICATOR = !(Int - number);
+	} else 
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);
+		
+").
 
-table(T) = 'new table_var'(T).
-function(F) = 'new function_var'(F).
-userdata(U) = 'new userdata_var'(U).
-
-
-:- pred var_to_ref(lua_state, var, ref).
-:- mode var_to_ref(in, in, out) is det.
-:- mode var_to_ref(out, out, in) is semidet.
-
-var_to_ref(L, nil, 	R) 	:- nil_ref(L, R).
-var_to_ref(L, int(I), 	R) 	:- int_to_ref(L, I, R).
-var_to_ref(L, float(F), R) 	:- float_to_ref(L, F, R).
-var_to_ref(L, bool(B),	R) 	:- bool_to_ref(L, B, R).
-var_to_ref(L, string(S), R) 	:- string_to_ref(L, S, R).
-var_to_ref(L, c_pointer(P), R) 	:- c_pointer_to_ref(L, P, R).
-var_to_ref(L, ref(R), 	R)	:- ref_state(R, L).
-var_to_ref(L, U@univ_var(_), R)	:- univ_to_ref(L, U, R).
-var_to_ref(L, T@'new table'(_), R) :- table_to_ref(L, T, R).
-var_to_ref(L, F@'new function'(_), R) :- function_to_ref(L, F, R).
-var_to_ref(L, U@'new userdata'(_), R) :- userdata_to_ref(L, U, R).
+:- pragma foreign_proc("C", int_to_ref(L::in, Int::in, Ref::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_pushinteger(L, (lua_Integer)Int);
+	Ref = luaAP_new_ref(L);
+").
 
 
 
+	% Both Mercury floats and Lua numbers are represented in C by a
+	% double precision floating point value, as a result, to_float
+	% will never fail if the Lua variable is garunteed to be a number. 
+	%
+:- pred to_float(var::in, float::out) is semidet.
+:- func to_float(var) = float is semidet.
 
-var_equals(nil, nil).
-var_equals(int(I), int(I)).
-var_equals(float(F), float(F)).
-var_equals(int(I), float(float(I))).
-var_equals(float(float(I)), int(I)).
-var_equals(bool(B), bool(B)).
-var_equals(string(S), string(S)).
-var_equals(c_pointer(P), c_pointer(P)).
-var_equals(univ_var(U), univ(U)).
-var_equals(V1, V2) :- var_to_univ(V1, U1), var_to_univ(V2, U2), U1 = U2.
-var_equals(int(I), ref(R)) :- int_to_ref(ref_state(R), I, R).
-var_equals(float(F), ref(R)) :- float_to_ref(ref_state(R), F, R).
-var_equals(bool(B), ref(R)) :- bool_to_ref(ref_state(R), B, R).
-var_equals(string(S), ref(R)) :- string_to_ref(ref_state(R), S, R).
-var_equals(c_pointer(P), ref(R)) :- c_pointer_to_ref(ref_state(R), P, R).
-var_equals(U@univ(_), ref(R)) :- var_to_ref(ref_state(R), U , R).
-var_equals(T@'new table'(_), ref(R)) :- var_to_ref(ref_state(R), T , R).
-var_equals(F@'new function'(_), ref(R)) :- 
-	function_to_ref(ref_state(R), F , R).
-var_equals(U@'new userdata'(_), ref(R)) :- var_to_ref(ref_state(R), U , R).
+:- pred push_float(state::in, float::in, var::out) is det.
+:- func push_float(state, float) = var is det.
 
 
+% Lua boolean values differently than C does. In Lua, any value that is not
+% false or nil will evaluate to 'true' when Lua expects a boolean value. 
+
+:- pred to_bool(var::in, bool::out) is semidet.
+:- func to_bool(var) = bool is semidet.
+
+	% explicit_bool will test the type of the Lua variable, failing if
+	% it is any Lua type other than boolean.
+	%
+:- pred explicit_bool(var::in, bool::out) is semidet.
+:- func explicit_bool(var) = bool is semidet.
+
+:- pred push_bool(state::in, bool::in, var::out) is det.
+:- func push_bool(state, bool) = var is det.
+
+
+% Lua strings behave similarly to Mercury strings and Char * pointers.
+% The only notable difference is the fact that Lua internalizes any new
+% string that isn't already instantiated in Lua.  If two strings are equal in
+% Lua, then behind the scenes, they are refrencing the same address.  This 
+% makes table lookups and equality tests very efficient, at the cost of making
+% string concatenation VERY expensive.
+%
+% Because of this, a string value is not garbage collected by Lua until all
+% string variables with that value are no longer in use.  This allows some
+% interesting tricks for managing the lifetime of variables (especially for
+% memoizing) through the use of string keys in weak tables.
+ 
+:- pred to_string(var::in, string::out) is semidet.
+:- func to_string(var) = string is semidet.
+
+:- pred push_string(state::in, string::in, var::out) is det.
+:- func push_string(state, string) = var is det.
+
+
+% C pointer types can be passed to Lua using a special variation of the
+% Lua userdata type called lightuserdata.  Unlike full userdata, pointers
+% passed as lightuserdata cannot be assigned metatables, and are not 
+% managed by the Lua garbage collector.  As a result, be careful when passing
+% pointers as lightuserdata that might be garbage collected by Mercury.
+
+:- pred to_pointer(var::in, c_pointer::out) is semidet.
+:- func to_pointer(var) = c_pointer is semidet.
+
+:- pred push_pointer(state::in, c_pointer::in, var::out) is det.
+:- func push_pointer(state, c_pointer) = var is det.
+
+
+
+
+
+
+
+
+
+
+
+
+:- pred float_to_ref(lua_state, float, ref).
+:- mode float_to_ref(in, in, out).
+:- mode float_to_ref(out, out, in).
+
+
+:- pragma foreign_proc("C", float_to_ref(L::in, Float::in, Var::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_pushnumber(L, (lua_Number)Float);
+	Var = luaAP_new_ref(L);
+").
+
+:- pragma foreign_proc("C", float_to_ref(L::out, Float::out, Var::in), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_State * L = luaAP_ref_state(Var);
+	luaAP_push_ref(L, Var);
+	if(lua_isnumber(L, -1) {
+		Float = (MR_Float)lua_tonumber(L, -1);
+		SUCCESS_INDICATOR = 1;
+	} else 
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);
+		
+").
+
+:- pred bool_to_ref(lua_state, bool, ref).
+:- mode bool_to_ref(in, in, out).
+:- mode bool_to_ref(out, out, in).
+
+
+:- pragma foreign_proc("C", bool_to_ref(L::in, Bool::in, Var::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	if (Bool == MR_YES)
+		lua_pushboolean(L, 1);
+	else
+		lua_pushboolean(L, 0);
+	Var = luaAP_new_ref(L);
+").
+
+:- pragma foreign_proc("C", bool_to_ref(L::out, Bool::out, Var::in), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_State * L = luaAP_ref_state(Var);
+	luaAP_push_ref(L, Var);
+	if(lua_isboolean(L, -1) {
+		int boolean = lua_toboolean(L, -1);
+		if(boolean) 
+			Bool = MR_YES;
+		else
+			Bool = MR_NO;
+		SUCCESS_INDICATOR = 1;
+	} else 
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);
+
+").
+
+:- pred string_to_ref(lua_state, string, ref).
+:- mode string_to_ref(in, in, out).
+:- mode string_to_ref(out, out, in).
+
+:- pragma foreign_proc("C", string_to_ref(L::in, String::in, Var::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_pushstring(L, String);
+	Var = luaAP_new_ref(L);
+").
+
+:- pragma foreign_proc("C", string_to_ref(L::out, String::out, Var::in), 
+	[promise_pure, will_not_call_mercury], 
+"
+	L = luaAP_ref_state(Var);
+	luaAP_push_ref(L, Var);
+	if(lua_isstring(L, -1) {
+		String = (MR_String)lua_tostring(L, -1);
+		SUCCESS_INDICATOR = 1;
+	} else 
+		SUCCESS_INDICATOR = 0;
+	
+	lua_pop(L, 1);
+").
+
+:- pred c_pointer_to_ref(lua_state, c_pointer, ref).
+:- mode c_pointer_to_ref(in, in, out).
+:- mode c_pointer_to_ref(out, out, in).
+
+
+:- pragma foreign_proc("C", c_pointer_to_ref(L::in, Pointer::in, Var::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_pushlightuserdata(L, Pointer);
+	Var = luaAP_new_ref(L);
+").
+
+:- pragma foreign_proc("C", c_pointer_to_ref(L::out, Pointer::out, Var::in), 
+	[promise_pure, will_not_call_mercury], 
+"
+	L = luaAP_ref_state(Var);
+	luaAP_push_ref(L, Var);
+	if(lua_islightuserdata(L, -1) {
+		Pointer = lua_tolightuserdata(L, -1);
+		
+		SUCCESS_INDICATOR = 1;
+	} else 
+		SUCCESS_INDICATOR = 0;
+		
+	lua_pop(L, 1);	
+").
+
+%-----------------------------------------------------------------------------%
 
 :- pragma foreign_enum("C", lua_type/0, 
 [
@@ -691,20 +780,9 @@ var_equals(U@'new userdata'(_), ref(R)) :- var_to_ref(ref_state(R), U , R).
 ]).
 
 
-lua_type(nil, nil).
-lua_type(int(_), number).
-lua_type(float(_), number).
-lua_type(bool(_), boolean).
-lua_type(string(_), string).
-lua_type(c_pointer(_), lightuserdata).
-lua_type(univ_var(_), userdata).
-lua_type(ref(R), ref_type(R)). 
-lua_type('new lua_var'(_), userdata).
-lua_type('new table'(_), table).
-lua_type('new function'(_), function).
-lua_type('new userdata'(_), userdata).
 
-lua_type(V) = T :- lua_type(V, T).
+
+
 
 %-----------------------------------------------------------------------------%
 
@@ -793,170 +871,6 @@ ref_type(R) = T :- ref_type(R, T).
 
 %-----------------------------------------------------------------------------%
 
-
-:- pred nil_ref(lua_state, ref).
-:- mode nil_ref(in, out).
-:- mode nil_ref(out, in).
-
-:- pragma foreign_proc("C", nil_ref(L::in, Ref::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_pushnil(L);
-	Ref = luaAP_new_ref(L);
-").
-
-
-:- pragma foreign_proc("C", nil_ref(L::out, Ref::in), 
-	[promise_pure, will_not_call_mercury], 
-"
-	L = luaAP_ref_state(Ref);
-	luaAP_push_ref(L, Ref);
-	SUCCESS_INDICATOR = lua_isnil(L, -1);
-	lua_pop(L, 1);
-").
-
-
-
-:- pred int_to_ref(lua_state, int, ref).
-:- mode int_to_ref(in, in, out).
-:- mode int_to_ref(out, out, in).
-
-:- pragma foreign_proc("C", int_to_ref(L::in, Int::in, Ref::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_pushinteger(L, (lua_Integer)Int);
-	Ref = luaAP_new_ref(L);
-").
-
-:- pragma foreign_proc("C", int_to_ref(L::out, Int::out, Ref::in), 
-	[promise_pure, will_not_call_mercury], 
-"
-	L = luaAP_ref_state(Ref);
-	luaAP_push_ref(L, Ref);
-	if(lua_isnumber(L, -1) {
-		double number = (double)lua_tonumber(L, -1);
-		I = (MR_Integer)number;
-		SUCCESS_INDICATOR = !(Int - number);
-	} else 
-		SUCCESS_INDICATOR = 0;
-		
-	lua_pop(L, 1);
-		
-").
-
-
-:- pred float_to_ref(lua_state, float, ref).
-:- mode float_to_ref(in, in, out).
-:- mode float_to_ref(out, out, in).
-
-
-:- pragma foreign_proc("C", float_to_ref(L::in, Float::in, Var::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_pushnumber(L, (lua_Number)Float);
-	Var = luaAP_new_ref(L);
-").
-
-:- pragma foreign_proc("C", float_to_ref(L::out, Float::out, Var::in), 
-	[promise_pure, will_not_call_mercury], 
-"
-	L = luaAP_ref_state(Var);
-	luaAP_push_ref(L, Var);
-	if(lua_isnumber(L, -1) {
-		Float = (MR_Float)lua_tonumber(L, -1);
-		SUCCESS_INDICATOR = 1;
-	} else 
-		SUCCESS_INDICATOR = 0;
-		
-	lua_pop(L, 1);
-		
-").
-
-:- pred bool_to_ref(lua_state, bool, ref).
-:- mode bool_to_ref(in, in, out).
-:- mode bool_to_ref(out, out, in).
-
-
-:- pragma foreign_proc("C", bool_to_ref(L::in, Bool::in, Var::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	if (Bool == MR_YES)
-		lua_pushboolean(L, 1);
-	else
-		lua_pushboolean(L, 0);
-	Var = luaAP_new_ref(L);
-").
-
-:- pragma foreign_proc("C", bool_to_ref(L::out, Bool::out, Var::in), 
-	[promise_pure, will_not_call_mercury], 
-"
-	L = luaAP_ref_state(Var);
-	luaAP_push_ref(L, Var);
-	if(lua_isboolean(L, -1) {
-		int boolean = lua_toboolean(L, -1);
-		if(boolean) 
-			Bool = MR_YES;
-		else
-			Bool = MR_NO;
-		SUCCESS_INDICATOR = 1;
-	} else 
-		SUCCESS_INDICATOR = 0;
-		
-	lua_pop(L, 1);
-
-").
-
-:- pred string_to_ref(lua_state, string, ref).
-:- mode string_to_ref(in, in, out).
-:- mode string_to_ref(out, out, in).
-
-:- pragma foreign_proc("C", string_to_ref(L::in, String::in, Var::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_pushstring(L, String);
-	Var = luaAP_new_ref(L);
-").
-
-:- pragma foreign_proc("C", string_to_ref(L::out, String::out, Var::in), 
-	[promise_pure, will_not_call_mercury], 
-"
-	L = luaAP_ref_state(Var);
-	luaAP_push_ref(L, Var);
-	if(lua_isstring(L, -1) {
-		String = (MR_String)lua_tostring(L, -1);
-		SUCCESS_INDICATOR = 1;
-	} else 
-		SUCCESS_INDICATOR = 0;
-	
-	lua_pop(L, 1);
-").
-
-:- pred c_pointer_to_ref(lua_state, c_pointer, ref).
-:- mode c_pointer_to_ref(in, in, out).
-:- mode c_pointer_to_ref(out, out, in).
-
-
-:- pragma foreign_proc("C", c_pointer_to_ref(L::in, Pointer::in, Var::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_pushlightuserdata(L, Pointer);
-	Var = luaAP_new_ref(L);
-").
-
-:- pragma foreign_proc("C", c_pointer_to_ref(L::out, Pointer::out, Var::in), 
-	[promise_pure, will_not_call_mercury], 
-"
-	L = luaAP_ref_state(Var);
-	luaAP_push_ref(L, Var);
-	if(lua_islightuserdata(L, -1) {
-		Pointer = lua_tolightuserdata(L, -1);
-		
-		SUCCESS_INDICATOR = 1;
-	} else 
-		SUCCESS_INDICATOR = 0;
-		
-	lua_pop(L, 1);	
-").
 
 %-----------------------------------------------------------------------------%
 
