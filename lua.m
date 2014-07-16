@@ -22,8 +22,13 @@
 :- interface.
 
 :- use_module io.
-:- import_module list.
+:- import_module int.
+:- import_module float.
+:- import_module bool.
+:- import_module string.
 :- import_module univ.
+:- import_module list.
+
 
 :- include_module lua.state.
 
@@ -87,9 +92,68 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Passing values between Mercury and Lua 
-%	
+% Lua values and types
+%
 
+% In Lua, variables are not typed, values are.  Lua recognizes eight
+% types.
+%
+% 'nil' represents the abscence of value. 
+% 'number' is equivalent to float type.
+% 'boolean' is equivalent to the bool type.
+% 'string' is equivalent to the string type.
+%
+% 'table', a refrence to an associative array, used for lists and maps.
+%	Unlike an assoc_list, a Lua table may not associate more than
+%	one value with any given key, and thus, behaves more like the
+% 	Mercury map type.
+% 
+% 'function' is a refrence to a Lua function, which are impure, 
+%       may have a variable number of arguments, multiple return
+%	values and can be passed freely like any other variable.
+%
+% 'userdata' is lua's type for handling foreign data, unless otherwise
+%	noted, values stored as userdata are subject to collection by 	
+% 	Lua's Garbage Collector.
+%
+% 'lightuserdata' is seen in Lua as identical to userdata, but contains
+%	a C pointer which will not be collected by Lua's GC.
+%
+% 'thread' is a lua_state, usually a coroutine, note that the main
+% lua_state should not be treated like a coroutine.
+
+	% The type lua.type represents the types that Lua recognizes.
+	% 
+:- type lua.type 
+	--->	none
+	;	nil
+	;	boolean
+	;	lightuserdata
+	;	number
+	;	string
+	;	table
+	;	function
+	;	userdata
+	;	thread.
+
+	% type/1 and type/2 query Lua for a Lua variable's type.  If 
+	% provided a Mercury primitive value that can be implicity
+	% cast to a Lua value, that type's equivalent value will be
+	% returned.  For more complex Mercury types, 'none' will be
+	% returned.
+	% 
+:- pred lua.type(T::in, type::out) is det.
+:- func lua.type(T) = type.
+
+	% Type lua.value represents the set of types that 
+	% can be i 
+
+:- type lua.value
+	--->	nil
+	;	int(int)
+	;	float(float)
+	;	number(float)
+	;	bool(bool)
 
 
 %-----------------------------------------------------------------------------%
@@ -168,47 +232,6 @@
 %-----------------------------------------------------------------------------%
 
 
-	% In Lua, variables are not typed, values are.  Lua recognizes eight
-	% types.
-	%
-	% 'nil' represents the abscence of value. 
-	% 'number' is equivalent to float type.
-	% 'boolean' is equivalent to the bool type.
-	% 'string' is equivalent to the string type.
-	%
-	% 'table', a refrence to an associative array, used for lists and maps.
-	%	Unlike an assoc_list, a Lua table may not associate more than
-	%	one value with any given key, and thus, behaves more like the
-	% 	Mercury map type.
-	% 
-	% 'function' is a refrence to a Lua function, which are impure, 
-	%       may have a variable number of arguments, multiple return
-	%	values and can be passed freely like any other variable.
-	%
-	% 'userdata' is lua's type for handling foreign data, unless otherwise
-	%	noted, values stored as userdata are subject to collection by 	
-	% 	Lua's Garbage Collector.
-	%
-	% 'lightuserdata' is seen in Lua as identical to userdata, but contains
-	%	a C pointer which will not be collected by Lua's GC.
-	%
-	% 'thread' is a lua_state, usually a coroutine, note that the main
-	% lua_state should not be treated like a coroutine.
-	%
-:- type lua_type 
-	--->	none
-	;	nil
-	;	boolean
-	;	lightuserdata
-	;	number
-	;	string
-	;	table
-	;	function
-	;	userdata
-	;	thread.
-
-:- pred lua.type(var::in, lua_type::out) is det.
-:- func lua.type(var) = lua_type.
 
 %-----------------------------------------------------------------------------%
 %
