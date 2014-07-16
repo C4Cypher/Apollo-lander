@@ -30,7 +30,7 @@
 :- import_module list.
 
 
-:- include_module lua.state.
+:- include_module lua.stack.
 
 
 :- type io == io.state.

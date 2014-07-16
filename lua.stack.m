@@ -6,7 +6,7 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: lua.state.m.
+% File: state.m.
 % Main author: C4Cypher.
 % Stability: low.
 % 
@@ -16,73 +16,160 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module lua.state.
+:- module stack.
 
 :- interface.
 
 
 
+
 %-----------------------------------------------------------------------------%
 %
-% The Lua state
+% Stack operations
 %
 
-	% The state type is a refrence to the Lua state, also known as the
-	% Lua Virtual Machine.  This type is defined in lua.h as
-	% the C type "lua_State *". Note that as a convention borrowed from 
-	% the C API, operations that query or manipulate the Lua state will
-	% use the variable term 'L' to refer to the Lua state.
-	%
-:- type lua.state.
-
-	% init(L, !IO).
-	%
-	% Prepares a lua_State for interaction with Mercury
-	%
-:- pred lua.init(state::in, io::di, io::uo) is det.
-
-	% ready(L).
-	% ready(L, IsReady, !IO).
-	%
-	% Verify that Lua is prepared for interaction with Mercury.
-	%
-:- pred lua.ready(state::in) is semidet.
-:- pred lua.ready(state, bool, io, io) is det.
+	% Used for readability, indexes are used to refrence values on the
+	% Stack or at pseduo-indexes
+:- type index == int.
 
 
 	% do(L, something(L)).
 	%
-	% Perform an action with  Lua.  Will prevent any changes to
+	% Perform an action with    Will prevent any changes to
 	% values already on the stack, revert any changes already on the stack
 	% and abort if it is unable to do so.
-:- pred lua.do(state::in, impure pred(state)).
+:- pred do(state::in, impure pred(state)).
 
 
-%-----------------------------------------------------------------------------%
-%
-% Stack operation
-%
 
 	% Find the top of the stack
 	%
-:- semipure pred lua.top(state::in, int::out).
-:- semipure func lua.top(state) = int.
+:- semipure pred top(state::in, index::out).
+:- semipure func top(state) = index.
 
 
 	% checkstack(L, Number).
 	% 
 	% Ensure there are a certain Number of free values on the stack.
 	% Fails if Lua cannot allocate memory for the free values.
-:- semipure pred lua.checkstack(state::in, int::in) is semidet.
+:- semipure pred checkstack(state::in, int::in) is semidet.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Stack queries
+%
+
+	% There is a nil value at the provided index.
+	%
+:- semipure pred is_nil(state::in, index::in) is semidet.
+
+	% is_int will fail if a number has a non-zero fraction part. 
+	%
+:- semipure pred is_int(state::in, index::in) is semidet.
+
+	% is_number will succeed if the value at the top of the stack is a
+	% Lua number. 
+	%
+:- semipure pred is_number(state::in, index::in) is semidet.
+
+	% is_bool will succeed if the value at the top of the stack is a
+	% Lua boolean. 
+	%
+:- semipure pred is_bool(state::in, index::in) is semidet.
+
+	% is_string will succeed if the value at the top of the stack is a
+	% Lua string. 
+	%
+:- semipure pred is_string(state::in, index::in) is semidet.
+
+
+	% is_lightuserdata will succeed if the value at the top of the stack
+	% is a C void * pointer. 
+	%
+:- semipure pred is_lightuserdata(state::in, index::in) is semidet.
+
+
+	% is_table will succeed if the value at the top of the stack is a
+	% Lua table. 
+	%
+:- semipure pred is_table(state::in, index::in) is semidet.
+
+	% is_function will succeed if the value at the top of the stack is a
+	% Lua function. 
+	%
+:- semipure pred is_function(state::in, index::in) is semidet.
+
+	% is_userdata will succeed if the value at the top of the stack is a
+	% Lua userdata. 
+	%
+:- semipure pred is_userdata(state::in, index::in) is semidet.
+
+
+	% is_thread will succeed if the value at the top of the stack is a
+	% Lua thread. 
+	%
+:- semipure pred is_thread(state::in, index::in) is semidet.
+
+
+
+
+%-----------------------------------------------------------------------------%
+%
+% Passing values from 
+%
+
+
+	% to_int will fail when attempting to pass a number that has a 
+	% non-zero fraction part. 
+	%
+:- semipure to_int(state::in, index::in, int::out) is semidet.
+
+
+:- semipure to_number(state::in, index::in, float::out) is semidet.
+
+
+:- semipure to_bool(state::in, index::in, bool::out) is semidet.
+
+
+:- semipure to_string(state::in, index::in, string::out) is semidet.
+
+
+:- semipure to_lightuserdata(state::in, index::in, c_pointer::out) is semidet.
+
+
+:- semipure to_table(state::in, index::in, table::out) is semidet.
+
+
+:- semipure to_function(state::in, index::in, function::out) is semidet.
+
+
+:- semipure to_userdata(state::in, index::in, userdata::out) is semidet.
+
+
+:- semipure to_thread(state::in, index::in, thread::out) is semidet.
+
+
+:- semipure to_state(state::in, index::in, state::out) is semidet.
+
+
+:- semipure to_var(state::in, index::in, var::out) is semidet.
+
+%-----------------------------------------------------------------------------%
+%
+% Stack push operations
+%
+
+% TODO: Describe semantics for push operations
 
 	% stack(L, Index, Pred).
 	%
 	% Push a copy of a value onto the top of the stack and do something
 	% with it, then pop it off the stack. 
 	% Aborts if the Index is not valid.
-:- pred lua.stack(state, int, pred(state)).
-:- mode lua.stack(in, in, (pred(in) is det)) is det.
-:- mode lua.stack(in, in, (pred(in) is semidet)) is 
+:- pred stack(state, index, pred(state)).
+:- mode stack(in, in, (pred(in) is det)) is det.
+:- mode stack(in, in, (pred(in) is semidet)) is 
 
 
 	% upvalue(L, Id, Pred).
@@ -90,9 +177,9 @@
 	% Push a copy of an upvalue onto the top of the stack and do something
 	% with it, then pop it off the stack. The predicate is not called and
 	% Aborts if the upvalue is not valid.
-:- pred lua.upvalue(state, int, pred(state)).
-:- mode lua.upvalue(in, in, (pred(in) is det)) is det.
-:- mode lua.upvalue(in, in, (pred(in) is semidet)) is semidet.
+:- pred upvalue(state, int, pred(state)).
+:- mode upvalue(in, in, (pred(in) is det)) is det.
+:- mode upvalue(in, in, (pred(in) is semidet)) is semidet.
 
 
 
@@ -100,9 +187,9 @@
 	%
 	% Push a copy of a global variable  onto the top of the stack and do
 	% something with it, then pop it off the stack.
-:- pred lua.global(state, string, pred(state)).
-:- mode lua.global(in, in, (pred(in) is det)) is det.
-:- mode lua.global(in, in, (pred(in) is semidet)) is semidet.
+:- pred global(state, string, pred(state)).
+:- mode global(in, in, (pred(in) is det)) is det.
+:- mode global(in, in, (pred(in) is semidet)) is semidet.
 
 
 	% ref(L, Id, Pred).
@@ -110,9 +197,9 @@
 	% Push a copy of a refrence onto the top of the stack and do something
 	% with it, then pop it off the stack.
 	% Aborts if the refrence is not valid.
-:- pred lua.ref(state, int, pred(state)).
-:- mode lua.ref(in, in, (pred(in) is det)) is det.
-:- mode lua.ref(in, in, (pred(in) is semidet)) is semidet.
+:- pred ref(state, int, pred(state)).
+:- mode ref(in, in, (pred(in) is det)) is det.
+:- mode ref(in, in, (pred(in) is semidet)) is semidet.
 
 
 
@@ -120,41 +207,22 @@
 	%
 	% Push a copy of a thing onto the top of the stack and do something
 	% with it, then pop it off the stack.
-:- pred lua.registry(state, int, pred(state)).
-:- mode lua.registry(in, in, (pred(in) is det)) is det.
-:- mode lua.registry(in, in, (pred(in) is semidet)) is semidet.
+:- pred registry(state, int, pred(state)).
+:- mode registry(in, in, (pred(in) is det)) is det.
+:- mode registry(in, in, (pred(in) is semidet)) is semidet.
 
 
 	% var(L, Var, Pred, Valid).
 	%
 	% Push a copy of a thing onto the top of the stack and do something
 	% with it, then pop it off the stack.
-:- pred lua.var(state, int, pred(state)).
-:- mode lua.var(in, in, (pred(in) is det)) is det.
-:- mode lua.var(in, in, (pred(in) is semidet)) is semidet.
-
-%-----------------------------------------------------------------------------%
-%
-% Value passing
-%
-
-	% There is a nil value on the top of the stack.
-	%
-:- semipure pred is_nil(state::in) is semidet.
+:- pred var(state, int, pred(state)).
+:- mode var(in, in, (pred(in) is det)) is det.
+:- mode var(in, in, (pred(in) is semidet)) is semidet.
 
 	% Push a nil value onto the stack and do something with it.
 	%
 :- pred push_nil(state::in, pred(state::in) is det) is det.
-
-
-	% is_int will fail if a number has a non-zero fraction part. 
-	%
-:- semipure pred is_int(state::in) is semidet.
-
-	% to_int will fail when attempting to pass a number that has a 
-	% non-zero fraction part. 
-	%
-:- semipure to_int(state::in, int::out) is semidet.
 
 	% Mercury int values will be converted to floats before being stored
 	% as Lua numbers.
@@ -162,99 +230,49 @@
 :- impure pred push_int(state::in, pred(state::in) is det) is det.
 
 
-	% is_number will succeed if the value at the top of the stack is a
-	% Lua number. 
-	%
-:- semipure pred is_number(state::in) is semidet.
-
-:- semipure to_number(state::in, float::out) is semidet.
-
 :- impure pred push_number(state::in, float::in, pred(state::in) is det)
 	 is det.
 
-
-	% is_bool will succeed if the value at the top of the stack is a
-	% Lua boolean. 
-	%
-:- semipure pred is_bool(state::in) is semidet.
-
-:- semipure to_bool(state::in, bool::out) is semidet.
 
 :- impure pred push_bool(state::in, bool::in, pred(state::in) is det)
 	 is det.
 
 
-	% is_string will succeed if the value at the top of the stack is a
-	% Lua string. 
-	%
-:- semipure pred is_string(state::in) is semidet.
-
-:- semipure to_string(state::in, string::out) is semidet.
-
 :- impure pred push_string(state::in, string::in, pred(state::in) is det)
 	 is det.
 
-
-	% is_lightuserdata will succeed if the value at the top of the stack
-	% is a C void * pointer. 
-	%
-:- semipure pred is_lightuserdata(state::in) is semidet.
-
-:- semipure to_lightuserdata(state::in, c_pointer::out) is semidet.
 
 :- impure pred push_lightuserdata(state::in, c_pointer::in, pred(state::in)
 	is det) is det.
 
 
-	% is_table will succeed if the value at the top of the stack is a
-	% Lua table. 
-	%
-:- semipure pred is_table(state::in) is semidet.
-
-:- semipure to_table(state::in, table::out) is semidet.
-
 :- impure pred push_table(state::in, table::in, pred(state::in) is det)
 	 is det.
 
-
-	% is_function will succeed if the value at the top of the stack is a
-	% Lua function. 
-	%
-:- semipure pred is_function(state::in) is semidet.
-
-:- semipure to_function(state::in, function::out) is semidet.
 
 :- impure pred push_function(state::in, function::in, pred(state::in) is det)
 	 is det.
 
 
-	% is_userdata will succeed if the value at the top of the stack is a
-	% Lua userdata. 
-	%
-:- semipure pred is_userdata(state::in) is semidet.
-
-:- semipure to_userdata(state::in, userdata::out) is semidet.
-
 :- impure pred push_userdata(state::in, userdata::in, pred(state::in) is det)
 	 is det.
 
 
-	% is_thread will succeed if the value at the top of the stack is a
-	% Lua thread. 
-	%
-:- semipure pred is_thread(state::in) is semidet.
-
-:- semipure to_thread(state::in, state::out) is semidet.
-
 :- impure pred push_thread(state::in, state::in, pred(state::in) is det)
 	 is det.
-
 
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
 :- implementation.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 :- import_module int.
 :- import_module float.
@@ -265,7 +283,7 @@
 
 :- pragma foreign_decl("C", 
 "
-#include <lua.h>
+#include <h>
 #include <lauxlib.h>
 #include <lualib.h>
 
@@ -520,7 +538,7 @@ push_nil(S) = V :- push_nil(S, V).
 
 % Lua strings behave similarly to Mercury strings and Char * pointers.
 % The only notable difference is the fact that Lua internalizes any new
-% string that isn't already instantiated in Lua.  If two strings are equal in
+% string that isn't already instantiated in   If two strings are equal in
 % Lua, then behind the scenes, they are refrencing the same address.  This 
 % makes table lookups and equality tests very efficient, at the cost of making
 % string concatenation VERY expensive.
