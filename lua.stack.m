@@ -16,7 +16,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module stack.
+:- module lua.stack.
 
 :- interface.
 
@@ -25,22 +25,47 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Stack operations
+% The stack
 %
+	
+% TODO: explain the stack
 
+	% TODO Stack description.
+	%
+:- type stack.
+	
 	% Used for readability, indexes are used to refrence values on the
 	% Stack or at pseduo-indexes
 :- type index == int.
 
+:- pred stack(state::in, stack::out) is det.
+:- func stack(state) = stack is det.
 
-	% do(L, something(L)).
+	% Perform an operation with Lua state that will leave it in the same
+	% state that it was found.
 	%
-	% Perform an action with    Will prevent any changes to
-	% values already on the stack, revert any changes already on the stack
-	% and abort if it is unable to do so.
-:- pred do(state::in, impure pred(state)).
+:- pred do(state, semipure pred(stack)).
+:- mode do(in, (pred(in) is det)) is det.
+:- mode do(in, (pred(in) is semidet)) is semidet.
 
+:- semipure pred do(stack, semipure pred(stack)).
+:- mode do(in, (pred(in) is det)) is det.
+:- mode do(in, (pred(in) is semidet)) is semidet.
 
+	% Perform an operation with Lua state and return it to the state it
+	% was found.
+	%
+:- pred safe_do(state, impure pred(stack)).
+:- mode safe_do(in, (pred(in) is det)) is det.
+:- mode safe_do(in, (pred(in) is semidet)) is semidet.
+
+:- semipure pred do_stack(stack, semipure pred(stack)).
+:- mode do_stack(in, (pred(in) is det)) is det.
+:- mode do_stack(in, (pred(in) is semidet)) is semidet.
+
+:- semipure pred safe_do_stack(stack, impure pred(stack)).
+:- mode safe_do_stack(in, (pred(in) is det)) is det.
+:- mode safe_do_stack(in, (pred(in) is semidet)) is semidet.
 
 	% Find the top of the stack
 	%
@@ -62,98 +87,98 @@
 
 	% There is a nil value at the provided index.
 	%
-:- semipure pred is_nil(state::in, index::in) is semidet.
+:- semipure pred is_nil(stack::in, index::in) is semidet.
 
 	% is_int will fail if a number has a non-zero fraction part. 
 	%
-:- semipure pred is_int(state::in, index::in) is semidet.
+:- semipure pred is_int(stack::in, index::in) is semidet.
 
 	% is_number will succeed if the value at the top of the stack is a
 	% Lua number. 
 	%
-:- semipure pred is_number(state::in, index::in) is semidet.
+:- semipure pred is_number(stack::in, index::in) is semidet.
 
 	% is_bool will succeed if the value at the top of the stack is a
 	% Lua boolean. 
 	%
-:- semipure pred is_bool(state::in, index::in) is semidet.
+:- semipure pred is_bool(stack::in, index::in) is semidet.
 
 	% is_string will succeed if the value at the top of the stack is a
 	% Lua string. 
 	%
-:- semipure pred is_string(state::in, index::in) is semidet.
+:- semipure pred is_string(stack::in, index::in) is semidet.
 
 
 	% is_lightuserdata will succeed if the value at the top of the stack
 	% is a C void * pointer. 
 	%
-:- semipure pred is_lightuserdata(state::in, index::in) is semidet.
+:- semipure pred is_lightuserdata(stack::in, index::in) is semidet.
 
 
 	% is_table will succeed if the value at the top of the stack is a
 	% Lua table. 
 	%
-:- semipure pred is_table(state::in, index::in) is semidet.
+:- semipure pred is_table(stack::in, index::in) is semidet.
 
 	% is_function will succeed if the value at the top of the stack is a
 	% Lua function. 
 	%
-:- semipure pred is_function(state::in, index::in) is semidet.
+:- semipure pred is_function(stack::in, index::in) is semidet.
 
 	% is_userdata will succeed if the value at the top of the stack is a
 	% Lua userdata. 
 	%
-:- semipure pred is_userdata(state::in, index::in) is semidet.
+:- semipure pred is_userdata(stack::in, index::in) is semidet.
 
 
 	% is_thread will succeed if the value at the top of the stack is a
 	% Lua thread. 
 	%
-:- semipure pred is_thread(state::in, index::in) is semidet.
+:- semipure pred is_thread(stack::in, index::in) is semidet.
 
 
 
 
 %-----------------------------------------------------------------------------%
 %
-% Passing values from 
+% Passing values from Lua
 %
 
 
 	% to_int will fail when attempting to pass a number that has a 
 	% non-zero fraction part. 
 	%
-:- semipure to_int(state::in, index::in, int::out) is semidet.
+:- semipure to_int(stack::in, index::in, int::out) is semidet.
 
 
-:- semipure to_number(state::in, index::in, float::out) is semidet.
+:- semipure to_number(stack::in, index::in, float::out) is semidet.
 
 
-:- semipure to_bool(state::in, index::in, bool::out) is semidet.
+:- semipure to_bool(stack::in, index::in, bool::out) is semidet.
 
 
-:- semipure to_string(state::in, index::in, string::out) is semidet.
+:- semipure to_string(stack::in, index::in, string::out) is semidet.
 
 
-:- semipure to_lightuserdata(state::in, index::in, c_pointer::out) is semidet.
+:- semipure to_lightuserdata(stack::in, index::in, c_pointer::out) is semidet.
 
 
-:- semipure to_table(state::in, index::in, table::out) is semidet.
+:- semipure to_table(stack::in, index::in, table::out) is semidet.
 
 
-:- semipure to_function(state::in, index::in, function::out) is semidet.
+:- semipure to_function(stack::in, index::in, function::out) is semidet.
 
 
-:- semipure to_userdata(state::in, index::in, userdata::out) is semidet.
+:- semipure to_userdata(stack::in, index::in, userdata::out) is semidet.
 
 
-:- semipure to_thread(state::in, index::in, thread::out) is semidet.
+:- semipure to_thread(stack::in, index::in, thread::out) is semidet.
 
 
-:- semipure to_state(state::in, index::in, state::out) is semidet.
+:- semipure to_state(stack::in, index::in, state::out) is semidet.
 
 
-:- semipure to_var(state::in, index::in, var::out) is semidet.
+:- semipure to_var(stack::in, index::in, var::out) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -167,9 +192,9 @@
 	% Push a copy of a value onto the top of the stack and do something
 	% with it, then pop it off the stack. 
 	% Aborts if the Index is not valid.
-:- pred stack(state, index, pred(state)).
-:- mode stack(in, in, (pred(in) is det)) is det.
-:- mode stack(in, in, (pred(in) is semidet)) is 
+:- semipure pred push_stack(stack, index, pred(state)).
+:- mode push_stack(in, in, (pred(in) is det)) is det.
+:- mode push_stack(in, in, (pred(in) is semidet)) is 
 
 
 	% upvalue(L, Id, Pred).
@@ -177,7 +202,7 @@
 	% Push a copy of an upvalue onto the top of the stack and do something
 	% with it, then pop it off the stack. The predicate is not called and
 	% Aborts if the upvalue is not valid.
-:- pred upvalue(state, int, pred(state)).
+:- pred upvalue(stack, int, pred(state)).
 :- mode upvalue(in, in, (pred(in) is det)) is det.
 :- mode upvalue(in, in, (pred(in) is semidet)) is semidet.
 
@@ -187,7 +212,7 @@
 	%
 	% Push a copy of a global variable  onto the top of the stack and do
 	% something with it, then pop it off the stack.
-:- pred global(state, string, pred(state)).
+:- pred global(stack, string, pred(state)).
 :- mode global(in, in, (pred(in) is det)) is det.
 :- mode global(in, in, (pred(in) is semidet)) is semidet.
 
@@ -197,7 +222,7 @@
 	% Push a copy of a refrence onto the top of the stack and do something
 	% with it, then pop it off the stack.
 	% Aborts if the refrence is not valid.
-:- pred ref(state, int, pred(state)).
+:- pred ref(stack, int, pred(state)).
 :- mode ref(in, in, (pred(in) is det)) is det.
 :- mode ref(in, in, (pred(in) is semidet)) is semidet.
 
@@ -207,7 +232,7 @@
 	%
 	% Push a copy of a thing onto the top of the stack and do something
 	% with it, then pop it off the stack.
-:- pred registry(state, int, pred(state)).
+:- pred registry(stack, int, pred(state)).
 :- mode registry(in, in, (pred(in) is det)) is det.
 :- mode registry(in, in, (pred(in) is semidet)) is semidet.
 
@@ -216,49 +241,49 @@
 	%
 	% Push a copy of a thing onto the top of the stack and do something
 	% with it, then pop it off the stack.
-:- pred var(state, int, pred(state)).
+:- pred var(stack, int, pred(state)).
 :- mode var(in, in, (pred(in) is det)) is det.
 :- mode var(in, in, (pred(in) is semidet)) is semidet.
 
 	% Push a nil value onto the stack and do something with it.
 	%
-:- pred push_nil(state::in, pred(state::in) is det) is det.
+:- pred push_nil(stack::in, pred(state::in) is det) is det.
 
 	% Mercury int values will be converted to floats before being stored
 	% as Lua numbers.
 	%
-:- impure pred push_int(state::in, pred(state::in) is det) is det.
+:- impure pred push_int(stack::in, pred(state::in) is det) is det.
 
 
-:- impure pred push_number(state::in, float::in, pred(state::in) is det)
+:- impure pred push_number(stack::in, float::in, pred(state::in) is det)
 	 is det.
 
 
-:- impure pred push_bool(state::in, bool::in, pred(state::in) is det)
+:- impure pred push_bool(stack::in, bool::in, pred(state::in) is det)
 	 is det.
 
 
-:- impure pred push_string(state::in, string::in, pred(state::in) is det)
+:- impure pred push_string(stack::in, string::in, pred(state::in) is det)
 	 is det.
 
 
-:- impure pred push_lightuserdata(state::in, c_pointer::in, pred(state::in)
+:- impure pred push_lightuserdata(stack::in, c_pointer::in, pred(state::in)
 	is det) is det.
 
 
-:- impure pred push_table(state::in, table::in, pred(state::in) is det)
+:- impure pred push_table(stack::in, table::in, pred(state::in) is det)
 	 is det.
 
 
-:- impure pred push_function(state::in, function::in, pred(state::in) is det)
+:- impure pred push_function(stack::in, function::in, pred(state::in) is det)
 	 is det.
 
 
-:- impure pred push_userdata(state::in, userdata::in, pred(state::in) is det)
+:- impure pred push_userdata(stack::in, userdata::in, pred(state::in) is det)
 	 is det.
 
 
-:- impure pred push_thread(state::in, state::in, pred(state::in) is det)
+:- impure pred push_thread(stack::in, state::in, pred(state::in) is det)
 	 is det.
 
 
