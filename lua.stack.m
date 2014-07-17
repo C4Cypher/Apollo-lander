@@ -11,7 +11,7 @@
 % Stability: low.
 % 
 % This file provides lower level access to the Lua state itself, allowing for
-% stateful interactions with the Lua VM.
+% direct manipulation of the Lua stack.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -25,7 +25,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The stack
+% The Lua stack
 %
 	
 % Lua facilitates interaction with foreign code by providing a stack based
@@ -46,26 +46,28 @@
 % check_stack/2 to ensure that you have enough space for your variables if you
 % insist on using the impure variants of these calls. 
 %
-% Additionally, I have deliberately omitted any impure calls that remove values 
-% from the stack in order to treat the stack as an immutable data structure,
-% preserve to preserve the declarative semantics of calls from Mercury to Lua.
-% At the very least, wrap your impure calls to do_impure and do_stack_impure
-% in order to pop off any values from the stack that were added by the impure
-% calls.
+% I have deliberately omitted any impure calls that remove values from the
+% stack in order to treat the stack as an immutable data structure,
+% to preserve the declarative semantics of calls from Mercury to Lua. Calls
+% to  do_impure/2 and do_stack_impure/2 will pop off any values from the stack
+% that are added by the impure higher-order calls they are provided.
 %
 % Eventually, if enough values are pushed onto the stack without removing any
 % Lua will run out of RAM it is allowed to allocate, and you'll end up with
-% a memory allocation error.  The semipure calls are designed to prevent this.
+% a memory allocation error.  The semipure calls are designed to prevent this
+% by ensuring any values they add to the stack are removed before they finish.
 %
 % I cannot prevent you from popping variables off the stack from within
-% foreign_procs, and I cannot garuntee the stability of your code if you do
+% foreign_procs, and I cannot guarantee the stability of your code if you do
 % so.  REMOVE VALUES FROM THE STACK AT YOUR OWN RISK.
 % 
 % The semipure calls in this module either do not modify the stack at all, or
 % remove any values placed on the stack once they are finished.  Their use is
-% strongly reccomended over impure calls.
+% strongly recommended over impure calls.
 
-	% TODO Stack description.
+	% The stack type is an abstraction of the lua.state type, carrying
+	% additional information to allow safe interactions with the 
+	% Lua stack.
 	%
 :- type stack.
 	
@@ -73,7 +75,7 @@
 	% Stack or at pseduo-indexes
 :- type index == int.
 
-
+	% Convert a state into a stack for stack operations.
 :- func stack(state) = stack is det.
 
 	% Perform an operation with Lua state, throwing an exception if the
@@ -404,27 +406,77 @@
 
 :- implementation.
 
+:- import_module require.
 
 :- type stack ---> stack(state::state. bottom::int, top::int).
 	
 
-
-
 % :- pred stack(state::in, stack::out) is det.
 
-stack(L, stack(L, Top, Top)) :- top(L, Top).
+stack(L, ) :- 
 
 
 % :- func stack(state) = stack is det.
 
-stack(L) = S :- stack(L, S).
+stack(L) = stack(L, Top, Top) :- Top = get_top(L).
 
-% :- pred do(state, semipure pred(stack)).
+:- pred validate_stack(stack::in) is det.
 
-% :- semipure pred do(stack, semipure pred(stack)).
+validate_stack(L) :- (
+		Top = get_top(L ^ state),
+		L ^ bottom =< Top
+	;
+		error("lua.stack: Invalid stack operation: Lua stack started "
+		++ " with " ++ L ^ bottom ++ " values and ended with " ++
+		Top ++ " values.  Lua may not remove more values from the " ++
+		"stack than it added.")
+	).
+
+% :- semipure pred do(state, semipure pred(stack)).
+
+do(L, Pred) :- 
+	Stack = stack(L),
+	( semipure Pred(Stack) -> (
+			validate_stack(L)
+		;
+			validate_stack(L), fail
+	).
+		  
+
+% :- semipure pred do_impure(stack, impure pred(stack)).
+
+do_impure(L, Pred) :- 
+	Stack = stack(L),
+	( impure Pred(Stack) -> (
+			validate_stack(L),
+			impure set_top(L, L ^ bottom)
+		;
+			validate_stack(L),
+			impure set_top(L, L ^ bottom),
+			fail
+	).
 
 % :- semipure pred do_stack(stack, semipure pred(stack)).
 
+do(L, Pred) :- 
+	( semipure Pred(L) -> (
+			validate_stack(L)
+		;
+			validate_stack(L), fail
+	).
+
+% :- semipure pred do_stack_impure(stack, semipure pred(stack)).
+
+do_impure(L, Pred) :- 
+	Stack = stack(L),
+	( impure Pred(Stack) -> (
+			validate_stack(L),
+			impure set_top(L, L ^ bottom)
+		;
+			validate_stack(L),
+			impure set_top(L, L ^ bottom),
+			fail
+	).
 
 % :- semipure func top(state) = index.
 
