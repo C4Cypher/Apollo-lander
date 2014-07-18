@@ -25,6 +25,31 @@
 	
 :- type index == int.	
 	
+:- type stack(T, V)
+	---> 	empty_stack(T)
+	;	stack(stack_cons(T, V)).
+	
+:- type stack_cons(T, V)
+	---> 	cons(stack_cons(T, V))
+	;	T , V.
+
+:- type stack(T) == stack(stack(T), univ).
+	
+
+:- type stack_value(T)
+	---> some [V] ( value(V) => stack(T, V) ).
+
+
+:- type stack == stack(stack, stack_value).
+
+:- type stack_value == stack_value(stack).
+
+:- instance stack(stack(T, V)).
+
+:- instance stack(stack).
+:- instance stack(stack, stack_value).
+
+
 
 :- typeclass stack(S) where [
 
@@ -80,6 +105,10 @@
 
 ].
 
+
+
+
+%-----------------------------------------------------------------------------%
 
 :- typeclass impure_stack(S) where [
 
