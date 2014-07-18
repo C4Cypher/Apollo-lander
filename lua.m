@@ -22,9 +22,11 @@
 :- interface.
 
 :- use_module io.
-
-
-
+:- import_module int.
+:- import_module float.
+:- import_module bool.
+:- import_module string.
+:- import_module list.
 
 
 :- type io == io.state.
@@ -36,32 +38,70 @@
 % The Lua state
 %
 
-	% The state type is a refrence to the Lua state, also known as the
+	% The lua type is a refrence to the Lua state, also known as the
 	% Lua Virtual Machine.  This type is defined in lua.h as
 	% the C type "lua_State *". Note that as a convention borrowed from 
 	% the C API, operations that query or manipulate the Lua state will
 	% use the variable term 'L' to refer to the Lua state.
 	%
+:- type lua.
+
+	% While the lua type is a literal refrence to the Lua runtime, the
+	% state type is an abstraction of the Lua state allowing f
 :- type state
-	---> lua_state
-	;	lua(	
-			global::global,
-			registry::registry,
-			upvalue::upvalue,
-			stack::stack
-		).	
+	---> 	lua(lua)
+	;	state(abstract_state)
+	;	state(state, args).
+	;	state - int
+	where equality is equal_states.
+
+:- pred equal_states(state::in, state::in) is semidet.
+
+:- type abstract_state.
+
+
+	% Look up a variable at a given stack index, fails if an invalid
+	% index is given, or if the type given does not match.
+	%
+:- pred index(state::in, int::in, T::out) is semidet.
+:- func index(int, state) = T is semidet.
+
+
+	% Look a global variable, fails if the type given does not match.
+	%
+:- pred global(state::in, string::in, T::out) is semidet.
+:- func global(string, state) = T is semidet.
+
+	% Look up a variable at a given index, fails if the type given 
+	% does not match.
+	%
+:- pred registry(state::in, int::in, T::out) is semidet.
+:- func registry(string, state) = T is semidet.
+
+	% Look up a variable at a given index, fails if the type given 
+	% does not match.
+	%
+:- pred index(state::in, int::in, T::out) is semidet.
+:- func upvalue(int, state) = T is semidet.
+
+
 
 	% init(L, !IO).
 	% Prepares a lua_State for interaction with Mercury
 	%
-:- pred init(lua_state::in, io::di, io::uo) is det.
+:- pred init(state::in, io::di, io::uo) is det.
 
 	%
 	% Verify that Lua is prepared for interaction with Mercury
 	%
-:- pred ready(lua_state::in) is semidet.
+:- pred ready(state::in) is semidet.
 
+%-----------------------------------------------------------------------------%
 
+:- type args
+	--->	args(list(var)),
+	;	(args , var),
+	;	(func = args).
 
 %-----------------------------------------------------------------------------%
 %
@@ -143,21 +183,8 @@
 	% returned.  For more complex Mercury types, 'none' will be
 	% returned.
 	% 
-:- func lua_type(T) = type.
+:- func lua_type(T) = lua_type.
 
-%-----------------------------------------------------------------------------%
-
-
-	% Type lua.value represents the set of types that 
-	% can be i 
-:- type value.
-
-:- module lua.value.
-:- interface.
-
-:- import_module float.
-:- import_module bool.
-:- import_module string.
 
 :- type value
 	--->	nil
@@ -170,12 +197,14 @@
 	;	userdata(userdata)
 	;	thread(thread)
 	;	var(var)
-	where equality is equal.
+	where equality is equal_value.
+
+:- pred equal_value(lua.value::in, lua.value::in) is semidet.
 
 
-:- end_module lua.value.
 
-:- pred equal(value::in, value::in) is semidet.
+
+
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -225,6 +254,10 @@
 % TODO: Write Table preds.
 
 %-----------------------------------------------------------------------------%
+%
+% Lua functions
+%
+
 	
 % Lua functions are either compiled chunks of Lua source code, or are C
 % function pointers as defined by the C type "lua_CFunction". Lua functions 
@@ -258,7 +291,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Userdata
+% Lua userdata
 %
 	% Lua handles all foreign values with the userdata value type.
 	% Under normal circumstances, Lua can't actually do anything with
@@ -290,6 +323,11 @@
 
 
 :- import_module type_desc.
+:- import_module int.
+:- import_module float.
+:- import_module bool.
+:- import_module string.
+:- import_module require.
 
 :- pragma foreign_decl("C", 
 "
@@ -309,9 +347,28 @@
 
 ").
 
+%-----------------------------------------------------------------------------%
 
-:- pragma foreign_type("C", state, "lua_State *",
+:- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
+
+:- type abstract_state 
+	--->	abstract_state(	
+			global::global,
+			registry::registry,
+			upvalues::upvalues,
+			stack::list(var).
+		).
+
+:- type global == var.
+
+:- type registry == var.
+
+:- type upvalue == var.
+
+:- type stack ---> undefined_stack.
+
+
 
 %-----------------------------------------------------------------------------%
 
@@ -320,37 +377,6 @@
 :- pragma foreign_code("C", "void luaMR_init(lua_State * L) {
 
 	/* Add tables to the registry. */
-
-	/* univ_var(univ) metatable */
-	lua_newtable(L);
-	
-	lua_pushboolean(L, 1);
-	lua_setfield(L, -1, MR_LUA_IS_UNIV);
-
-	/* TODO: load metamethods for univ vars */
-	
-	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_UNIV);
-
-	/* function(univ) metatable */
-	lua_newtable(L);
-
-	lua_pushboolean(L, 1);
-	lua_setfield(L, -1, MR_LUA_IS_FUNCTION);
-	
-	/* TODO: load metamethods for function vars */
-	
-	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_FUNCTION);
-
-	/* univ_var(univ) metatable */
-	lua_newtable(L);
-
-	lua_pushboolean(L, 1);
-	lua_setfield(L, -1, MR_LUA_IS_USERDATA);
-	
-	/* TODO: load metamethods for userdata vars */
-	
-	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_USERDATA);
-	
 	
 	lua_newtable(L);
 	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_MODULE);
@@ -392,15 +418,47 @@
 
 :- pragma foreign_proc("C", ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
-	SUCCESS_INDICATOR = luaMR_lua_ready(L);
+	SUCCESS_INDICATOR = luaMR_ready(L);
 ").
 
 
+:- pragma foreign_code("C", 
+"
 
+/* take the provided module name and attempt to load an apollo module
+passes any additional arguments. */
+int luaMR_loader(lua_State * L) {
+	if (lua_isstring(L, 1)) {
+		const char * module_name = lua_tostring(L, 1);
+		lua_getfield(L, LUA_REGISTRYINDEX, MR_LUA_MODULE);
+		lua_getfield(L, 2, module_name);
+		return 1;
+	}
+	return 0;
+}
+
+").
+
+%-----------------------------------------------------------------------------%
+%
+% Variables
+%
+
+:- type index == int.
+:- type id == int.
+:- type key == var.
+
+:- type lua.var 
+	--->	index(state, index) 
+	;	ref(state, id)
+	;	upvalue(state, id)
+	;	key(table, key).
 
 
 %-----------------------------------------------------------------------------%
-
+%
+% Lua Types
+%
 :- pragma foreign_enum("C", lua_type/0, 
 [
 	none - "LUA_TNONE",
@@ -415,11 +473,51 @@
 	thread - "LUA_TTHREAD"
 ]).
 
+lua_type(_) = _ :- sorry($module, $pred).
+
+:- use_module lua.value.
+
+:- type value == lua.value.value.
 
 
-
+equal_value(_, _) :- sorry($module, $pred).
 
 
 %-----------------------------------------------------------------------------%
+%
+% Lua tables
+%
+
+
+
+:- type table == var.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua functions
+%
+
+:- type function == var.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua userdata
+%
+
+:- type userdata == var.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua thread
+%
+
+:- type thread == state.
+
+
+
+
 
 
