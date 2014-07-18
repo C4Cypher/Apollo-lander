@@ -16,37 +16,70 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module impure_stack.
+:- module pure_stack.
 
 :- interface.
 
 :- import_module int.
 
-	
-:- type index == int.	
-	
+%-----------------------------------------------------------------------------%
+		
+	% Polymorphic type for handling impure stacks in a lazy, but pure
+	% manner.  The committed form caches the number of values to pop in
+	% order to return the stack to it's original form.
+	%
 :- type stack(T, V)
-	---> 	empty_stack(T)
-	;	stack(stack_cons(T, V)).
-	
-:- type stack_cons(T, V)
-	---> 	cons(stack_cons(T, V))
-	;	T , V.
+	---> 	stack(T)
+	;	stack(stack(T, V), V),
+	;	impure_stack(stack(T,V), int).
 
-:- type stack(T) == stack(stack(T), univ).
-	
+	% Inst for a stack constructed using pure semantics.
+	%
+:- inst pure_stack
+	--->	stack(ground)
+	;	stack(pure_stack, ground).
 
+	% This inst indicates that all of the stored values have been
+	% pushed onto the stack.
+	%
+:- inst impure_stack ---> impure_stack(pure_stack).
+
+
+	% Placing a stack in it's committed form within a pure stack's 
+	% recursive structure makes absolutely no sense, and has no 
+	% valid meaning.
+	%
+:- inst invalid_stack
+	---> 	stack(impure_stack, ground)
+	;	stack(invalid_stack, ground)
+
+
+	% Mode for the moment when a stack's values are committed to the stack.
+	%
+:- mode commit == pure_stack >> impure_stack
+	
+	% Mode for the moment when the values of a committed stack are popped
+	% off of the stack, returning it to it's pure form.
+	% 
+:- mode revert == impure_stack >> pure_stack.
+
+%-----------------------------------------------------------------------------%
+
+	% This form uses existential types to pass the values, making the
+	% stack polymorphic.  It's probably a better idea to use the more 
+	% general type.
+	%
+:- type stack(T) == stack(stack(T), stack_value(T)).	
+
+	% Value type for stack(T).
+	%
 :- type stack_value(T)
 	---> some [V] ( value(V) => stack(T, V) ).
 
 
-:- type stack == stack(stack, stack_value).
+:- instance stack(stack(T, V), V) <= impure_stack(T, V).
 
-:- type stack_value == stack_value(stack).
-
-:- instance stack(stack(T, V)).
-
-:- instance stack(stack).
+:- instance stack(stack(T)).
 :- instance stack(stack, stack_value).
 
 
@@ -88,7 +121,7 @@
 
 ].
 
-:- typeclass stack(S, V) <= stack(S) where [
+:- typeclass stack(S, V) <= ((S -> V), stack(S)) where [
 
 	% retreive the value at the given index (starting at 1 for the bottom).
 	%
