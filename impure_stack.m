@@ -22,20 +22,6 @@
 
 :- import_module int.
 
-% S refers to mutable Stack type
-% V refers to values on the stack
-
-	% Intended syntax: stack(S, int), X = (stack(Y), 1, 2, 3, 4, 5, 6)  
-	% !!!!!! this may not work.
-	% Intended to be shorthand for stack construction
-	%
-:- type stack(S, V)
-	---	stack(S)
-	;	stack(S, Value) , V.
-
-	% Polymorphic stack. !!!!!! Will this work?
-	%
-:- type stack(S) == stack(S, _).
 	
 :- type index == int.	
 	
@@ -85,16 +71,12 @@
 	mode index(in, in) = out is semidet,
 	
 
-	
 	% Push a value onto the stack.
 	%
 	func push(V, S) = S,
 	mode push(in, in) = out is det,
 	mode push(out, out) = in is det,
-	
-	% Push a list of values onto the stack.
-	%
-	func push_list(list(V), S) = S,
+
 
 ].
 
@@ -146,8 +128,6 @@
 	
 ].
 
-:- instance impure_stack(stack(S, V)) <= impure_stack(S, V).
 
 
-:- implementation.
 
