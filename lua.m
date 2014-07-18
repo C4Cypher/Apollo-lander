@@ -21,15 +21,13 @@
 
 :- interface.
 
-:- use_module io.
+:- import_module io.
 :- import_module int.
 :- import_module float.
 :- import_module bool.
 :- import_module string.
 :- import_module list.
 
-
-:- type io == io.state.
 
 
 
@@ -46,18 +44,7 @@
 	%
 :- type lua.
 
-	% While the lua type is a literal refrence to the Lua runtime, the
-	% state type is an abstraction of the Lua state allowing f
-:- type state
-	---> 	lua(lua)
-	;	state(abstract_state)
-	;	state(state, args).
-	;	state - int
-	where equality is equal_states.
 
-:- pred equal_states(state::in, state::in) is semidet.
-
-:- type abstract_state.
 
 
 	% Look up a variable at a given stack index, fails if an invalid
@@ -96,12 +83,6 @@
 	%
 :- pred ready(state::in) is semidet.
 
-%-----------------------------------------------------------------------------%
-
-:- type args
-	--->	args(list(var)),
-	;	(args , var),
-	;	(func = args).
 
 %-----------------------------------------------------------------------------%
 %
@@ -349,8 +330,27 @@
 
 %-----------------------------------------------------------------------------%
 
-:- pragma foreign_type("C", lua, "lua_State *",
+
+:- type lua_state.
+
+	% The lua_state type is a literal refrence to the Lua runtime, but the
+	% lua type is an abstraction of the Lua state.
+	%
+:- pragma foreign_type("C", lua_state, "lua_State *",
 	[can_pass_as_mercury_type]).
+
+:- type lua
+	---> 	lua(lua)
+	;	state(abstract_state)
+	;	state(state, args).
+	;	state - int
+	where equality is equal_states.
+
+:- pred equal_states(state::in, state::in) is semidet.
+
+
+
+
 
 :- type abstract_state 
 	--->	abstract_state(	
