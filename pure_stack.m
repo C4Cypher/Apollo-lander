@@ -44,7 +44,7 @@
 	---> 	stack(T)
 	;	stack(stack(T, V), V)
 	;	partial_stack(T, int)
-	;	impure_stack(pure_stack(T, V), int)
+	;	impure_stack(stack(T, V), int)
 	;	impure_stack(int). 	% For handling unique insts.
 
 %-----------------------------------------------------------------------------%
