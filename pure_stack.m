@@ -224,7 +224,8 @@
 
 % TODO: Talk about this
 
-:- typeclass pure_stack(T, V) <= impure_stack(T, V) where [
+
+:- typeclass pure_stack(T) <= impure_stack(T) where [
 
 	% Retreive the int at the top of the stack, 
 	% starting at 1 for the bottom.
@@ -246,13 +247,19 @@
 	
 	% Pop a value off the stack.
 	%
-	func pop(T) = S,
+	func pop(T) = T,
 	mode pop(in) = out is det,
 	
 	% Pop a number of values off of the stack.
 	%
-	func pop(int, T) = S
+	func pop(int, T) = T
 	mode pop(in, in) = out is det,
+
+].
+
+:- typeclass pure_stack(T, V) <= (pure_stack(T), impure_stack(T, V)) where [
+
+
 
 
 	% retreive the value at the given int (Starting at 1 for the bottom).
