@@ -86,8 +86,7 @@
 :- inst pure_stack
 	--->	stack_root	
 	;	lazy_stack
-	;	partial_stack
-	;	stack(pure_stack, ground).
+	;	partial_stack.
 
 
 	% This inst indicates that the mutable state of the stack has been
