@@ -102,7 +102,7 @@
 	% Impure stack that has values pushed onto it.
 	%
 :- inst comitted_stack
-	--->	impure_stack(pure_stack, ground).
+	--->	impure_stack(lazy_stack, ground).
 
 	% Impure stack that is unmodified, but any indexed calls to it will be
 	% shifted accordingly.
