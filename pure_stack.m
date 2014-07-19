@@ -44,7 +44,7 @@
 	---> 	stack(T)
 	;	stack(stack(T, V), V)
 	;	partial_stack(T, int)
-	;	impure_stack(pure_stack(T, V), int)
+	;	impure_stack(stack(T, V), int)
 	;	impure_stack(int). 	% For handling unique insts.
 
 %-----------------------------------------------------------------------------%
@@ -162,8 +162,7 @@
 :- inst pure_stack
 	--->	stack_root	
 	;	lazy_stack
-	;	partial_stack
-	;	stack(pure_stack, ground).
+	;	partial_stack.
 
 
 	% This inst indicates that the mutable state of the stack has been
@@ -179,7 +178,7 @@
 	% Impure stack that has values pushed onto it.
 	%
 :- inst comitted_stack
-	--->	impure_stack(pure_stack, ground).
+	--->	impure_stack(lazy_stack, ground).
 
 	% Impure stack that is unmodified, but any indexed calls to it will be
 	% shifted accordingly.
@@ -344,8 +343,8 @@
 	%
 :- typeclass impure_stack(T, U, V) <= (
 		(T -> U), (V -> U), 
-		pure_stack(T, V), 
-		pure_stack(T, U)
+		impure_stack(T, V), 
+		impure_stack(T, U)
 ) where [
 	
 	% Cast the more specific type to the more general type.
