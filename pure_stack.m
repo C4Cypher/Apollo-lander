@@ -300,8 +300,8 @@
 	%
 :- typeclass impure_stack(T, U, V) <= (
 		(T -> U), (V -> U), 
-		pure_stack(T, V), 
-		pure_stack(T, U)
+		impure_stack(T, V), 
+		impure_stack(T, U)
 ) where [
 	
 	% Cast the more specific type to the more general type.
