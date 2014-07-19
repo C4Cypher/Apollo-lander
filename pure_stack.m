@@ -24,7 +24,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Pure Stacks
+% The Stack type
 %
 
 % Normally, when Mercury comes into contact with mutable data structures;
@@ -49,16 +49,94 @@
 
 %-----------------------------------------------------------------------------%
 %
+% The Stack type
+%
+
+% These calls are identical to those in the stack(T, V) typeclass, and should
+% be used for implementing instances of stack(T, V).
+
+:- pred equal_stacks(stack(T, V)::si, stack(T, V)::si) <= pure_stack(T, V)
+	is semidet.
+
+:- func stack_push(V, stack(T, V)) = stack(T, V) <= pure_stack(T, V) is det.
+
+:- func stack_top(stack(T, V))
+	% Commit the stack's changes, and expose the raw mutable type for
+	% impure queries.
+	%
+:- impure pred commit(stack(T, V), T) <= pure_stack(T, V).
+:- 	  mode commit(commit, out) is det.
+:- 	  mode commit(commit, uo) is det.
+:- 	  mode commit(commit, muo) is det.
+
+	% Return the stack to it's pure form.
+	%
+:- impure pred revert(T, stack(T, V)) <= pure_stack(T, V).
+:-	  mode revert(in, revert) is det.
+:-	  mode revert(di, revert) is det.
+:-	  mode revert(mdi, revert) is det.
+
+
+ 
+%-----------------------------------------------------------------------------%
+%
+% Stack modes
+%
+
+	% In and out modes for pure_stacks.
+	%
+:- mode si == in(pure_stack).
+:- mode so == out(pure_stack).
+
+
+	% Mode for the moment a stack is readied for impure operations.
+	%
+:- mode commit == pure_stack >> impure_stack.
+
+	% Mode for the moment when a stack's values are committed to the stack.
+	%
+:- mode commit_push == lazy_stack >> comitted_stack.
+
+
+	% Mode for the moment a partial stack is prepared for impure operations.
+	%
+:- mode commit_reduce == partial_stack >> reduced_stack.
+	
+	% Mode for the moment when a stack is returned to the state it was at
+	% when it was committed.
+	%
+:- mode revert == comitted_stack >> pure_stack.
+
+	% Mode for the moment when the values of a committed stack are popped
+	% off of the stack, returning it to it's pure form.
+	% 
+:- mode revert_pop == impure_stack >> lazy_stack.
+
+	% Reverting a reduced stack doesn't actually do much to the internal
+	% state. So this simply returns a reduced stack to it's partial form.
+	%
+:- mode revert_return == reduced_stack >> partial_stack.
+
+
+
+%-----------------------------------------------------------------------------%
+%
 % Stack insts
 %
 
+	% The predicates provided for committing stack changes may be
+	% perfomed with all of the various ground and unique insts.
+	%
+:- inst any_ground
+	---> 	ground
+	;	unique
+	;	mostly_unique.
+	
 	% This is the 'literal' representation of the enclosed value, without
 	% any queued changes to be made to 'commit' it.
 	%
 :- inst stack_root
-	---> 	stack(ground)
-	;	stack(unique)
-	;	stack(mostly_unique).
+	---> 	stack(any_ground).
 
 	% Representation for a stack with queue'd values that will be pushed
 	% onto the stack once committed.
@@ -77,9 +155,7 @@
 	% typeclass.
 	%
 :- inst partial_stack
-	--->	stack(ground, ground)
-	;	stack(unique, ground)
-	;	stack(mostly_unique, ground).
+	--->	stack(any_ground, ground).
 
 	% Inst for a stack constructed using pure semantics.
 	%
@@ -123,43 +199,7 @@
 	;	stack(invalid_stack, ground)
 	;	impure_stack(impure_stack).
 
-%-----------------------------------------------------------------------------%
-%
-% Stack modes
-%
 
-	% In and out modes for pure_stack.
-	%
-:- mode si == in(pure_stack).
-:- mode so == out(pure_stack).
-
-	% Mode for the moment a stack is readied for impure operations.
-	%
-:- mode commit == pure_stack >> impure_stack.
-
-	% Mode for the moment when a stack's values are committed to the stack.
-	%
-:- mode commit_push == lazy_stack >> comitted_stack.
-
-
-	% Mode for the moment a partial stack is prepared for impure operations.
-	%
-:- mode commit_reduce == partial_stack >> reduced_stack.
-	
-	% Mode for the moment when a stack is returned to the state it was at
-	% when it was committed.
-	%
-:- mode revert == comitted_stack >> pure_stack.
-
-	% Mode for the moment when the values of a committed stack are popped
-	% off of the stack, returning it to it's pure form.
-	% 
-:- mode revert_pop == impure_stack >> lazy_stack.
-
-	% Reverting a reduced stack doesn't actually do much to the internal
-	% state. So this simply returns a reduced stack to it's partial form.
-	%
-:- mode revert_return == reduced_stack >> partial_stack.
 
 %-----------------------------------------------------------------------------%
 
@@ -175,10 +215,7 @@
 	---> some [V] ( value(V) => stack(T, V) ).
 
 
-:- instance stack(stack(T, V), V) <= impure_stack(T, V).
-
-:- instance stack(stack(T)).
-:- instance stack(stack, stack_value).
+:- instance pure_stack(stack(T), stack_value(T)).
 
 %-----------------------------------------------------------------------------%
 %
@@ -218,7 +255,7 @@
 	mode pop(in, in) = out is det,
 
 
-	% retreive the value at the given int (Ttarting at 1 for the bottom).
+	% retreive the value at the given int (Starting at 1 for the bottom).
 	%
 	func index(int, T) = V
 	mode index(in, in) = out is semidet,
@@ -317,8 +354,30 @@
 ].
 
 %-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+
+:- implementation.
+
+%:- pred equal_stacks(stack(T, V)::si, stack(T, V)::si) <= pure_stack(T, V)
+%	is semidet.
+
+equal_stacks(stack(T),stack(T)).
+equal_stacks(stack(S, V), push(V, S)).
+equal_stacks(partial_stack(S, N):stack(S, V), pop(N, stack(S, V))).
+equal_stacks(pop(N, stack(S, V)), partial_stack(S, N):stack(S, V)).
+ 
+
+
+% :- impure pred commit(stack(T, V), T) <= pure_stack(T, V).
+% :- 	  mode commit(commit, out) is det.
+% :- 	  mode commit(commit, uo) is det.
+% :- 	  mode commit(commit, muo) is det.
 
 
 
+% :- impure pred revert(T, stack(T, V)) <= pure_stack(T, V).
+% :-	  mode revert(in, revert) is det.
+% :-	  mode revert(di, revert) is det.
+% :-	  mode revert(mdi, revert) is det.
 
 
