@@ -51,32 +51,7 @@
 	where equality is equal_stacks.
 
 
-:- inst ready(S, T) == bound(
-	 	pushed(root(S), T)
-	;	pushed(ready(S, T), T)
-	;	reduce(root(S), int)
-).
 
-:- inst unique_ready(S, T) == unique(
-	 	pushed(root(S), T)
-	;	pushed(unique_ready(T), T)
-	;	reduce(root(S), int)
-).
-
-:- inst comitted
-	--->	comitted(int)
-	;	reduced(int).
-
-:- mode commit(S, T) == ready(S, T) >> committed.
-:- mode revert(S, T) == comitted >> ready(S, T).
-
-:- mode commit_unique(S, T) == unique_ready(S, T) >> comitted.
-:- mode revert_unique(S, T) == comitted >> unique_ready(S, T).
-
-:- mode co(S, T) == commit(S, T).
-:- mode re(S, T) == revert(S, T).
-:- mode uco(S, T) == commit_unique(S, T).
-:- mode ure(S, T) == revert_unique(S, T).
 
 
 %-----------------------------------------------------------------------------%
@@ -218,23 +193,6 @@
 :- mode push_value(in, in, out) is det.
 :- mode push_value(out, out, in) is semidet.
 :- mode push_value(in, di, uo) is det.
-
-	
-	% Return the internal representation of the stack with the changes
-	% comitted to it.
-	%
-:- impure some [S]
-   pred commit(stack(T), S) <= impure_stack(S, T).
-:- mode commit(uco(S, T), out) is det.
-:- mode commit(co(S, T), out) is det.
-
-
-	% Return the stack to it's pure form.
-	%
-:- impure 
-   pred revert(S, stack(T)) <= impure_stack(S, T).
-   mode revert(in, re(S, T)) is det.
-:- mode revert(in, ure(S, T)) is det.
 
 
 
