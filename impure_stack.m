@@ -16,7 +16,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module pure_stack.
+:- module impure_stack.
 
 :- interface.
 
@@ -40,247 +40,104 @@
 	% manner.  The committed form caches the number of values to pop in
 	% order to return the stack to it's original form.
 	%
-:- type stack(T, V)
-	---> 	stack(T)
-	;	stack(stack(T, V), V)
-	;	partial_stack(T, int)
-	;	impure_stack(stack(T, V), int)
-	;	impure_stack(int). 	% For handling unique insts.
+:- type stack(T)
+	---> 	some [S] (impure_stack(S) => impure_stack(S, T))
+	;	stack(stack(T), T)
+	;	partial_stack(stack(T), int)
+	;	comitted_stack(int) 	
+	;	reduced_stack(int)
+	where equality is equal_stacks.	
+
+:- inst pure_stack 
+	---> 	stack(ground)
+	;	stack(unique)
+	;	stack(mostly_unique)
+	; 	partial_stack(ground, ground)
+	;	partial_stack(unique, ground)
+	;	partial_stack(mostly_unique, ground).
+
+:- inst impure_stack 
+	---> 	impure_stack(ground)
+	;	impure_stack(unique)
+	;	impure_stack(mostly_unique)
+	; 	comitted_stack(ground)
+	; 	reduced_stack(ground).
+
+:- mode pi == pure_stack >> pure_stack.
+:- mode po == free >> pure_stack.
+
+:- mode commit == pure_stack >> impure_stack.
+:- mode revert == impure_stack >> pure_stack.
+
+:- mode co == commit.
+:- mode re == revert.
 
 %-----------------------------------------------------------------------------%
 %
-% The Stack type
+%  Stack operations.
 %
 
-% These calls are identical to those in the stack(T, V) typeclass, and should
-% be used for implementing instances of stack(T, V).
+	% Retreive the int at the top of the stack, 
+	% starting at 1 for the bottom.
+	% Fails if the stack is empty.
+	%
+:- func top(stack(T)) = int is semidet.
 
-:- pred equal_stacks(stack(T, V)::si, stack(T, V)::si) <= pure_stack(T, V)
+	% Retreive the number of values on the stack.
+	% Effectively a det version of top.
+	%
+:- func count(stack(T)) = int is det.
+	
+	% Succeed if the given int is valid.
+	%
+:- pred valid_index(int:in, stack(T)::in) is semidet.
+	
+	% Pop a value off the stack.
+	%
+:- func pop(stack(T)) = stack(T) is det.
+	
+	% Pop a number of values off of the stack.
+	%
+:- func pop(int, stack(T)) = stack(T).
+:- mode pop(in, in) = out is det.
+:- mode pop(out, in) = in is semidet.
+:- mode pop(out, in) = out is nondet.
+
+	% retreive the value at the given int (Starting at 1 for the bottom).
+	%
+:- func index(int, stack(T)) = V <= impure_stack(T, V).
+:- mode index(in, in) = out is semidet.
+:- mode index(out, in) = in is semidet.
+:- mode index(out, in) = out is nondet.
+	
+
+	% Push a value onto the stack.
+	%
+:- func push(V, stack(T)) = stack(T) <= impure_stack(T, V).
+:- mode push(in, in) = out is det.
+:- mode push(out, out) = in is det.
+
+
+:- pred equal_stacks(stack(T)::in, stack(T)::in) <= impure_stack(T, V)
 	is semidet.
 
-:- func stack_push(V, stack(T, V)) = stack(T, V) <= pure_stack(T, V) is det.
 
-:- func stack_top(stack(T, V))
-	% Commit the stack's changes, and expose the raw mutable type for
-	% impure queries.
-	%
-:- impure pred commit(stack(T, V), T) <= pure_stack(T, V).
+:- impure pred commit(stack(T), T).
 :- 	  mode commit(commit, out) is det.
 :- 	  mode commit(commit, uo) is det.
 :- 	  mode commit(commit, muo) is det.
 
 	% Return the stack to it's pure form.
 	%
-:- impure pred revert(T, stack(T, V)) <= pure_stack(T, V).
+:- impure pred revert(T, stack(T)).
 :-	  mode revert(in, revert) is det.
 :-	  mode revert(di, revert) is det.
 :-	  mode revert(mdi, revert) is det.
 
 
- 
 %-----------------------------------------------------------------------------%
 %
-% Stack modes
-%
-
-	% In and out modes for pure_stacks.
-	%
-:- mode si == in(pure_stack).
-:- mode so == out(pure_stack).
-
-
-	% Mode for the moment a stack is readied for impure operations.
-	%
-:- mode commit == pure_stack >> impure_stack.
-
-	% Mode for the moment when a stack's values are committed to the stack.
-	%
-:- mode commit_push == lazy_stack >> comitted_stack.
-
-
-	% Mode for the moment a partial stack is prepared for impure operations.
-	%
-:- mode commit_reduce == partial_stack >> reduced_stack.
-	
-	% Mode for the moment when a stack is returned to the state it was at
-	% when it was committed.
-	%
-:- mode revert == comitted_stack >> pure_stack.
-
-	% Mode for the moment when the values of a committed stack are popped
-	% off of the stack, returning it to it's pure form.
-	% 
-:- mode revert_pop == impure_stack >> lazy_stack.
-
-	% Reverting a reduced stack doesn't actually do much to the internal
-	% state. So this simply returns a reduced stack to it's partial form.
-	%
-:- mode revert_return == reduced_stack >> partial_stack.
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Stack insts
-%
-
-	% The predicates provided for committing stack changes may be
-	% perfomed with all of the various ground and unique insts.
-	%
-:- inst any_ground
-	---> 	ground
-	;	unique
-	;	mostly_unique.
-	
-	% This is the 'literal' representation of the enclosed value, without
-	% any queued changes to be made to 'commit' it.
-	%
-:- inst stack_root
-	---> 	stack(any_ground).
-
-	% Representation for a stack with queue'd values that will be pushed
-	% onto the stack once committed.
-:- inst lazy_stack
-	---> 	stack(stack_root, ground).
-
-	% This form of the stack 'pretends' that values have been popped off of
-	% it, to simplify equality testing. Without this, it would be akward
-	% comparing the stack with other stacks with less values.
-	%
-	% When this variation is 'committed' index values passed to the impure
-	% calls are ajusted accordingly.
-	%
-	% TODO: Work out the shuffling needed to pop values in the middle of a
-	% stack, or include a 'remove' call to do so in the impure_stack 
-	% typeclass.
-	%
-:- inst partial_stack
-	--->	stack(any_ground, ground).
-
-	% Inst for a stack constructed using pure semantics.
-	%
-:- inst pure_stack
-	--->	stack_root	
-	;	lazy_stack
-	;	partial_stack.
-
-
-	% This inst indicates that the mutable state of the stack has been
-	% modifed in some manner, and that the value is invalid for Mercury's
-	% declarative semantics until the changes are reverted.
-	%
-:- inst impure_stack 
-	---> 	comitted_stack
-	;	reduced_stack
-	;	impure_stack(ground).
-
-
-	% Impure stack that has values pushed onto it.
-	%
-:- inst comitted_stack
-	--->	impure_stack(lazy_stack, ground).
-
-	% Impure stack that is unmodified, but any indexed calls to it will be
-	% shifted accordingly.
-	%
-:- inst reduced_stack
-	--->	impure_stack(partial_stack, bound(0)).
-
-
-	% Placing a stack in it's committed form within a pure stack's 
-	% recursive structure makes absolutely no sense, and has no 
-	% valid meaning.  The same applies for embedding a partial_stack
-	% within the middle of a pure_stack's structure.
-	%
-:- inst invalid_stack
-	---> 	stack(impure_stack, ground)
-	;	stack(stack(partial_stack, ground))
-	;	stack(invalid_stack, ground)
-	;	impure_stack(impure_stack).
-
-
-
-%-----------------------------------------------------------------------------%
-
-	% This form uses existential types to pass the values, making the
-	% stack polymorphic.  It's probably a better idea to use the more 
-	% general type.  It's more of an experiment than anything.
-	%
-:- type stack(T) == stack(stack(T), stack_value(T)).	
-
-	% Value type for stack(T).
-	%
-:- type stack_value(T)
-	---> some [V] ( value(V) => stack(T, V) ).
-
-
-:- instance pure_stack(stack(T), stack_value(T)).
-
-%-----------------------------------------------------------------------------%
-%
-%  The Pure stack typeclass
-%
-
-% TODO: Talk about this
-
-
-:- typeclass pure_stack(T) <= impure_stack(T) where [
-
-	% Retreive the int at the top of the stack, 
-	% starting at 1 for the bottom.
-	% Fails if the stack is empty.
-	%
-	func top(T)
-	mode top(in) is semidet,
-
-	% Retreive the number of values on the stack.
-	% Effectively a det version of top.
-	%
-	func count(T) = int
-	mode count(in) = out is det,
-	
-	% Succeed if the given int is valid.
-	%
-	pred valid_index(int, T),
-	mode valid_index(in, in) is semidet,
-	
-	% Pop a value off the stack.
-	%
-	func pop(T) = T,
-	mode pop(in) = out is det,
-	
-	% Pop a number of values off of the stack.
-	%
-	func pop(int, T) = T
-	mode pop(in, in) = out is det,
-
-].
-
-:- typeclass pure_stack(T, V) <= (pure_stack(T), impure_stack(T, V)) where [
-
-
-
-
-	% retreive the value at the given int (Starting at 1 for the bottom).
-	%
-	func index(int, T) = V
-	mode index(in, in) = out is semidet,
-	
-
-	% Push a value onto the stack.
-	%
-	func push(V, T) = T,
-	mode push(in, in) = out is det,
-	mode push(out, out) = in is det,
-
-
-].
-
-
-
-%-----------------------------------------------------------------------------%
-%
-%  Impure stack implementation
+%  Impure stack typeclass
 %
 
 % TODO: Talk about this
@@ -318,7 +175,7 @@
 ].
 
 
-:- typeclass impure_stack(T, V) <= impure_stack(T) where [
+:- typeclass impure_stack(T) <= impure_stack(T) where [
 
 
 	% retreive the value at the given int (Ttarting at 1 for the bottom).
@@ -333,6 +190,8 @@
 	
 ].
 
+
+
 %-----------------------------------------------------------------------------%
 %
 % Polymorphic impure stacks
@@ -343,7 +202,7 @@
 	%
 :- typeclass impure_stack(T, U, V) <= (
 		(T -> U), (V -> U), 
-		impure_stack(T, V), 
+		impure_stack(T), 
 		impure_stack(T, U)
 ) where [
 	
@@ -359,31 +218,58 @@
 
 ].
 
+
+
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
 :- implementation.
 
-%:- pred equal_stacks(stack(T, V)::si, stack(T, V)::si) <= pure_stack(T, V)
-%	is semidet.
 
-equal_stacks(stack(T),stack(T)).
-equal_stacks(stack(S, V), push(V, S)).
-equal_stacks(partial_stack(S, N):stack(S, V), pop(N, stack(S, V))).
-equal_stacks(pop(N, stack(S, V)), partial_stack(S, N):stack(S, V)).
- 
+% :- func top(stack(T)) = int <= impure_stack(T) is semidet.
 
 
-% :- impure pred commit(stack(T, V), T) <= pure_stack(T, V).
+% :- func count(stack(T)) = int <= impure_stack(T) is det.
+	
+
+% :- pred valid_index(int:in, stack(T)::in) <= impure_stack(T) is semidet.
+	
+
+% :- func pop(stack(T)) = stack(T) <= impure_stack(T) is det.
+	
+
+% :- func pop(int, stack(T)) = stack(T) <= impure_stack(T).
+% :- mode pop(in, in) = out is det.
+% :- mode pop(out, in) = in is semidet.
+% :- mode pop(out, in) = out is nondet.
+
+
+% :- func index(int, stack(T)) = V <= impure_stack(T).
+% :- mode index(in, in) = out is semidet.
+% :- mode index(out, in) = in is semidet.
+% :- mode index(out, in) = out is nondet.
+	
+
+
+% :- func push(V, stack(T)) = stack(T) <= impure_stack(T).
+% :- mode push(in, in) = out is det.
+% :- mode push(out, out) = in is det.
+
+
+% :- pred equal_stacks(stack(T)::in, stack(T)::in) <= impure_stack(T)
+% 	is semidet.
+
+
+% :- impure pred commit(stack(T), T) <= impure_stack(T).
 % :- 	  mode commit(commit, out) is det.
 % :- 	  mode commit(commit, uo) is det.
 % :- 	  mode commit(commit, muo) is det.
 
 
-
-% :- impure pred revert(T, stack(T, V)) <= pure_stack(T, V).
+% :- impure pred revert(T, stack(T)) <= impure_stack(T).
 % :-	  mode revert(in, revert) is det.
 % :-	  mode revert(di, revert) is det.
 % :-	  mode revert(mdi, revert) is det.
+
 
 
