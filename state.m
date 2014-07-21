@@ -116,6 +116,9 @@
 	
 	impure pred undo(T),
 	mode undo(in) is det
+	
+	impure pred finalize(T),
+	mode finalize(in) is det
 ].
 
 :- typeclass impure_call(C, T) <= impure_state(T) where [
