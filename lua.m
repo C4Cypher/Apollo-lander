@@ -27,6 +27,7 @@
 :- import_module bool.
 :- import_module string.
 :- import_module list.
+:- import_module maybe.
 
 
 
@@ -76,17 +77,13 @@
 	%
 :- pred init(lua::in, io::di, io::uo) is det.
 
-	% Call a function on a unique lua_state.
+	% Verify that Lua is prepared for interaction with Mercury
 	%
-:- pred lua_call(lua::di, lua::uo, function::in, lua_result::out) is det. 
-
-:- type lua_result
-	--->	ok(int)		% Successful, with the number of return values.
-	;	error(string)	% Lua experienced an error
+:- pred ready(state::in) is semidet.
 	
 %-----------------------------------------------------------------------------%
 %
-% The Lua stack
+% Querying the Lua state.
 %
 
 
@@ -100,54 +97,46 @@
 % integers refrence values from the bottom of the stack, starting at one,
 % while negative integers refrences the stack from the top down (-1 referring
 % to the value at the top of the stack).
-%
+
 % Due to the fact that different versions of Lua handle the global environment
 % and the registry in different ways, for the sake of compatability, this
-% library will not permit the explicit use of pseudo-indexes.  Instead,
-% 
+% library will not permit the explicit use of pseudo-indexes.  Instead, 
+% seperate access predicates have been provided in the place of pseudo-indexes.
 
-:- type index = int.
+:- pred index(int, lua) = 
 
-	% Look up a variable at a given stack index, this version will only
-	% succeed for positive or negative indexes that directly refrence
-	% values on the stack, not pseudo-indexes.
+:- pred get(maybe(T)::out, lua::in, I::in) 
+:- pred get(maybe(T)::out, lua::di, lua::uo, I::in)
+:- func get(lua, I) = maybe(T) <= index(I) is det.
+:- func get(lua::di, lua::uo, I::in) = (maybe(T)::out) 
+
+
+
+%-----------------------------------------------------------------------------%
+%
+% Modifying the Lua State
+%
+
+	% Set assigns the provided value in Lua, aborts if it cannot do so.
 	%
-:- pred get_stack(lua::in, index::in, T::out) is semidet.
-:- func stack(int, lua) = T is semidet.
-
-:- 
-
-
-	% Look a global variable, fails if the type given does not match.
+	% Index ^ set(Value, Result, !L),
+	% Index ^ set(Value, L) ,
+	% (Maybe = yes(Var) ; Maybe = no).
 	%
-:- pred global(lua::in, string::in, T::out) is semidet.
-:- func global(string, lua) = T is semidet.
+:- pred set(T::in, lua::in, I::in) <= index(I) is det.
+:- pred set(maybe(T)::out, lua::di, lua::uo, I::in) <= index(I) is det.
+:- func set(lua, I) = maybe(T) <= index(I) is det.
+:- func set(lua::di, lua::uo, I::in) = (maybe(T)::out) <= index(I) is det.
 
-	% Look up a variable at a given index, fails if the type given 
-	% does not match.
+	% Call a function or closure on a unique lua_state.
+	% The return values will be pushed onto the end of the stack.
 	%
-:- pred registry(state::in, int::in, T::out) is semidet.
-:- func registry(string, state) = T is semidet.
+:- pred lua_call(function::in, lua_result::out, lua::di, lua::uo) is det. 
 
-	% Look up a variable at a given stack index, fails if an invalid
-	% index is given, or if the type given does not match.
-	%
-:- pred index(lua::in, index::in, T::out) is semidet.
-:- func index(int, lua) = T is semidet.
-
-
-
-
-
-
-
-	%
-	% Verify that Lua is prepared for interaction with Mercury
-	%
-:- pred ready(state::in) is semidet.
-
-
-
+:- type lua_result
+	--->	ok		% Successful, with no return values.
+	;	ok(int)		% Successful, with the number of return values.
+	;	error(string)	% Lua experienced an error
 
 %-----------------------------------------------------------------------------%
 %
