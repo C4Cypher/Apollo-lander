@@ -103,35 +103,107 @@
 % library will not permit the explicit use of pseudo-indexes.  Instead, 
 % seperate access predicates have been provided in the place of pseudo-indexes.
 
-:- pred index(int, lua) = 
+	% Retreive the index for the top value on the stack.
+	% Also represents the number of values on the stack.
+	%
+:- pred top(int::out, lua::in) is det.
+:- func top(lua) = int is det.
+:- pred top(int::out, lua::di, lua::uo) is det.
+:- func top(lua::di, lua::io) = (int::out) is det.
 
-:- pred get(maybe(T)::out, lua::in, I::in) 
-:- pred get(maybe(T)::out, lua::di, lua::uo, I::in)
-:- func get(lua, I) = maybe(T) <= index(I) is det.
-:- func get(lua::di, lua::uo, I::in) = (maybe(T)::out) 
 
+	% Look up a value indexed on the stack.
+	% L ^ index(I) = Var
+	% !L ^ index(I) = MaybeVar
+	%
+:- pred index(int::in, T::out, lua::in) is semidet.
+:- pred index(int::in, maybe(T)::out, lua::di, lua::uo) is det.
 
+:- func index(int::in, lua::in) = T is semidet.
+:- func index(int::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
+	% Look up a global variable.
+	% L ^ global(VarName) = Var
+	% !L ^ global(VarName) = MaybeVar
+	%
+:- pred global(string::in, T::out, lua::in) is semidet.
+:- pred global(string::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func global(string::in, lua::in) = T is semidet.
+:- func global(string::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
+	% Look up a registry variable.
+	% L ^ registry(VarName) = Var
+	% !L ^ registry(VarName) = MaybeVar
+	%
+:- pred registry(string::in, T::out, lua::in) is semidet.
+:- pred registry(string::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func registry(string::in, lua::in) = T is semidet.
+:- func registry(string::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
+	% Look up a function upvalue.
+	% L ^ upvalue(I) = Var
+	% !L ^ upvalue(I) = MaybeVar
+	%
+:- pred upvalue(int::in, T::out, lua::in) is semidet.
+:- pred upvalue(int::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func upvalue(int::in, lua::in) = T is semidet.
+:- func upvalue(int::in, lua::di, lua::uo) = (maybe(T)::out) is det.
 
 %-----------------------------------------------------------------------------%
 %
 % Modifying the Lua State
 %
 
-	% Set assigns the provided value in Lua, aborts if it cannot do so.
+
+	% Ensure that there is space allocated to allow pushing the specified
+	% number of variables onto the stack.
+:- pred checkstack(int::in, lua_result::out, lua::di, lua::uo) is det.
+:- func checkstack(int::in, lua::di, lua::uo) = (lua_result::out) is det.
+
+	% Push a value onto the stack.
 	%
-	% Index ^ set(Value, Result, !L),
-	% Index ^ set(Value, L) ,
-	% (Maybe = yes(Var) ; Maybe = no).
+:- pred push(T::in, lua_result::out, lua::di, lua::uo) is det.
+
+	% Pop the specified number of values off of the stack.
 	%
-:- pred set(T::in, lua::in, I::in) <= index(I) is det.
-:- pred set(maybe(T)::out, lua::di, lua::uo, I::in) <= index(I) is det.
-:- func set(lua, I) = maybe(T) <= index(I) is det.
-:- func set(lua::di, lua::uo, I::in) = (maybe(T)::out) <= index(I) is det.
+:- pred pop(int::in, lua_result::out, lua::di, lua::uo) is det.
+
+	% Change a value indexed on the stack.
+	% !L ^ set_index(I, Var, Result).
+	% !L ^ index(I, Result) := Var
+	%
+:- pred set_index(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- func 'index :='(int::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+
+	% Change the value of a global variable.
+	% !L ^ set_global(I, Var, Result).
+	% !L ^ global(I, Result) := Var
+	%
+:- pred set_global(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred 'global :='(string::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+	% Change the value of a registry variable.
+	% !L ^ set_registry(I, Var, Result).
+	% !L ^ registry(I, Result) := Var
+	%
+:- pred set_registry(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred 'registry :='(string::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+	% Change a value of a function upvalue.
+	% !L ^ set_upvalue(I, Var, Result).
+	% !L ^ upvalue(I, Result) := Var
+	%
+:- pred set_upvalue(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred 'upvalue :='(int::in, lua_result::out, lua::di, lua::uo, T::in) is det.
 
 	% Call a function or closure on a unique lua_state.
 	% The return values will be pushed onto the end of the stack.
 	%
-:- pred lua_call(function::in, lua_result::out, lua::di, lua::uo) is det. 
+:- pred call(function::in, lua_result::out, lua::di, lua::uo) is det. 
 
 :- type lua_result
 	--->	ok		% Successful, with no return values.
