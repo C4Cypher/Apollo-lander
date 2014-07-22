@@ -27,6 +27,7 @@
 :- import_module bool.
 :- import_module string.
 :- import_module list.
+:- import_module maybe.
 
 
 
@@ -42,75 +43,172 @@
 	% the C API, operations that query or manipulate the Lua state will
 	% use the variable term 'L' to refer to the Lua state.
 	%
-:- type lua.
+:- type lua_state.
+:- type lua == lua_state.
 
+% WARNING! Refrences to Lua types (tables, functions, userdata) derived
+% from one lua_state are NOT compatible with other seperately created
+% lua_states. The only exception to this is lua_states created as threads.
+% lua_threads may freely pass variables to or from their parent state and
+% sibling threads.
 
-
-
-	% Look up a variable at a given stack index, fails if an invalid
-	% index is given, or if the type given does not match.
+	% Create a fresh, new , initialized lua_state.
 	%
-:- pred index(state::in, int::in, T::out) is semidet.
-:- func index(int, state) = T is semidet.
+:- func new_state = lua_state.
+:- mode new_state = out.
+:- mode new_state = uo.
 
-
-	% Look a global variable, fails if the type given does not match.
+	% Create a new lua_state and assign values to it's
+	% global environment.
 	%
-:- pred global(state::in, string::in, T::out) is semidet.
-:- func global(string, state) = T is semidet.
+:- func new_state(table_ctor(string)) = lua_state.
+:- mode new_state(in) = out.
+:- mode new_state(in) = uo.
 
-	% Look up a variable at a given index, fails if the type given 
-	% does not match.
+	% Create a new lua_state and assign values to both it's
+	% environment and registry.
 	%
-:- pred registry(state::in, int::in, T::out) is semidet.
-:- func registry(string, state) = T is semidet.
-
-	% Look up a variable at a given index, fails if the type given 
-	% does not match.
-	%
-:- pred index(state::in, int::in, T::out) is semidet.
-:- func upvalue(int, state) = T is semidet.
-
-
+:- func new_state(table_ctor(string), table_ctor(string)) = lua_state.
+:- mode new_state(in) = out.
+:- mode new_state(in) = uo.
 
 	% init(L, !IO).
-	% Prepares a lua_State for interaction with Mercury
+	% Prepares an existing lua_State for interaction with Mercury
 	%
-:- pred init(state::in, io::di, io::uo) is det.
+:- pred init(lua::in, io::di, io::uo) is det.
 
-	%
 	% Verify that Lua is prepared for interaction with Mercury
 	%
 :- pred ready(state::in) is semidet.
+	
+%-----------------------------------------------------------------------------%
+%
+% Querying the Lua state.
+%
 
+
+% Each function call is provided with a local stack which function arguments
+% are pushed onto before the call.  The function call returns an integer
+% and Lua uses that number to determine the number of return values to take
+% off the top of the stack (from the bottom up).  In both cases the first 
+% argument is pushed first, with the last argument on the top of the stack.
+% 
+% Values on the stack can be refrenced by integer index values. Positive 
+% integers refrence values from the bottom of the stack, starting at one,
+% while negative integers refrences the stack from the top down (-1 referring
+% to the value at the top of the stack).
+
+% Due to the fact that different versions of Lua handle the global environment
+% and the registry in different ways, for the sake of compatability, this
+% library will not permit the explicit use of pseudo-indexes.  Instead, 
+% seperate access predicates have been provided in the place of pseudo-indexes.
+
+	% Retreive the index for the top value on the stack.
+	% Also represents the number of values on the stack.
+	%
+:- pred top(int::out, lua::in) is det.
+:- func top(lua) = int is det.
+:- pred top(int::out, lua::di, lua::uo) is det.
+:- func top(lua::di, lua::io) = (int::out) is det.
+
+
+	% Look up a value indexed on the stack.
+	% L ^ index(I) = Var
+	% !L ^ index(I) = MaybeVar
+	%
+:- pred index(int::in, T::out, lua::in) is semidet.
+:- pred index(int::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func index(int::in, lua::in) = T is semidet.
+:- func index(int::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
+	% Look up a global variable.
+	% L ^ global(VarName) = Var
+	% !L ^ global(VarName) = MaybeVar
+	%
+:- pred global(string::in, T::out, lua::in) is semidet.
+:- pred global(string::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func global(string::in, lua::in) = T is semidet.
+:- func global(string::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
+	% Look up a registry variable.
+	% L ^ registry(VarName) = Var
+	% !L ^ registry(VarName) = MaybeVar
+	%
+:- pred registry(string::in, T::out, lua::in) is semidet.
+:- pred registry(string::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func registry(string::in, lua::in) = T is semidet.
+:- func registry(string::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
+	% Look up a function upvalue.
+	% L ^ upvalue(I) = Var
+	% !L ^ upvalue(I) = MaybeVar
+	%
+:- pred upvalue(int::in, T::out, lua::in) is semidet.
+:- pred upvalue(int::in, maybe(T)::out, lua::di, lua::uo) is det.
+
+:- func upvalue(int::in, lua::in) = T is semidet.
+:- func upvalue(int::in, lua::di, lua::uo) = (maybe(T)::out) is det.
 
 %-----------------------------------------------------------------------------%
 %
-% Variables
+% Modifying the Lua State
 %
 
-% A Lua variable can be used to store any value that can be stored as a 
-% C type.  Furthermore, because variables are instantiated and stored within
-% the Lua state, Mercury cannot construct, deconstruct, equality test or 
-% refrence Lua variables directly like it can C types. These operations are
-% handled by the C API.
-%
-% Another thing to note is the fact that the lifetimes of Lua variables are
-% manged by the Lua garbage collector, a mark and sweep collector not unlike
-% the Bohem GC. 
-%
-% The current implementation of this library places reservations on and
-% registers finalizer callbacks with variables passed by refrence between
-% Mercury and Lua in such a manner that a Variable passed to it's non-native 
-% environment will not be collected by it's own garbage collector until the
-% non-native garbage collector calls the finalizer associated with it.
 
- 
-	% The var type represents an indirect refrence to a variable 
-	% instantiated in Lua. So long as Mercury does not garbage collect 
-	% the var, Lua will not garbage collect the refrenced variable.
+	% Ensure that there is space allocated to allow pushing the specified
+	% number of variables onto the stack.
+:- pred checkstack(int::in, lua_result::out, lua::di, lua::uo) is det.
+:- func checkstack(int::in, lua::di, lua::uo) = (lua_result::out) is det.
+
+	% Push a value onto the stack.
 	%
-:- type lua.var.
+:- pred push(T::in, lua_result::out, lua::di, lua::uo) is det.
+
+	% Pop the specified number of values off of the stack.
+	%
+:- pred pop(int::in, lua_result::out, lua::di, lua::uo) is det.
+
+	% Change a value indexed on the stack.
+	% !L ^ set_index(I, Var, Result).
+	% !L ^ index(I, Result) := Var
+	%
+:- pred set_index(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- func 'index :='(int::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+
+	% Change the value of a global variable.
+	% !L ^ set_global(I, Var, Result).
+	% !L ^ global(I, Result) := Var
+	%
+:- pred set_global(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred 'global :='(string::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+	% Change the value of a registry variable.
+	% !L ^ set_registry(I, Var, Result).
+	% !L ^ registry(I, Result) := Var
+	%
+:- pred set_registry(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred 'registry :='(string::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+	% Change a value of a function upvalue.
+	% !L ^ set_upvalue(I, Var, Result).
+	% !L ^ upvalue(I, Result) := Var
+	%
+:- pred set_upvalue(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred 'upvalue :='(int::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+
+	% Call a function or closure on a unique lua_state.
+	% The return values will be pushed onto the end of the stack.
+	%
+:- pred call(function::in, lua_result::out, lua::di, lua::uo) is det. 
+
+:- type lua_result
+	--->	ok		% Successful, with no return values.
+	;	ok(int)		% Successful, with the number of return values.
+	;	error(string)	% Lua experienced an error
 
 %-----------------------------------------------------------------------------%
 %
@@ -143,6 +241,8 @@
 %
 % 'thread' is a lua_state, usually a coroutine, note that the main
 % lua_state should not be treated like a coroutine.
+
+
 
 	% The type lua.type represents the types that Lua recognizes.
 	% 
@@ -444,11 +544,33 @@ int luaMR_loader(lua_State * L) {
 % Variables
 %
 
+% A Lua variable can be used to store any value that can be stored as a 
+% C type.  Furthermore, because variables are instantiated and stored within
+% the Lua state, Mercury cannot construct, deconstruct, equality test or 
+% refrence Lua variables directly like it can C types. These operations are
+% handled by the C API.
+%
+% Another thing to note is the fact that the lifetimes of Lua variables are
+% manged by the Lua garbage collector, a mark and sweep collector not unlike
+% the Bohem GC. 
+%
+% The current implementation of this library places reservations on and
+% registers finalizer callbacks with variables passed by refrence between
+% Mercury and Lua in such a manner that a Variable passed to it's non-native 
+% environment will not be collected by it's own garbage collector until the
+% non-native garbage collector calls the finalizer associated with it.
+
+ 
 :- type index == int.
 :- type id == int.
 :- type key == var.
 
-:- type lua.var 
+
+	% The var type represents an indirect refrence to a variable 
+	% instantiated in Lua. So long as Mercury does not garbage collect 
+	% the var, Lua will not garbage collect the refrenced variable.
+	%
+:- type var 
 	--->	index(state, index) 
 	;	ref(state, id)
 	;	upvalue(state, id)
