@@ -23,14 +23,40 @@
 
 :- import_module io.
 :- import_module int.
-:- import_module float.
 :- import_module bool.
 :- import_module string.
 :- import_module list.
 :- import_module maybe.
 
+%-----------------------------------------------------------------------------%
+%
+% The nil value
+%
 
+% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
+% that is not assigned a value with produce a nil result.
+%
+% Furthermore, assigning a key value to nil will unassign that value. Note that 
+% this does not neccicarily delete the value, if Lua holds a refrence to that
+% value elsewhere, it will not be garbage collected.
+%
+% In normal Lua semantics, using nil as a key value produces an error, however
+% due to the Mercury semantics used in this library, doing so will either fail
+% or return another nil value.  This is both for the sake of safer runtime
+% integration of Mercury's strict type system with Lua's dynamic type system,
+% and also as a practical consideration of Mercury's potentially
+% nondeterministic nature, as testing for a paticular type wil result in a
+% backtracking failure.
+%
+% It is to be noted that Lua's nil value is not to be confused with C's NULL
+% value.  While used in similar ways, Lua will interpret C's NULL as the number
+% zero, wheras C has no direct representation for Lua's nil value.
+%
+% As a result of this, Lua's semantics on conditional tests are slightly
+% different than C's.   C interprets any numeric value other than 0 as true.
+% In contrast, Lua interprets ANY value other than boolean false or nil as true.
 
+:- type nil ---> nil.
 
 %-----------------------------------------------------------------------------%
 %
@@ -79,8 +105,10 @@
 
 	% Verify that Lua is prepared for interaction with Mercury
 	%
-:- pred ready(state::in) is semidet.
-	
+:- pred ready(lua::in) is semidet.
+:- pred ready(lua::di, lua::uo, bool::out) is det.
+
+
 %-----------------------------------------------------------------------------%
 %
 % Querying the Lua state.
@@ -106,8 +134,14 @@
 	% Retreive the index for the top value on the stack.
 	% Also represents the number of values on the stack.
 	%
-:- pred top(int::out, lua::in) is det.
+:- pred top(int, lua).
+:- mode top(in, in) is det.
+:- mode top(in, ui) is det.
+
 :- func top(lua) = int is det.
+:- mode top(in) = out is det.
+:- mode top(ui) = out is det.
+
 :- pred top(int::out, lua::di, lua::uo) is det.
 :- func top(lua::di, lua::io) = (int::out) is det.
 
@@ -173,32 +207,36 @@
 
 	% Change a value indexed on the stack.
 	% !L ^ set_index(I, Var, Result).
-	% !L ^ index(I, Result) := Var
+	% L0 ^ index(I, Result) := Var = L1.
 	%
 :- pred set_index(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- func 'index :='(int::in, lua_result::out, lua::di, lua::uo, T::in) is det.
-
+:- func 'index :='(int::in, lua_result::out, lua::di, T::in) = (lua::uo)
+	 is det.
 
 	% Change the value of a global variable.
 	% !L ^ set_global(I, Var, Result).
-	% !L ^ global(I, Result) := Var
+	% L0 ^ global(I, Result) := Var = L1.
 	%
 :- pred set_global(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- pred 'global :='(string::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+:- func 'global :='(string::in, lua_result::out, lua::di, T::in) = (lua::uo)
+	 is det.
 
 	% Change the value of a registry variable.
 	% !L ^ set_registry(I, Var, Result).
-	% !L ^ registry(I, Result) := Var
+	% L0 ^ registry(I, Result) := Var = L1.
 	%
-:- pred set_registry(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- pred 'registry :='(string::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+:- pred set_registry(string::in, T::in, lua_result::out, lua::di, lua::uo) 
+	is det.
+:- func 'registry :='(string::in, lua_result::out, lua::di, T::in) = (lua::uo)
+	 is det.
 
 	% Change a value of a function upvalue.
 	% !L ^ set_upvalue(I, Var, Result).
-	% !L ^ upvalue(I, Result) := Var
+	% L0 ^ upvalue(I, Result) := Var = L1.
 	%
 :- pred set_upvalue(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- pred 'upvalue :='(int::in, lua_result::out, lua::di, lua::uo, T::in) is det.
+:- func 'upvalue :='(int::in, lua_result::out, lua::di, T::in) = (lua::uo)
+	 is det.
 
 	% Call a function or closure on a unique lua_state.
 	% The return values will be pushed onto the end of the stack.
@@ -212,7 +250,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Lua values and types
+% Lua types
 %
 
 % In Lua, variables are not typed, values are.  Lua recognizes eight
@@ -267,25 +305,6 @@
 :- func lua_type(T) = lua_type.
 
 
-:- type value
-	--->	nil
-	;	number(float)
-	;	boolean(bool)
-	;	string(string)
-	;	lightuserdata(c_pointer)
-	;	table(table)
-	;	function(function)
-	;	userdata(userdata)
-	;	thread(thread)
-	;	var(var)
-	where equality is equal_value.
-
-:- pred equal_value(lua.value::in, lua.value::in) is semidet.
-
-
-
-
-
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -306,10 +325,15 @@
 % userdata) these values cannot be instantiated outside of Lua, only refrenced.
 %
 % Lua variables with assigned refrence types may be assigned metatables, 
-% Lua tables that store metadata about 
+% Lua tables that store metadata about how Lua may interact with said variables.
+%
+% In practical usage, vars should rarely be used.
 
+:- type var.
 
-
+:- func var(T) = var.
+:- mode var(in) = out is det.
+:- mode var(out) = in is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -330,9 +354,89 @@
 	%
 	% Tables may be assigned metatables, which can store metadata about
 	% 
-:- type lua.table.
+:- type table.
 
-% TODO: Write Table preds.
+% Note that the nondeterministic calls for table lookups have a notably higher
+% performance cost than the semidet ones.
+
+	% Lookup a value in a table by a given key.  Key's that have not been
+	% assigned a value, (or usage of the nil value as a key) will produce
+	% a nil result.  The semantics of this library reserves failure for
+	% type incompatability.  That said, in Mercury, a table will NEVER 
+	% produce a non-nil value from usage of nil as a table's key (attempting
+	% to do so in Lua will result in an error).
+	%
+	% This library does not provide a way to perform lookups on unique 
+	% tables that preserve a table's uniqueness, given that unique tables
+	% represent new tables created and assigned values by Mercury.    
+	%
+:- pred get(K, V, table).
+:- mode get(in, out, in) is semidet.
+:- mode get(out, in, in) is nondet.
+:- mode get(out, out, in) is nondet.
+
+:- func get(K, table) = V.
+:- mode get(in, in) = out is semidet.
+:- mode get(out, in) = in is nondet.
+:- mode get(out, in) = out is nondet.
+
+	% The keys of a table.
+	%
+:- pred key(K, table).
+:- mode key(in, in) is semidet.
+:- mode key(out, in) is nondet.
+
+% Tables may not be modified unless they are unique, garunteeing that Mercury
+% holds the only refrence to a table, and as a result avoids causing any 
+% unintended side effects in Lua.
+
+	% Create an empty table.
+	%
+:- pred new_table(table::uo) is det.
+:- func new_table = table.
+:- mode new_table = uo.
+
+	% Create an empty table and assign a metatable to it.
+	%
+:- pred table_meta(table::uo, table::in) is det.
+:- func table_meta(table) = table.
+:- mode table_meta(in) = uo.
+
+% Metatables can define 'weakness' in tables, stating that keys and/or values in
+% tables are weak refrences that do not prevent Lua from garbage collecting
+% them.
+
+:- type weakness
+	---> 	none
+	;	keys
+	;	values
+	;	any.
+
+	% Determine the weakness of a table.
+	%
+:- pred weakness(weakness::out, table::in) is det.
+:- func weakness(table) = weakness.
+
+	% The following is shorthand for table_meta, assigning a metatable to a
+	% new table that only defines the table's weakness.
+	%
+:- pred new_weak_table(weakness::in, table::uo).
+:- func new_weak_table(weakness) = table.
+:- mode new_weak_table(in) = uo.
+
+	% Assign a value to a unique table.
+	%
+	% !Table ^ set(Key, Value).
+	% Table0 ^ set(Key) := Value = Table1.
+	%
+	% Assigning multiple values to the same key will overwrite any existing
+	% value assigned to that key.
+	%
+	% WARNING: attempting to assign a value to a nil key will produce an
+	% error.
+	%
+:- pred set(K::in, V::in, table::di, table::uo) is det.
+:- pred 'set :='(K::in, table::di, V::in) = (table::uo) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -358,10 +462,7 @@
 % outside of compiling a function directly with calls like loadstring and
 % dostring, or passing a lua_CFunction function pointer.
 
-	% A refrence to a 
-	% This type is identical to the var type, but with a garuntee that
-	% the value held by table is, in fact, a Lua table.
-	% 
+
 :- type function.
 
 % TODO: Write function interface.
@@ -381,9 +482,17 @@
 	% it is possible to assign metatables to userdata, allowing one to
 	% extend the valid syntax with which Lua can interact with a given
 	% userdata.
+	% 
+	% Note that userdata that contains a Mecury type will be passed to 
+	% Mercury as that type.  Userdata may contain foreign types that are
+	% not compatable with Mercury, although such types can still be 
+	% refrenced by c_pointer.
 	
-
 :- type userdata.
+
+:- func userdata(T) = userdata.
+:- mode userdata(in) = out is det.
+:- mode userdata(out) = in is semidet.
 
 % TODO: Userdata calls
 
@@ -392,10 +501,38 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Thread
+% Lua Coroutines
 %
 
-:- type thread.
+% TODO: Explain Lua coroutines.
+
+:- type thread == lua_state.
+
+	% Verify that two Lua threads share the same parent state by comparing
+	% registry tables.
+	%
+:- pred same_parent(lua::in, lua::in) is semidet.
+:- pred same_parent(lua::di, lua::uo, lua::di, lua::uo, bool::out) is det.
+
+	% Creates a new Lua thread for use as a coroutine, aborts if Lua cannot
+	% allocate the memory for a new thread.
+	%
+:- func new_thread(lua) = thread.
+:- mode new_thread(in) = out.
+:- mode new_thread(in) = uo.
+:- func new_thread(lua, lua) = thread.
+:- mode new_thread(di, uo) = uo.
+
+:- pred yield(lua_result::out, lua::di, lua::uo) is det.
+:- func yield(lua, lua) = lua_result.
+:- mode yield(di, uo) = out is det.
+
+:- pred resume(lua_result::out, lua::di, lua::uo) is det.
+:- func resume(thread, thread) = lua_result.
+:- mode resume(di, uo) = out is det.
+
+% TODO: status pred.
+
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -418,7 +555,7 @@
 
 #define MR_LUA_MODULE ""MR_LUA_LANDER_MODULE""
 #define MR_LUA_READY ""MR_LUA_LANDER_READY""
-#define MR_LUA_LOCKED ""MR_LUA_LANDER_LOCKED""
+#define MR_LUA_IMMUTABLE ""MR_LUA_IMMUTABLE""
 
 #define MR_LUA_TYPE ""__mercury_type""
 
@@ -429,9 +566,10 @@
 ").
 
 %-----------------------------------------------------------------------------%
+%
+% The Lua state
+%
 
-
-:- type lua_state.
 
 	% The lua_state type is a literal refrence to the Lua runtime, but the
 	% lua type is an abstraction of the Lua state.
@@ -439,51 +577,30 @@
 :- pragma foreign_type("C", lua_state, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-:- type lua
-	---> 	lua(lua)
-	;	state(abstract_state)
-	;	state(state, args).
-	;	state - int
-	where equality is equal_states.
-
-:- pred equal_states(state::in, state::in) is semidet.
-
-
-
-
-
-:- type abstract_state 
-	--->	abstract_state(	
-			global::global,
-			registry::registry,
-			upvalues::upvalues,
-			stack::list(var).
-		).
-
-:- type global == var.
-
-:- type registry == var.
-
-:- type upvalue == var.
-
-:- type stack ---> undefined_stack.
-
-
 
 %-----------------------------------------------------------------------------%
 
 :- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
 
-:- pragma foreign_code("C", "void luaMR_init(lua_State * L) {
+:- pragma foreign_code("C", 
+"
+void luaMR_getregistry(lua_State * L, const char * k) {
+	lua_getfield(L, LUA_REGISTRYINDEX, k);
+}
+
+void luaMR_setregistry(lua_State * L, const char * k) {
+	lua_setfield(L, LUA_REGISTRYINDEX, k);
+}
+
+void luaMR_init(lua_State * L) {
 
 	/* Add tables to the registry. */
 	
 	lua_newtable(L);
-	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_MODULE);
+	luaMR_setregistry(L, MR_LUA_MODULE);
 
 	
-	lua_pushboolean(L, 0);
-	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_LOCKED);
+	
 
 	/* Add loader to package.loaders */
 	lua_getglobal(L, ""package"");
@@ -496,8 +613,24 @@
 	
 	/* Mark Lua as ready */
 	lua_pushboolean(L, 1);
-	lua_setfield(L, LUA_REGISTRYINDEX, MR_LUA_READY);
-}").
+	luaMR_setregistry(L, MR_LUA_READY);
+}
+
+/* Mark a Lua state (and all of it's child threads) as immutable. */
+void luaMR_make_immutable(lua_State * L) {
+	lua_pushboolean(L, 1);
+	luaMR_setregistry(L, MR_LUA_IMMUTABLE);
+}
+
+/* Check to see if a lua_State is marked as immutable. */
+int luaMR_is_immutable(lua_State * L) {
+	luaMR_getregistry(L, MR_LUA_IMMUTABLE);
+	const int result = lua_toboolean(L, -1);
+	lua_pop(L, 1);
+	return result;
+}
+
+").
 
 :- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
@@ -506,20 +639,32 @@
 
 :- pragma foreign_code("C", 
 "
-	/* check to see if Lua has already been initialized. */
+	/* Check to see if Lua has already been initialized. */
 	int luaMR_ready(lua_State * L) {
 		lua_checkstack(L, 1);
-		lua_getfield(L, LUA_REGISTRYINDEX, MR_LUA_READY);
+		luaMR_getregistry(L, MR_LUA_READY);
 		int ready = lua_toboolean(L, 1);
 		lua_remove(L, 1);
 		return ready;
 	}
+
 ").
 
 :- pragma foreign_proc("C", ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaMR_ready(L);
 ").
+
+:- pragma foreign_proc("C", ready(L::di, L1::uo, Answer::out), 
+	[promise_pure, will_not_call_mercury], "
+	if(luaMR_ready(L))
+		Answer = MR_YES;
+	else
+		Answer = MR_NO;
+
+	L1 = L;
+").
+
 
 
 :- pragma foreign_code("C", 
@@ -530,7 +675,7 @@ passes any additional arguments. */
 int luaMR_loader(lua_State * L) {
 	if (lua_isstring(L, 1)) {
 		const char * module_name = lua_tostring(L, 1);
-		lua_getfield(L, LUA_REGISTRYINDEX, MR_LUA_MODULE);
+		luaMR_getregistry(L, MR_LUA_MODULE);
 		lua_getfield(L, 2, module_name);
 		return 1;
 	}
@@ -561,20 +706,97 @@ int luaMR_loader(lua_State * L) {
 % non-native garbage collector calls the finalizer associated with it.
 
  
-:- type index == int.
-:- type id == int.
-:- type key == var.
-
-
-	% The var type represents an indirect refrence to a variable 
+	% The ref type represents an indirect refrence to a variable 
 	% instantiated in Lua. So long as Mercury does not garbage collect 
 	% the var, Lua will not garbage collect the refrenced variable.
 	%
-:- type var 
-	--->	index(state, index) 
-	;	ref(state, id)
-	;	upvalue(state, id)
-	;	key(table, key).
+:- type ref.
+
+:- pragma foreign_type("C", ref, "luaMR_Ref *", [can_pass_as_mercury_type])
+	where equality is ref_equals.
+
+:- pred ref_equals(ref::in, ref::in) is semidet.
+
+:- pragma foreign_proc("C", ref_equals(A::in, B::in),
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_State * L = luaMR_ref_state(A);
+	lua_checkstack(L, 2);
+	luaMR_push_ref(L, A);	
+	luaMR_push_ref(L, B);
+	SUCCESS_INDICATOR = lua_rawequal(L, -2, -1);
+	lua_pop(2);
+").
+
+:- pred ref_state(ref::in, lua::out) is det.
+
+:- pragma foreign_proc("C", ref_state(Ref::in, L::out) ,
+	[promise_pure, will_not_call_mercury],
+	"L = luaMR_ref_state(Ref);").
+
+:- func ref_state(ref) = lua.
+
+ref_state(R) = L :- ref_state(R, L).
+	
+:- pragma foreign_code("C",
+"
+
+typedef struct luaMR_Ref {
+	lua_State * state;
+	int id;
+}
+
+
+/* Creates a new refrence from the stack */
+luaMR_Ref * luaMR_new_ref(lua_State * L, int index) {
+	int id = luaL_ref(L, LUA_REGISTRYINDEX);
+	luaMR_Ref * new_ref = MR_GC_NEW(luaMR_Ref);
+	new_ref->state = L;
+	new_ref->id = id;
+	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref);
+	return new_var;
+}
+
+/* Retreives the refrenced Lua state */
+lua_State * luaMR_ref_state(luaMR_Ref * ref) {
+	return ref->state;
+}
+
+/* Push a refrence onto the provided stack */
+void luaMR_push_ref(lua_State * L, luaMR_Ref * ref) {
+	lua_State * L0 = ref-> state;	
+	int id = ref->id;
+	if (id == LUA_REFNIL) {
+		lua_pushnil(L);
+	}
+	else if (L == L0) {
+		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
+	}
+	else {
+		lua_checkstack(L0, 1);
+		lua_rawgeti(L0, LUA_REGISTRYINDEX, id);
+		lua_xmove(L0, L, 1);
+	}
+}
+
+/* Remove Lua's refrence to the var in the registry */
+void luaMR_finalize_ref(luaMR_Ref * ref, void * dummy) {
+	luaL_unref(ref->state, LUA_REGISTRYINDEX, ref->id);
+}
+
+"). 
+
+
+:- pragma foreign_proc("C", ref_type(Ref::in, Type::out), 
+	[promise_pure, will_not_call_mercury], 
+"
+	lua_State * L = luaMR_ref_state(Ref);
+	luaMR_push_ref(Ref);
+	Type = lua_type(L, -1);
+	lua_pop(L, 1);
+").
+
+ref_type(R) = T :- ref_type(R, T).
 
 
 %-----------------------------------------------------------------------------%
@@ -612,7 +834,7 @@ equal_value(_, _) :- sorry($module, $pred).
 
 
 
-:- type table == var.
+:- type table == ref.
 
 
 %-----------------------------------------------------------------------------%
@@ -620,7 +842,7 @@ equal_value(_, _) :- sorry($module, $pred).
 % Lua functions
 %
 
-:- type function == var.
+:- type function == ref.
 
 
 %-----------------------------------------------------------------------------%
