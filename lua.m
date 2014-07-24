@@ -568,6 +568,8 @@
 
 #define MR_LUA_FUNCTION_UPVALUE 1
 
+#define MR_LUA_top(i)
+
 ").
 
 
