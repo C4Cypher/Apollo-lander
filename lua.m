@@ -30,36 +30,6 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The nil value
-%
-
-% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
-% that is not assigned a value with produce a nil result.
-%
-% Furthermore, assigning a key value to nil will unassign that value. Note that 
-% this does not neccicarily delete the value, if Lua holds a refrence to that
-% value elsewhere, it will not be garbage collected.
-%
-% In normal Lua semantics, using nil as a key value produces an error, however
-% due to the Mercury semantics used in this library, doing so will either fail
-% or return another nil value.  This is both for the sake of safer runtime
-% integration of Mercury's strict type system with Lua's dynamic type system,
-% and also as a practical consideration of Mercury's potentially
-% nondeterministic nature, as testing for a paticular type wil result in a
-% backtracking failure.
-%
-% It is to be noted that Lua's nil value is not to be confused with C's NULL
-% value.  While used in similar ways, Lua will interpret C's NULL as the number
-% zero, wheras C has no direct representation for Lua's nil value.
-%
-% As a result of this, Lua's semantics on conditional tests are slightly
-% different than C's.   C interprets any numeric value other than 0 as true.
-% In contrast, Lua interprets ANY value other than boolean false or nil as true.
-
-:- type nil ---> nil.
-
-%-----------------------------------------------------------------------------%
-%
 % The Lua state
 %
 
@@ -70,6 +40,9 @@
 	% use the variable term 'L' to refer to the Lua state.
 	%
 :- type lua_state.
+
+
+
 :- type lua == lua_state.
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
@@ -107,6 +80,38 @@
 	%
 :- pred ready(lua::in) is semidet.
 :- pred ready(lua::di, lua::uo, bool::out) is det.
+
+
+%-----------------------------------------------------------------------------%
+%
+% The nil value
+%
+
+% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
+% that is not assigned a value with produce a nil result.
+%
+% Furthermore, assigning a key value to nil will unassign that value. Note that 
+% this does not neccicarily delete the value, if Lua holds a refrence to that
+% value elsewhere, it will not be garbage collected.
+%
+% In normal Lua semantics, using nil as a key value produces an error, however
+% due to the Mercury semantics used in this library, doing so will either fail
+% or return another nil value.  This is both for the sake of safer runtime
+% integration of Mercury's strict type system with Lua's dynamic type system,
+% and also as a practical consideration of Mercury's potentially
+% nondeterministic nature, as testing for a paticular type wil result in a
+% backtracking failure.
+%
+% It is to be noted that Lua's nil value is not to be confused with C's NULL
+% value.  While used in similar ways, Lua will interpret C's NULL as the number
+% zero, wheras C has no direct representation for Lua's nil value.
+%
+% As a result of this, Lua's semantics on conditional tests are slightly
+% different than C's.   C interprets any numeric value other than 0 as true.
+% In contrast, Lua interprets ANY value other than boolean false or nil as true.
+
+:- type nil ---> nil.
+
 
 
 %-----------------------------------------------------------------------------%
@@ -565,6 +570,7 @@
 
 ").
 
+
 %-----------------------------------------------------------------------------%
 %
 % The Lua state
@@ -683,6 +689,8 @@ int luaMR_loader(lua_State * L) {
 }
 
 ").
+
+
 
 %-----------------------------------------------------------------------------%
 %
