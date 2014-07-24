@@ -99,30 +99,26 @@
 	% Retreive the index for the top value on the stack.
 	% Also represents the number of values on the stack.
 	%
-:- func top(lua) = int.
+
 :- pred get_top(lua::di, lua::uo, int::out) is det.
 
 
 	% Look up a value indexed on the stack.
 	%
-:- func stack(int, lua) = T is semidet.
 :- some [T] get_stack(int::in, T::out, lua::di, lua::uo) is det.
 
 	% Look up a global variable.
 	%
-:- func global(string, lua) = T is semidet.
 :- some [T] pred get_global(string::in, T::out, lua::di, lua::uo) is det.
 
 	% Look up a registry variable.
 	%
-:- func registry(string, lua) = T is semidet.
 :- some [T] pred get_registry(string::in, T::out, lua::di, lua::uo) is det.
 
 
 
 	% Look up a function upvalue.
 	%
-:- func upvalue(int, lua) = T is semidet.
 :- pred some [T] get_upvalue(int::in, T::out, lua::di, lua::uo) is det.
 
 
@@ -173,6 +169,29 @@
 	--->	ok		% Successful, with no return values.
 	;	ok(int)		% Successful, with the number of return values.
 	;	error(string)	% Lua experienced an error
+	
+%-----------------------------------------------------------------------------%
+%
+% Do blocks
+%
+
+:- type closure == (func(args_list) = args_list).
+
+	% Allows pure calls to Lua without needing to directly refrence the
+	% Lua state.  The provided int, gives the number of values on the
+	% stack to make availible to the func as 'args', the returned list
+	% will be pushed onto the bottom of the stack, replacing the values
+	% used as args, if any.
+	%
+:- pred do(closure::in, int::in lua::di, lua::io) is det.
+
+	% Same as previous pred, only uses ALL of the values on the stack as
+	% arguments.
+	%
+:- pred do(closure::in, lua::di, lua::io) is det.
+
+
+
 
 %-----------------------------------------------------------------------------%
 %
