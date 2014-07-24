@@ -54,63 +54,21 @@
 	% Create a fresh, new , initialized lua_state.
 	%
 :- func new_state = lua_state.
-:- mode new_state = out.
 :- mode new_state = uo.
 
-	% Create a new lua_state and assign values to it's
-	% global environment.
-	%
-:- func new_state(table_ctor(string)) = lua_state.
-:- mode new_state(in) = out.
-:- mode new_state(in) = uo.
 
-	% Create a new lua_state and assign values to both it's
-	% environment and registry.
-	%
-:- func new_state(table_ctor(string), table_ctor(string)) = lua_state.
-:- mode new_state(in) = out.
-:- mode new_state(in) = uo.
+
 
 	% init(L, !IO).
 	% Prepares an existing lua_State for interaction with Mercury
 	%
-:- pred init(lua::in, io::di, io::uo) is det.
+:- pred init(lua::di, lua::uo) is det.
 
 	% Verify that Lua is prepared for interaction with Mercury
 	%
 :- pred ready(lua::in) is semidet.
 :- pred ready(lua::di, lua::uo, bool::out) is det.
 
-
-%-----------------------------------------------------------------------------%
-%
-% The nil value
-%
-
-% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
-% that is not assigned a value with produce a nil result.
-%
-% Furthermore, assigning a key value to nil will unassign that value. Note that 
-% this does not neccicarily delete the value, if Lua holds a refrence to that
-% value elsewhere, it will not be garbage collected.
-%
-% In normal Lua semantics, using nil as a key value produces an error, however
-% due to the Mercury semantics used in this library, doing so will either fail
-% or return another nil value.  This is both for the sake of safer runtime
-% integration of Mercury's strict type system with Lua's dynamic type system,
-% and also as a practical consideration of Mercury's potentially
-% nondeterministic nature, as testing for a paticular type wil result in a
-% backtracking failure.
-%
-% It is to be noted that Lua's nil value is not to be confused with C's NULL
-% value.  While used in similar ways, Lua will interpret C's NULL as the number
-% zero, wheras C has no direct representation for Lua's nil value.
-%
-% As a result of this, Lua's semantics on conditional tests are slightly
-% different than C's.   C interprets any numeric value other than 0 as true.
-% In contrast, Lua interprets ANY value other than boolean false or nil as true.
-
-:- type nil ---> nil.
 
 
 
@@ -136,60 +94,38 @@
 % library will not permit the explicit use of pseudo-indexes.  Instead, 
 % seperate access predicates have been provided in the place of pseudo-indexes.
 
+% Invalid values will be returned as nil.
+
 	% Retreive the index for the top value on the stack.
 	% Also represents the number of values on the stack.
 	%
-:- pred top(int, lua).
-:- mode top(in, in) is det.
-:- mode top(in, ui) is det.
-
-:- func top(lua) = int is det.
-:- mode top(in) = out is det.
-:- mode top(ui) = out is det.
-
-:- pred top(int::out, lua::di, lua::uo) is det.
-:- func top(lua::di, lua::io) = (int::out) is det.
+:- func top(lua) = int.
+:- pred get_top(lua::di, lua::uo, int::out) is det.
 
 
 	% Look up a value indexed on the stack.
-	% L ^ index(I) = Var
-	% !L ^ index(I) = MaybeVar
 	%
-:- pred index(int::in, T::out, lua::in) is semidet.
-:- pred index(int::in, maybe(T)::out, lua::di, lua::uo) is det.
-
-:- func index(int::in, lua::in) = T is semidet.
-:- func index(int::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+:- func stack(int, lua) = T is semidet.
+:- some [T] get_stack(int::in, T::out, lua::di, lua::uo) is det.
 
 	% Look up a global variable.
-	% L ^ global(VarName) = Var
-	% !L ^ global(VarName) = MaybeVar
 	%
-:- pred global(string::in, T::out, lua::in) is semidet.
-:- pred global(string::in, maybe(T)::out, lua::di, lua::uo) is det.
-
-:- func global(string::in, lua::in) = T is semidet.
-:- func global(string::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+:- func global(string, lua) = T is semidet.
+:- some [T] pred get_global(string::in, T::out, lua::di, lua::uo) is det.
 
 	% Look up a registry variable.
-	% L ^ registry(VarName) = Var
-	% !L ^ registry(VarName) = MaybeVar
 	%
-:- pred registry(string::in, T::out, lua::in) is semidet.
-:- pred registry(string::in, maybe(T)::out, lua::di, lua::uo) is det.
+:- func registry(string, lua) = T is semidet.
+:- some [T] pred get_registry(string::in, T::out, lua::di, lua::uo) is det.
 
-:- func registry(string::in, lua::in) = T is semidet.
-:- func registry(string::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
 
 	% Look up a function upvalue.
-	% L ^ upvalue(I) = Var
-	% !L ^ upvalue(I) = MaybeVar
 	%
-:- pred upvalue(int::in, T::out, lua::in) is semidet.
-:- pred upvalue(int::in, maybe(T)::out, lua::di, lua::uo) is det.
+:- func upvalue(int, lua) = T is semidet.
+:- pred some [T] get_upvalue(int::in, T::out, lua::di, lua::uo) is det.
 
-:- func upvalue(int::in, lua::in) = T is semidet.
-:- func upvalue(int::in, lua::di, lua::uo) = (maybe(T)::out) is det.
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -199,54 +135,39 @@
 
 	% Ensure that there is space allocated to allow pushing the specified
 	% number of variables onto the stack.
-:- pred checkstack(int::in, lua_result::out, lua::di, lua::uo) is det.
-:- func checkstack(int::in, lua::di, lua::uo) = (lua_result::out) is det.
+:- pred checkstack(int::in, lua::di, lua::uo) is det.
 
 	% Push a value onto the stack.
 	%
-:- pred push(T::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred push(T::in, lua::di, lua::uo) is det.
 
 	% Pop the specified number of values off of the stack.
 	%
-:- pred pop(int::in, lua_result::out, lua::di, lua::uo) is det.
+:- pred pop(int::in, lua::di, lua::uo) is det.
 
 	% Change a value indexed on the stack.
-	% !L ^ set_index(I, Var, Result).
-	% L0 ^ index(I, Result) := Var = L1.
 	%
-:- pred set_index(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- func 'index :='(int::in, lua_result::out, lua::di, T::in) = (lua::uo)
-	 is det.
+:- pred set_index(int::in, T::in, lua::di, lua::uo) is det.
 
 	% Change the value of a global variable.
-	% !L ^ set_global(I, Var, Result).
-	% L0 ^ global(I, Result) := Var = L1.
 	%
-:- pred set_global(string::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- func 'global :='(string::in, lua_result::out, lua::di, T::in) = (lua::uo)
-	 is det.
+:- pred set_global(string::in, T::in, lua::di, lua::uo) is det.
+
 
 	% Change the value of a registry variable.
-	% !L ^ set_registry(I, Var, Result).
-	% L0 ^ registry(I, Result) := Var = L1.
 	%
-:- pred set_registry(string::in, T::in, lua_result::out, lua::di, lua::uo) 
-	is det.
-:- func 'registry :='(string::in, lua_result::out, lua::di, T::in) = (lua::uo)
-	 is det.
+:- pred set_registry(string::in, T::in, lua::di, lua::uo) is det.
+
 
 	% Change a value of a function upvalue.
-	% !L ^ set_upvalue(I, Var, Result).
-	% L0 ^ upvalue(I, Result) := Var = L1.
 	%
-:- pred set_upvalue(int::in, T::in, lua_result::out, lua::di, lua::uo) is det.
-:- func 'upvalue :='(int::in, lua_result::out, lua::di, T::in) = (lua::uo)
-	 is det.
+:- pred set_upvalue(int::in, T::in, lua::di, lua::uo) is det.
+
 
 	% Call a function or closure on a unique lua_state.
 	% The return values will be pushed onto the end of the stack.
 	%
-:- pred call(function::in, lua_result::out, lua::di, lua::uo) is det. 
+:- pred call_function(function::in, lua_result::out, lua::di, lua::uo) is det. 
 
 :- type lua_result
 	--->	ok		% Successful, with no return values.
@@ -309,7 +230,39 @@
 	% 
 :- func lua_type(T) = lua_type.
 
+%-----------------------------------------------------------------------------%
+%
+% The nil value
+%
 
+% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
+% that is not assigned a value with produce a nil result.
+%
+% Furthermore, assigning a key value to nil will unassign that value. Note that 
+% this does not neccicarily delete the value, if Lua holds a refrence to that
+% value elsewhere, it will not be garbage collected.
+%
+% In normal Lua semantics, using nil as a key value produces an error, however
+% due to the Mercury semantics used in this library, doing so will either fail
+% or return another nil value.  This is both for the sake of safer runtime
+% integration of Mercury's strict type system with Lua's dynamic type system,
+% and also as a practical consideration of Mercury's potentially
+% nondeterministic nature, as testing for a paticular type wil result in a
+% backtracking failure.
+%
+% It is to be noted that Lua's nil value is not to be confused with C's NULL
+% value.  While used in similar ways, Lua will interpret C's NULL as the number
+% zero, wheras C has no direct representation for Lua's nil value.
+%
+% As a result of this, Lua's semantics on conditional tests are slightly
+% different than C's.   C interprets any numeric value other than 0 as true.
+% In contrast, Lua interprets ANY value other than boolean false or nil as true.
+
+:- type nil ---> nil.
+
+	% Utility pred for evaluating whether or not an existential value is nil.
+	%
+:- pred is_nil(T::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -495,13 +448,53 @@
 	
 :- type userdata.
 
+:- type lightuserdata ---> lightuserdata(c_pointer).
+
 :- func userdata(T) = userdata.
 :- mode userdata(in) = out is det.
 :- mode userdata(out) = in is semidet.
 
-% TODO: Userdata calls
+:- type metamethod
+	---> 	add
+	;	subtract
+	;	multiply
+	;	divide
+	;	modulo
+	;	power
+	;	negative
+	;	concatenate
+	;	length
+	;	equals
+	;	lessthan
+	;	less_or_equal
+	;	index
+	;	newindex
+	;	call
+	;	finalize.
 
 
+	% This typeclass allows additinal metamethod calls to be attached
+	% to specific Mercury types.
+	%
+:- typeclass userdata(T) where [
+
+	% Examine the first (bottom) value on the stack and return it's
+	% mercury value if it is an instance of this typeclass.
+	%
+	pred self_is_userdata(T),
+	mode self_is_userdata(out) is nondet,
+	
+	% Return the metamethod associated with this instance.
+	%
+	func metamethod(metamethod, T) = function,
+	mode metamethod(in, in) = out is semidet
+].
+	
+	% Examine the first (bottom) value on the stack and return it's
+	% mercury value if it is of this type.
+	% For use implementing self_is_userdata.
+	%
+pred self_is(T::out) is semidet.
 
 
 %-----------------------------------------------------------------------------%
