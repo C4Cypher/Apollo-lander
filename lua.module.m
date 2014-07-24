@@ -17,3 +17,24 @@
 %-----------------------------------------------------------------------------%
 
 :- module lua.module.
+
+:- interface.
+
+:- import_module string.
+
+% :- import_module lua. -  Omitted, due to the fact that this module is included in lua.m.
+
+:- type name == string.
+
+:- type lua.module.
+
+:- func init = module.
+:- pred init(module::out).
+
+
+	% Export the provided module to
+:- pred export(module::in, name:in, lua::di, lua::uo).
+
+:- pred export(module::in, name::in, lua_state::in, io::di, io::uo).
+:- mode export(in, in, in, di, uo) is det.
+:- mode export(di, in, in, di, uo) is det.
