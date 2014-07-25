@@ -161,34 +161,93 @@
 
 
 	% Call a function or closure on a unique lua_state.
-	% The return values will be pushed onto the end of the stack.
+	% The values on the stack will be used as arguments for the function.
+	% The return values will be pushed onto the stack.
 	%
-:- pred call_function(function::in, lua_result::out, lua::di, lua::uo) is det. 
+:- pred call_function(function::in, lua::di, lua::uo) is det. 
+
+	% call_function(Function, Args, !L).
+	%
+	% Call a function or closure on a unique lua_state.
+	% Args represents the number of values to pop off the stack for the
+	% function's arguments. The return values will be pushed onto the end of
+	% the stack.
+	%
+:- pred call_function(function::in, int::in, lua::di, lua::uo) is det. 
+
 
 :- type lua_result
 	--->	ok		% Successful, with no return values.
 	;	ok(int)		% Successful, with the number of return values.
 	;	error(string)	% Lua experienced an error
-	
+
+
 %-----------------------------------------------------------------------------%
 %
-% Do blocks
+% Closures
 %
 
-:- type closure == (func(args_list) = args_list).
+	% A closure is a Mercury function that behaves like a Lua function.
+	% When called with do/3 or do/4, the closure retreives arguments with
+	% arg/1, accesses global variables with global/1, and returns a list
+	% of values to be pushed onto the stack as return values.
+	%
+:- type closure == (func = list(_)).
+:- inst closure == (func = out is det).
+
+
+	% Convert a pred closure into a function closure.
+	% Deterministic preds will not return a value.
+	% Semidet preds will return a single boolean value.
+	%
+:- func pred_closure((pred)) = closure.
+:- mode pred_closure((pred is det)) = out is det.
+:- mode pred_closure((pred is semidet)) = out is det.
+
+
+	% Convert a func closure into a function closure.
+	% Det funcs will return a single value.
+	% Semidet funcs will return a single value or nil.
+	% Cc_multi and cc_nondet funcs will behave like det and semidet funcs,
+	% respectively. Multi and nondet funcs will gather the returned 
+	% solutions in a list to be pushed as return values.
+	%
+:- func func_closure((func(Arg) = Ret <= (args(Arg), return(Ret)))) = closure.
+:- mode func_closure((func = out is det)) = out is det.
+:- mode func_closure((func = out is semidet)) = out is det.
+:- mode func_closure((func = out is cc_multi)) = out is det.
+:- mode func_closure((func = out is cc_nondet)) = out is det.
+:- mode func_closure((func = out is multi)) = out is det.
+:- mode func_closure((func = out is nondet)) = out is det.
+
+:- typeclass args(T) where [
+	func args = T,
+	mode args = out is semidet
+].
+
+:- typeclass return(T) where
+	func return(T) = list(_),
+	mode return(in) = out is semidet
+].
 
 	% Allows pure calls to Lua without needing to directly refrence the
 	% Lua state.  The provided int, gives the number of values on the
-	% stack to make availible to the func as 'args', the returned list
-	% will be pushed onto the bottom of the stack, replacing the values
+	% stack to pop off the stack as 'args', the returned list
+	% will be pushed onto the top of the stack, replacing the values
 	% used as args, if any.
 	%
-:- pred do(closure::in, int::in lua::di, lua::io) is det.
+:- pred do(closure::in, int::in, lua::di, lua::io) is det.
 
 	% Same as previous pred, only uses ALL of the values on the stack as
 	% arguments.
 	%
 :- pred do(closure::in, lua::di, lua::io) is det.
+
+:- func arg(int) = T.
+:- mode arg(in) = out is semidet.
+:- mode arg(out) = out is nondet.
+
+:- func global(string) = T is semidet.
 
 
 
@@ -442,7 +501,23 @@
 
 :- type function.
 
-% TODO: Write function interface.
+	% Load a string and compile it into a Lua function.
+	%
+:- func chunk(string) = function.
+
+	% Convert a closure into a varadic Lua function.
+	%
+:- func closure(closure) = function.
+
+	% closure(Closure, Args)
+	%
+	% Convert a closure into a varadic function that accepts 
+	% Args number of arguments and passes the rest after the return value.
+	%
+:- func closure(closure, int) = function.
+
+
+
 
 %-----------------------------------------------------------------------------%
 
