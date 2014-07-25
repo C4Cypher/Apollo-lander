@@ -19,7 +19,6 @@
 
 :- interface.
 
-:- import_module io.
 
 %-----------------------------------------------------------------------------%
 %
@@ -42,28 +41,28 @@
 
 	% Create a fresh, new , initialized lua_state.
 	%
-:- func new_state = lua.
+:- pred new_state(lua::out).
 
 
-	% init(L, !IO).
-	% Prepares an existing lua_State for interaction with Mercury
+
+	% Return the Lua state's current status.
 	%
-:- pred init(lua::in, io::di, io::uo) is det.
-:- impure pred init(lua::in) is det.
+:- semipure pred get_status(lua::in, status::out). 
 
-	% Verify that Lua is prepared for interaction with Mercury
-	%
-:- pred ready(lua::in, bool::out, io::di, io::uo) is det.
-:- semipure pred ready(lua::in) is semidet.
 
-:- pred get_status(lua::in, status::out, io::di, io::uo) is det.
-:- semipure func status(lua) = status.
+:- type status
+	---> 	ready
+	;	yeild
+	;	runtime_error
+	;	memory_error
+	;	unhandled_error.
 
 %-----------------------------------------------------------------------------%
 %
 % Stack operations.
 %
 
+:- type index == int.
 
 % Each function call is provided with a local stack which function arguments
 % are pushed onto before the call.  The function call returns an integer
@@ -90,87 +89,97 @@
 	% Retreive the index for the top value on the stack.
 	% Also represents the number of values on the stack.
 	%
-:- pred get_top(lua::in, int::out, io::di, io::uo) is det.
-:- semipure func top(lua) = int.
+:- semipure pred get_top(lua::in, index::out) is det.
 
 	% Set the size of the stack. Any values indexed above the new stack
 	% size will be removed from the stack, and any unassigned values at
-	% or below the new stack size will be assigned nil values.
+	% or below the new stack size will be assigned nil values. Aborts
+	% if the new size is less than zero. 
 	%
-:- pred set_top(lua::in, int::in, io::di, io::uo) is det.
-:- impure pred 'set_top :='(int::in, lua::in).
+:- impure pred set_top(lua::in, index::in) is det.
+
 	% Ensure that there is space allocated to allow pushing the specified
 	% number of variables onto the stack.
 	%
-:- pred check_stack(int::in, lua::di, lua::uo) is det.
+:- impure pred check_stack(lua::in, int::in) is det.
 
 
 	% Look up a value indexed on the stack.
 	%
-:- some [T] get_stack(int::in, T::out, lua::in, io::di, io::uo) is det.
-:- semipure some [T] func stack(int, lua) = T.
-
-	% Overwrite a value indexed on the stack.
-	%
-	
+:- semipure some [T] pred get_stack(lua, index, T).
+:- mode stack(in, in, out) is det.
+:- mode stack(in, out, out) is nondet.
 
 	% Look up a global variable.
 	%
-:- some [T] pred get_global(string::in, T::out, lua::di, lua::uo) is det.
+:- semipure some [T] pred get_global(lua::in, string::in, T::out) is det.
+
+	% Modify a global variable.
+	%
+:- impure pred set_global(lua::in, string::in, T::in) is det.
+
 
 	% Look up a registry variable.
 	%
-:- some [T] pred get_registry(string::in, T::out, lua::di, lua::uo) is det.
+:- semipure some [T] pred get_registry(lua::in, string::in, T::out) is det.
 
-
-
-	% Look up a function upvalue.
+	% Modify a global variable.
 	%
-:- pred some [T] get_upvalue(int::in, T::out, lua::di, lua::uo) is det.
+:- impure pred set_registry(lua::in, string::in, T::in) is det.
 
 
+	% Look up a function upvalue. Fail if the upvalue is not valid.
+	%
+:- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is semidet.
 
-
+	% Modify a global variable. Fail if the upvalue is not valid.
+	%
+:- impure pred set_registry(lua::in, int::in, T::in) is semidet.
 
 
 	% Push a value onto the stack.
 	%
-:- pred push(T::in, lua::di, lua::uo) is det.
+:- impure pred push(lua::in, T::in) is det.
 
 	% Pop the specified number of values off of the stack.
 	%
-:- pred pop(int::in, lua::di, lua::uo) is det.
+:- impure pred pop(lua::in, int::in) is det.
 
-	% Change a value indexed on the stack.
+
+
+	% Call a function and remove it from the stack. The values on the 
+	% stack after the function will be removed and passed as arguments. 
+	% The function's return values will be pushed onto the stack.
 	%
-:- pred set_index(int::in, T::in, lua::di, lua::uo) is det.
+:- impure pred call(lua::in, index::in) is det. 
 
-	% Change the value of a global variable.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Refrences
+%
+
+	% Create a refrence from a value on the stack.
 	%
-:- pred set_global(string::in, T::in, lua::di, lua::uo) is det.
+:- impure pred new_ref(lua::in, index::in, int::out) is det.
 
+	% Push a refrence onto the stack.
+:- impure pred push_ref(lua::in, int::in) is det.
 
-	% Change the value of a registry variable.
+	% Look up a refrence. Fail if it doesn't exist.
 	%
-:- pred set_registry(string::in, T::in, lua::di, lua::uo) is det.
+:- semipure some [T] pred get_ref(lua::in, int::in, T::out) is det.
 
 
-	% Change a value of a function upvalue.
+	% Remove a refrence.
 	%
-:- pred set_upvalue(int::in, T::in, lua::di, lua::uo) is det.
+:- impure unref(lua::in, int::in) is semidet.
+
+%-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
 
 
-	% Call a function or closure on a unique lua_state.
-	% The values on the stack will be used as arguments for the function.
-	% The return values will be pushed onto the stack.
-	%
-:- pred call_function(function::in, lua::di, lua::uo) is det. 
+:- implementation.
 
-	% call_function(Function, Args, !L).
-	%
-	% Call a function or closure on a unique lua_state.
-	% Args represents the number of values to pop off the stack for the
-	% function's arguments. The return values will be pushed onto the end of
-	% the stack.
-	%
-:- pred call_function(function::in, int::in, lua::di, lua::uo) is det. 
+:- lua == lua.lua_state.
