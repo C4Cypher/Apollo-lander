@@ -10,9 +10,8 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% This file presents a simple library interface meant to facilitate the 
-% writing of compiled libraries in the Mercury programming language that can 
-% be easily loaded and used from within the Lua programming language.
+% This file presents a simple interface for handling and passing values to
+% and from the Lua runtime VM.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -21,6 +20,8 @@
 
 :- interface.
 
+:- include_module lua.state.
+
 :- import_module io.
 :- import_module int.
 :- import_module bool.
@@ -28,152 +29,7 @@
 :- import_module list.
 :- import_module maybe.
 
-%-----------------------------------------------------------------------------%
-%
-% The Lua state
-%
 
-	% The lua type is a refrence to the Lua state, also known as the
-	% Lua Virtual Machine.  This type is defined in lua.h as
-	% the C type "lua_State *". Note that as a convention borrowed from 
-	% the C API, operations that query or manipulate the Lua state will
-	% use the variable term 'L' to refer to the Lua state.
-	%
-:- type lua_state.
-
-
-
-:- type lua == lua_state.
-
-% WARNING! Refrences to Lua types (tables, functions, userdata) derived
-% from one lua_state are NOT compatible with other seperately created
-% lua_states. The only exception to this is lua_states created as threads.
-% lua_threads may freely pass variables to or from their parent state and
-% sibling threads.
-
-	% Create a fresh, new , initialized lua_state.
-	%
-:- func new_state = lua_state.
-:- mode new_state = uo.
-
-
-
-
-	% init(L, !IO).
-	% Prepares an existing lua_State for interaction with Mercury
-	%
-:- pred init(lua::di, lua::uo) is det.
-
-	% Verify that Lua is prepared for interaction with Mercury
-	%
-:- pred ready(lua::in) is semidet.
-:- pred ready(lua::di, lua::uo, bool::out) is det.
-
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Querying the Lua state.
-%
-
-
-% Each function call is provided with a local stack which function arguments
-% are pushed onto before the call.  The function call returns an integer
-% and Lua uses that number to determine the number of return values to take
-% off the top of the stack (from the bottom up).  In both cases the first 
-% argument is pushed first, with the last argument on the top of the stack.
-% 
-% Values on the stack can be refrenced by integer index values. Positive 
-% integers refrence values from the bottom of the stack, starting at one,
-% while negative integers refrences the stack from the top down (-1 referring
-% to the value at the top of the stack).
-
-% Due to the fact that different versions of Lua handle the global environment
-% and the registry in different ways, for the sake of compatability, this
-% library will not permit the explicit use of pseudo-indexes.  Instead, 
-% seperate access predicates have been provided in the place of pseudo-indexes.
-
-% Invalid values will be returned as nil.
-
-	% Retreive the index for the top value on the stack.
-	% Also represents the number of values on the stack.
-	%
-
-:- pred get_top(lua::di, lua::uo, int::out) is det.
-
-
-	% Look up a value indexed on the stack.
-	%
-:- some [T] get_stack(int::in, T::out, lua::di, lua::uo) is det.
-
-	% Look up a global variable.
-	%
-:- some [T] pred get_global(string::in, T::out, lua::di, lua::uo) is det.
-
-	% Look up a registry variable.
-	%
-:- some [T] pred get_registry(string::in, T::out, lua::di, lua::uo) is det.
-
-
-
-	% Look up a function upvalue.
-	%
-:- pred some [T] get_upvalue(int::in, T::out, lua::di, lua::uo) is det.
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Modifying the Lua State
-%
-
-
-	% Ensure that there is space allocated to allow pushing the specified
-	% number of variables onto the stack.
-:- pred checkstack(int::in, lua::di, lua::uo) is det.
-
-	% Push a value onto the stack.
-	%
-:- pred push(T::in, lua::di, lua::uo) is det.
-
-	% Pop the specified number of values off of the stack.
-	%
-:- pred pop(int::in, lua::di, lua::uo) is det.
-
-	% Change a value indexed on the stack.
-	%
-:- pred set_index(int::in, T::in, lua::di, lua::uo) is det.
-
-	% Change the value of a global variable.
-	%
-:- pred set_global(string::in, T::in, lua::di, lua::uo) is det.
-
-
-	% Change the value of a registry variable.
-	%
-:- pred set_registry(string::in, T::in, lua::di, lua::uo) is det.
-
-
-	% Change a value of a function upvalue.
-	%
-:- pred set_upvalue(int::in, T::in, lua::di, lua::uo) is det.
-
-
-	% Call a function or closure on a unique lua_state.
-	% The values on the stack will be used as arguments for the function.
-	% The return values will be pushed onto the stack.
-	%
-:- pred call_function(function::in, lua::di, lua::uo) is det. 
-
-	% call_function(Function, Args, !L).
-	%
-	% Call a function or closure on a unique lua_state.
-	% Args represents the number of values to pop off the stack for the
-	% function's arguments. The return values will be pushed onto the end of
-	% the stack.
-	%
-:- pred call_function(function::in, int::in, lua::di, lua::uo) is det. 
 
 
 :- type lua_result
