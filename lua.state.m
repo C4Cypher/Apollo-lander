@@ -85,7 +85,7 @@
 % stack operations. It trusts that code directly manipulating the stack
 % will avoid using invalid stack refrences or stack overflows through the use
 % of top, get_top, set_top and check_stack.  For more information, refer
-% to the Lua Refrence Manual, and the examples provided at the Lua Uer's Wiki.
+% to the Lua Refrence Manual, and the examples provided at the Lua User's Wiki.
 
 	% Retreive the index for the top value on the stack.
 	% Also represents the number of values on the stack.
@@ -115,7 +115,7 @@
 
 	% Modify a global variable.
 	%
-:- impure pred set_global(lua::in, string::in, lua_type::in, T::in) is det.
+:- impure pred set_global(lua::in, string::in, T::in) is det.
 
 
 	% Look up a registry variable.
@@ -124,7 +124,7 @@
 
 	% Modify a global variable.
 	%
-:- impure pred set_registry(lua::in, string::in, lua_type::in, T::in) is det.
+:- impure pred set_registry(lua::in, string::in, T::in) is det.
 
 
 	% Look up a function upvalue. Fail if the upvalue is not valid.
@@ -133,12 +133,12 @@
 
 	% Modify a function upvalue. Fail if the upvalue is not valid.
 	%
-:- impure pred set_upvalue(lua::in, int::in, lua_type::in, T::in) is semidet.
+:- impure pred set_upvalue(lua::in, int::in, T::in) is semidet.
 
 
 	% Push a value onto the stack.
 	%
-:- impure pred push(lua::in, lua_type::in, lua_type::in, T::in) is det.
+:- impure pred push(lua::in, T::in) is det.
 
 	% Pop the specified number of values off of the stack.
 	%
@@ -161,6 +161,13 @@
 
 
 :- implementation.
+
+:- pragma foreign_code("C",
+"
+
+MR_Word luaMR_pop_userdata
+
+").
 
 :- pragma foreign_proc("C", new_state = L::out, 
 	[promise_pure, will_not_call_mercury],
@@ -202,13 +209,13 @@
 :- pragma foreign_proc("C",  check_stack(L::in, Free::in),
 	[will_not_call_mercury],
 "
-	
+	lua_checkstack(L, Free);
 ").
 
 :- pragma foreign_proc("C",  get_stack(L::in, Index::in, T::out),
 	[promise_semipure, will_not_call_mercury],
 "
-
+	
 ").
 
 
@@ -219,7 +226,7 @@
 
 ").
 
-:- pragma foreign_proc("C",  set_global(L::in, Name::in, Type::in, T::in),
+:- pragma foreign_proc("C",  set_global(L::in, Name::in, T::in),
 	[will_not_call_mercury],
 "
 
@@ -232,7 +239,7 @@
 ").
 
 
-:- pragma foreign_proc("C",  set_registry(L::in, Key::in, Type::in, T::in),
+:- pragma foreign_proc("C",  set_registry(L::in, Key::in, T::in),
 	[will_not_call_mercury],
 "
 
@@ -245,13 +252,13 @@
 ").
 
 
-:- pragma foreign_proc("C",  set_upvalue(L::in, Key::in, Type::in, T::in),
+:- pragma foreign_proc("C",  set_upvalue(L::in, Key::in, T::in),
 	[will_not_call_mercury],
 "
 
 ").
 
-:- pragma foreign_proc("C",  push(L::in, Type::in, T::in),
+:- pragma foreign_proc("C",  push(L::in, T::in),
 	[will_not_call_mercury],
 "
 
