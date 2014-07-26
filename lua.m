@@ -22,6 +22,8 @@
 
 :- include_module lua.state.
 
+:- import_module nil.
+
 :- import_module io.
 :- import_module int.
 :- import_module bool.
@@ -123,11 +125,8 @@
 % different than C's.   C interprets any numeric value other than 0 as true.
 % In contrast, Lua interprets ANY value other than boolean false or nil as true.
 
-:- type nil ---> nil.
+:- type lua.nil == nil.nil.
 
-	% Utility pred for evaluating whether or not an existential value is nil.
-	%
-:- pred is_nil(T::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -150,7 +149,11 @@
 % Lua variables with assigned refrence types may be assigned metatables, 
 % Lua tables that store metadata about how Lua may interact with said variables.
 
+:- type var.
 
+:- func var(T) = var.
+:- mode var(in) = out is det.
+:- mode var(out) = in is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -189,12 +192,12 @@
 	%
 :- pred get(K, V, table).
 :- mode get(in, out, in) is semidet.
-:- mode get(out, in, in) is nondet.
+:- mode get(out, in, in) is cc_nondet.
 :- mode get(out, out, in) is nondet.
 
 :- func get(K, table) = V.
 :- mode get(in, in) = out is semidet.
-:- mode get(out, in) = in is nondet.
+:- mode get(out, in) = in is cc_nondet.
 :- mode get(out, in) = out is nondet.
 
 	% The keys of a table.
@@ -377,6 +380,7 @@ pred self_is(T::out) is semidet.
 
 :- implementation.
 
+:- import_module lua__state.
 
 :- import_module type_desc.
 :- import_module int.
@@ -401,17 +405,21 @@ pred self_is(T::out) is semidet.
 
 #define MR_LUA_FUNCTION_UPVALUE 1
 
-#define MR_LUA_top(i)
 
 ").
 
+	% Succeed if the given value is NULL.
+	%
+:- pred null(T::in) is semidet.
+
+:- pragma foreign_proc("C", null(T::in),
+	[promise_pure, will_not_call_mercury], 
+	"SUCCESS_INDICATOR = (T == NULL);").
 
 %-----------------------------------------------------------------------------%
 %
 % The Lua state
 %
-
-:- import_module lua.state.
 
 	% The lua_state type is a literal refrence to the Lua runtime, but the
 	% lua type is an abstraction of the Lua state.
@@ -419,6 +427,19 @@ pred self_is(T::out) is semidet.
 :- pragma foreign_type("C", lua_state, "lua_State *",
 	[can_pass_as_mercury_type]).
 
+	% For the sake of safety and sanity checking, produce a lua_state
+	% instantiated as a NULL pointer.
+	%
+:- func null_state = lua_state.
+
+:- pragma foreign_proc("C", null_state = Null::out, 
+	[promise_pure, will_not_call_mercury], 
+	"Null = NULL;").
+
+
+% TODO: Module/thread local mutvar for current state.
+
+ 
 
 %-----------------------------------------------------------------------------%
 
@@ -549,7 +570,25 @@ int luaMR_loader(lua_State * L) {
 % environment will not be collected by it's own garbage collector until the
 % non-native garbage collector calls the finalizer associated with it.
 
-:- type arg ---> arg(int).
+:- type var(T)
+	---> 	arg(int)
+	;	local(int)
+	;	upvalue(int)
+	;	ref(ref)
+	;	value(T)
+	where equality is var_equals.
+
+var(T) = V :-
+	( 
+		I = Index, 
+			( 
+				V@arg(Index) 
+			; 
+				V@local(Index)
+			),
+		
+
+:- pred var_equals(var(T)::in, var(T)::in
 
 :- impure pred push_arg(lua_state, arg
 
@@ -613,7 +652,17 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	thread - "LUA_TTHREAD"
 ]).
 
-lua_type(_) = _ :- sorry($module, $pred).
+
+lua_type(V) = Type :-
+	( V:nil ->
+		Type = nil
+	; V:bool ->
+		Type = boolean
+	; 
+	; (V:int ; V:float) ->
+		Type = number
+	; V:bool	
+ sorry($module, $pred), fail.
 
 :- use_module lua.value.
 

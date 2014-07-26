@@ -103,8 +103,11 @@
 	% number of variables onto the stack.
 	%
 :- impure pred check_stack(lua::in, int::in) is det.
-
-
+	
+	% Look up the type of a value indexed on the stack.
+	%
+:- semipure pred get_type(lua::in, index::in, lua_type::out) is det.
+ 
 	% Look up a value indexed on the stack.
 	%
 :- semipure some [T] pred get_stack(lua::in, index::in, T::out)
@@ -162,12 +165,12 @@
 
 :- implementation.
 
-:- pragma foreign_code("C",
-"
+:- func return_nil = nil.
 
-MR_Word luaMR_pop_userdata
+return_nil = nil.
 
-").
+:- pragma foreign_export("C", return_nil = out, "luaMR_nil").
+
 
 :- pragma foreign_proc("C", new_state = L::out, 
 	[promise_pure, will_not_call_mercury],
@@ -212,13 +215,30 @@ MR_Word luaMR_pop_userdata
 	lua_checkstack(L, Free);
 ").
 
+:- pragma foreign_proc("C",  get_type(L::in, Index::in, Type::out),
+	[promise_semipure, will_not_call_mercury],
+"
+	Type = lua_type(L, Index);
+").
+
 :- pragma foreign_proc("C",  get_stack(L::in, Index::in, T::out),
 	[promise_semipure, will_not_call_mercury],
 "
-	
+	switch(lua_type(L, Index)) {
+		case LUA_TNIL:
+			luaMR_nil
 ").
 
-
+%	none - "LUA_TNONE",
+%	nil - "LUA_TNIL",
+%	boolean - "LUA_TBOOLEAN",
+%	lightuserdata - "LUA_TLIGHTUSERDATA",
+%	number - "LUA_TNUMBER",
+%	string - "LUA_TSTRING",
+%	table - "LUA_TTABLE",
+%	function - "LUA_TFUNCTION",
+%	userdata - "LUA_TUSERDATA",
+%	thread - "LUA_TTHREAD"
 
 :- pragma foreign_proc("C",  get_global(L::in, Name::in, T::out),
 	[promise_semipure, will_not_call_mercury],
