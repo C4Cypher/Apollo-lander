@@ -31,7 +31,7 @@
 	% the C API, operations that query or manipulate the Lua state will
 	% use the variable term 'L' to refer to the Lua state.
 	%
-:- type lua.
+:- type lua == lua_state.
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
 % from one lua_state are NOT compatible with other seperately created
@@ -52,8 +52,9 @@
 
 :- type status
 	---> 	ready
-	;	yeild
+	;	yield
 	;	runtime_error
+	;	syntax_error
 	;	memory_error
 	;	unhandled_error.
 
@@ -106,9 +107,7 @@
 
 	% Look up a value indexed on the stack.
 	%
-:- semipure some [T] pred get_stack(lua, index, T).
-:- mode stack(in, in, out) is det.
-:- mode stack(in, out, out) is nondet.
+:- semipure some [T] pred get_stack(lua::in, index::in, T::out)
 
 	% Look up a global variable.
 	%
@@ -116,7 +115,7 @@
 
 	% Modify a global variable.
 	%
-:- impure pred set_global(lua::in, string::in, T::in) is det.
+:- impure pred set_global(lua::in, string::in, lua_type::in, T::in) is det.
 
 
 	% Look up a registry variable.
@@ -125,21 +124,21 @@
 
 	% Modify a global variable.
 	%
-:- impure pred set_registry(lua::in, string::in, T::in) is det.
+:- impure pred set_registry(lua::in, string::in, lua_type::in, T::in) is det.
 
 
 	% Look up a function upvalue. Fail if the upvalue is not valid.
 	%
 :- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is semidet.
 
-	% Modify a global variable. Fail if the upvalue is not valid.
+	% Modify a function upvalue. Fail if the upvalue is not valid.
 	%
-:- impure pred set_registry(lua::in, int::in, T::in) is semidet.
+:- impure pred set_upvalue(lua::in, int::in, lua_type::in, T::in) is semidet.
 
 
 	% Push a value onto the stack.
 	%
-:- impure pred push(lua::in, T::in) is det.
+:- impure pred push(lua::in, lua_type::in, lua_type::in, T::in) is det.
 
 	% Pop the specified number of values off of the stack.
 	%
@@ -155,26 +154,7 @@
 
 
 
-%-----------------------------------------------------------------------------%
-%
-% Refrences
-%
 
-	% Create a refrence from a value on the stack.
-	%
-:- impure pred new_ref(lua::in, index::in, int::out) is det.
-
-	% Push a refrence onto the stack.
-:- impure pred push_ref(lua::in, int::in) is det.
-
-	% Look up a refrence. Fail if it doesn't exist.
-	%
-:- semipure some [T] pred get_ref(lua::in, int::in, T::out) is det.
-
-
-	% Remove a refrence.
-	%
-:- impure unref(lua::in, int::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -182,4 +162,112 @@
 
 :- implementation.
 
-:- lua == lua.lua_state.
+:- pragma foreign_proc("C", new_state = L::out, 
+	[promise_pure, will_not_call_mercury],
+"
+	L = luaL_newstate();
+").
+
+:- pragma foreign_proc("C", get_status(L::in, Status::out), 
+	[promise_semipure, will_not_call_mercury],
+"
+	Status = lua_status(L);
+").
+
+:- pragma foreign_enum("C", lua_status/0, 
+[
+	ready - 0,
+	yield - "LUA_YIELD",
+	runtime_error - "LUA_ERRRUN",
+	syntax_error - "LUA_ERRSYNTAX",
+	memory_error - "LUA_ERRMEM",
+	unhandled_error - "LUA_ERRERR"
+] ).
+
+
+:- pragma foreign_proc("C", get_top(L::in, Index::out),
+	[promise_semipure, will_not_call_mercury],
+"
+	Index = lua_gettop(L);
+").
+
+	
+	%
+:- pragma foreign_proc("C",  set_top(L::in, Index::in),
+	[will_not_call_mercury],
+"
+	lua_settop(L, Index);
+").
+
+:- pragma foreign_proc("C",  check_stack(L::in, Free::in),
+	[will_not_call_mercury],
+"
+	
+").
+
+:- pragma foreign_proc("C",  get_stack(L::in, Index::in, T::out),
+	[promise_semipure, will_not_call_mercury],
+"
+
+").
+
+
+
+:- pragma foreign_proc("C",  get_global(L::in, Name::in, T::out),
+	[promise_semipure, will_not_call_mercury],
+"
+
+").
+
+:- pragma foreign_proc("C",  set_global(L::in, Name::in, Type::in, T::in),
+	[will_not_call_mercury],
+"
+
+").
+
+:- pragma foreign_proc("C",  get_registry(L::in, Key::in, T::out),
+	[promise_semipure, will_not_call_mercury],
+"
+
+").
+
+
+:- pragma foreign_proc("C",  set_registry(L::in, Key::in, Type::in, T::in),
+	[will_not_call_mercury],
+"
+
+").
+
+:- pragma foreign_proc("C",  get_upvalue(L::in, Id::in, T::out),
+	[promise_semipure, will_not_call_mercury],
+"
+
+").
+
+
+:- pragma foreign_proc("C",  set_upvalue(L::in, Key::in, Type::in, T::in),
+	[will_not_call_mercury],
+"
+
+").
+
+:- pragma foreign_proc("C",  push(L::in, Type::in, T::in),
+	[will_not_call_mercury],
+"
+
+").
+
+:- pragma foreign_proc("C",  pop(L::in, Num::in),
+	[will_not_call_mercury],
+"
+
+").
+
+
+:- pragma foreign_proc("C",  call(L::in, Index::in),
+	[will_not_call_mercury],
+"
+
+").
+
+

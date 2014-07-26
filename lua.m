@@ -32,76 +32,7 @@
 
 
 
-:- type lua_result
-	--->	ok		% Successful, with no return values.
-	;	ok(int)		% Successful, with the number of return values.
-	;	error(string)	% Lua experienced an error
 
-
-%-----------------------------------------------------------------------------%
-%
-% Closures
-%
-
-	% A closure is a Mercury function that behaves like a Lua function.
-	% When called with do/3 or do/4, the closure retreives arguments with
-	% arg/1, accesses global variables with global/1, and returns a list
-	% of values to be pushed onto the stack as return values.
-	%
-:- type closure == (func = list(_)).
-:- inst closure == (func = out is det).
-
-
-	% Convert a pred closure into a function closure.
-	% Deterministic preds will not return a value.
-	% Semidet preds will return a single boolean value.
-	%
-:- func pred_closure((pred)) = closure.
-:- mode pred_closure((pred is det)) = out is det.
-:- mode pred_closure((pred is semidet)) = out is det.
-
-
-	% Convert a func closure into a function closure.
-	% Det funcs will return a single value.
-	% Semidet funcs will return a single value or nil.
-	% Cc_multi and cc_nondet funcs will behave like det and semidet funcs,
-	% respectively. Multi and nondet funcs will gather the returned 
-	% solutions in a list to be pushed as return values.
-	%
-:- func func_closure((func(Arg) = Ret <= (args(Arg), return(Ret)))) = closure.
-:- mode func_closure((func = out is det)) = out is det.
-:- mode func_closure((func = out is semidet)) = out is det.
-:- mode func_closure((func = out is cc_multi)) = out is det.
-:- mode func_closure((func = out is cc_nondet)) = out is det.
-:- mode func_closure((func = out is multi)) = out is det.
-:- mode func_closure((func = out is nondet)) = out is det.
-
-:- typeclass args(T) where [
-	func args = T,
-	mode args = out is semidet
-].
-
-:- typeclass return(T) where
-	func return(T) = list(_),
-	mode return(in) = out is semidet
-].
-
-	% Allows pure calls to Lua without needing to directly refrence the
-	% Lua state.  The provided int, gives the number of values on the
-	% stack to pop off the stack as 'args', the returned list
-	% will be pushed onto the top of the stack, replacing the values
-	% used as args, if any.
-	%
-:- pred do(closure::in, int::in, lua::di, lua::io) is det.
-
-	% Same as previous pred, only uses ALL of the values on the stack as
-	% arguments.
-	%
-:- pred do(closure::in, lua::di, lua::io) is det.
-
-:- func arg(int) = T.
-:- mode arg(in) = out is semidet.
-:- mode arg(out) = out is nondet.
 
 :- func global(string) = T is semidet.
 
@@ -218,14 +149,8 @@
 %
 % Lua variables with assigned refrence types may be assigned metatables, 
 % Lua tables that store metadata about how Lua may interact with said variables.
-%
-% In practical usage, vars should rarely be used.
 
-:- type var.
 
-:- func var(T) = var.
-:- mode var(in) = out is det.
-:- mode var(out) = in is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -361,16 +286,10 @@
 	%
 :- func chunk(string) = function.
 
-	% Convert a closure into a varadic Lua function.
-	%
-:- func closure(closure) = function.
 
-	% closure(Closure, Args)
-	%
-	% Convert a closure into a varadic function that accepts 
-	% Args number of arguments and passes the rest after the return value.
-	%
-:- func closure(closure, int) = function.
+
+
+
 
 
 
@@ -420,23 +339,18 @@
 	;	index
 	;	newindex
 	;	call
-	;	finalize.
+	;	gc.
 
 
 	% This typeclass allows additinal metamethod calls to be attached
 	% to specific Mercury types.
 	%
 :- typeclass userdata(T) where [
-
-	% Examine the first (bottom) value on the stack and return it's
-	% mercury value if it is an instance of this typeclass.
-	%
-	pred self_is_userdata(T),
-	mode self_is_userdata(out) is nondet,
+	
 	
 	% Return the metamethod associated with this instance.
 	%
-	func metamethod(metamethod, T) = function,
+	func metamethod(metamethod, T) = (func(T),
 	mode metamethod(in, in) = out is semidet
 ].
 	
@@ -454,32 +368,8 @@ pred self_is(T::out) is semidet.
 
 % TODO: Explain Lua coroutines.
 
-:- type thread == lua_state.
+:- type thread.
 
-	% Verify that two Lua threads share the same parent state by comparing
-	% registry tables.
-	%
-:- pred same_parent(lua::in, lua::in) is semidet.
-:- pred same_parent(lua::di, lua::uo, lua::di, lua::uo, bool::out) is det.
-
-	% Creates a new Lua thread for use as a coroutine, aborts if Lua cannot
-	% allocate the memory for a new thread.
-	%
-:- func new_thread(lua) = thread.
-:- mode new_thread(in) = out.
-:- mode new_thread(in) = uo.
-:- func new_thread(lua, lua) = thread.
-:- mode new_thread(di, uo) = uo.
-
-:- pred yield(lua_result::out, lua::di, lua::uo) is det.
-:- func yield(lua, lua) = lua_result.
-:- mode yield(di, uo) = out is det.
-
-:- pred resume(lua_result::out, lua::di, lua::uo) is det.
-:- func resume(thread, thread) = lua_result.
-:- mode resume(di, uo) = out is det.
-
-% TODO: status pred.
 
 
 %-----------------------------------------------------------------------------%
@@ -521,6 +411,7 @@ pred self_is(T::out) is semidet.
 % The Lua state
 %
 
+:- import_module lua.state.
 
 	% The lua_state type is a literal refrence to the Lua runtime, but the
 	% lua type is an abstraction of the Lua state.
@@ -658,98 +549,50 @@ int luaMR_loader(lua_State * L) {
 % environment will not be collected by it's own garbage collector until the
 % non-native garbage collector calls the finalizer associated with it.
 
- 
+:- type arg ---> arg(int).
+
+:- impure pred push_arg(lua_state, arg
+
 	% The ref type represents an indirect refrence to a variable 
 	% instantiated in Lua. So long as Mercury does not garbage collect 
 	% the var, Lua will not garbage collect the refrenced variable.
 	%
 :- type ref.
 
-:- pragma foreign_type("C", ref, "luaMR_Ref *", [can_pass_as_mercury_type])
-	where equality is ref_equals.
+:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
 
-:- pred ref_equals(ref::in, ref::in) is semidet.
-
-:- pragma foreign_proc("C", ref_equals(A::in, B::in),
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_State * L = luaMR_ref_state(A);
-	lua_checkstack(L, 2);
-	luaMR_push_ref(L, A);	
-	luaMR_push_ref(L, B);
-	SUCCESS_INDICATOR = lua_rawequal(L, -2, -1);
-	lua_pop(2);
-").
-
-:- pred ref_state(ref::in, lua::out) is det.
-
-:- pragma foreign_proc("C", ref_state(Ref::in, L::out) ,
-	[promise_pure, will_not_call_mercury],
-	"L = luaMR_ref_state(Ref);").
-
-:- func ref_state(ref) = lua.
-
-ref_state(R) = L :- ref_state(R, L).
-	
 :- pragma foreign_code("C",
 "
-
-typedef struct luaMR_Ref {
-	lua_State * state;
-	int id;
-}
+typedef int * luaMR_Ref;
 
 
 /* Creates a new refrence from the stack */
-luaMR_Ref * luaMR_new_ref(lua_State * L, int index) {
-	int id = luaL_ref(L, LUA_REGISTRYINDEX);
-	luaMR_Ref * new_ref = MR_GC_NEW(luaMR_Ref);
-	new_ref->state = L;
-	new_ref->id = id;
-	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref);
-	return new_var;
+luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
+	lua_pushvalue(L, index);
+	luaMR_Ref new_ref = MR_GC_NEW(int);
+	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
+	return new_ref;
 }
 
-/* Retreives the refrenced Lua state */
-lua_State * luaMR_ref_state(luaMR_Ref * ref) {
-	return ref->state;
-}
 
 /* Push a refrence onto the provided stack */
-void luaMR_push_ref(lua_State * L, luaMR_Ref * ref) {
-	lua_State * L0 = ref-> state;	
-	int id = ref->id;
-	if (id == LUA_REFNIL) {
+void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
+	if (*ref == LUA_REFNIL) {
 		lua_pushnil(L);
 	}
-	else if (L == L0) {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
-	}
 	else {
-		lua_checkstack(L0, 1);
-		lua_rawgeti(L0, LUA_REGISTRYINDEX, id);
-		lua_xmove(L0, L, 1);
+		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
 	}
 }
 
 /* Remove Lua's refrence to the var in the registry */
-void luaMR_finalize_ref(luaMR_Ref * ref, void * dummy) {
-	luaL_unref(ref->state, LUA_REGISTRYINDEX, ref->id);
+void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
+	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
 }
 
 "). 
 
-
-:- pragma foreign_proc("C", ref_type(Ref::in, Type::out), 
-	[promise_pure, will_not_call_mercury], 
-"
-	lua_State * L = luaMR_ref_state(Ref);
-	luaMR_push_ref(Ref);
-	Type = lua_type(L, -1);
-	lua_pop(L, 1);
-").
-
-ref_type(R) = T :- ref_type(R, T).
 
 
 %-----------------------------------------------------------------------------%
@@ -787,7 +630,7 @@ equal_value(_, _) :- sorry($module, $pred).
 
 
 
-:- type table == ref.
+:- type table ---> table(ref).
 
 
 %-----------------------------------------------------------------------------%
@@ -795,7 +638,8 @@ equal_value(_, _) :- sorry($module, $pred).
 % Lua functions
 %
 
-:- type function == ref.
+:- type function 
+	---> function(ref).
 
 
 %-----------------------------------------------------------------------------%
@@ -803,7 +647,7 @@ equal_value(_, _) :- sorry($module, $pred).
 % Lua userdata
 %
 
-:- type userdata == var.
+:- type userdata ---> userdata(ref).
 
 
 %-----------------------------------------------------------------------------%
@@ -811,7 +655,7 @@ equal_value(_, _) :- sorry($module, $pred).
 % Lua thread
 %
 
-:- type thread == state.
+:- type thread == lua_state.
 
 
 
