@@ -15,7 +15,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module lua.state.
+:- module state.
 
 :- interface.
 
@@ -110,7 +110,10 @@
  
 	% Look up a value indexed on the stack.
 	%
-:- semipure some [T] pred get_stack(lua::in, index::in, T::out)
+:- semipure some [T] pred get_stack(lua::in, index::in, T::out) is det.
+
+:- semipure some [T] func stack(lua, index) = T.
+
 
 	% Push a global variable onto the stack.
 	%
@@ -119,6 +122,8 @@
 	% Retreive a global variable.
 	%
 :- semipure some [T] pred get_global(lua::in, string::in, T::out) is det.
+
+:- semipure some [T] func global(lua, string) = T.
 
 	% Set a global variable from the top of the stack.
 	%
@@ -136,6 +141,9 @@
 	%
 :- semipure some [T] pred get_registry(lua::in, string::in, T::out) is det.
 
+:- semipure some [T] func registry(lua, string) = T.
+
+
 	% Set a registry valua from the top of the stack.
 	%
 :- impure pred pop_registry(lua::in, string::in) is det.
@@ -144,24 +152,23 @@
 	% 
 :- impure pred set_registry(lua::in, string::in) is det.
 
-	% Push a function upvalue onto the stack. Fail if the upvalue is 
-	% not valid.
+	% Push a function upvalue onto the stack. 
 	%
-:- semipure pred push_upvalue(lua::in, int::in) is semidet.
+:- semipure pred push_upvalue(lua::in, int::in) is det.
 
-	% Retreive a function upvalue. Fail if the upvalue is not valid.
+	% Retreive a function upvalue.
 	%
-:- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is semidet.
+:- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is det.
 
+:- semipure some [T] func upvalue(lua, int) = T.
 
-	% Set a function upvalue from the top of the stack. Fail if the upvalue
-	% is not valid.
+	% Set a function upvalue from the top of the stack. 
 	%
-:- impure pred pop_upvalue(lua::in, int::in) is semidet.
+:- impure pred pop_upvalue(lua::in, int::in) is det.
 
-	% Set a function upvalue. Fail if the upvalue is not valid.
+	% Set a function upvalue. 
 	%
-:- impure pred set_upvalue(lua::in, int::in, T::in) is semidet.
+:- impure pred set_upvalue(lua::in, int::in, T::in) is det.
 
 	% Push a value onto the stack.
 	%
@@ -290,6 +297,8 @@ return_nil = nil.
 	} /* switch */
 ").
 
+stack(L, Id) = T :- get_stack(L, Id, T).
+
 %	none - "LUA_TNONE",
 %	nil - "LUA_TNIL",
 %	boolean - "LUA_TBOOLEAN",
@@ -301,53 +310,82 @@ return_nil = nil.
 %	userdata - "LUA_TUSERDATA",
 %	thread - "LUA_TTHREAD"
 
-:- pragma foreign_proc("C",  get_global(L::in, Name::in, T::out),
+:- pragma foreign_proc("C",  push_global(L::in, Name::in),
 	[promise_semipure, will_not_call_mercury],
 "
 	lua_getglobal(L, Name);	
 ").
 
-:- pragma foreign_proc("C",  set_global(L::in, Name::in),
+get_global(L, Name, T) :- 
+	promise_semipure (
+		impure push_global(L, Name),
+		semipure get_stack(L, -1),
+		impure pop(L, 1)
+	).
+	
+global(L, Name) = T :- get_global(L, Name, T).
+
+:- pragma foreign_proc("C",  pop_global(L::in, Name::in),
 	[will_not_call_mercury],
 "
 	lua_setglobal(L, Name)
 ").
 
-:- pragma foreign_proc("C",  get_registry(L::in, Key::in),
+set_global(L, Name, T) :-
+	impure push(L, T),
+	impure pop_global(L, Name).
+
+:- pragma foreign_proc("C",  push_registry(L::in, Key::in),
 	[promise_semipure, will_not_call_mercury],
 "
 	luaMR_getregistry(L, Key);
 ").
 
+get_registry(L, Key, T) :-
+	promise_semipure (
+		impure push_registry(L, Name),
+		semipure get_stack(L, -1),
+		impure pop(L, 1)
+	).
 
-:- pragma foreign_proc("C",  set_registry(L::in, Key::in),
+registry(L, Key) = T :- get_registry(L, Key, T).
+
+:- pragma foreign_proc("C",  pop_registry(L::in, Key::in),
 	[will_not_call_mercury],
 "
 	luaMR_setregistry(L, Key);
 ").
 
-:- pragma foreign_proc("C",  get_upvalue(L::in, Id::in, T::out),
+set_registry(L, Name, T) :-
+	impure push(L, T),
+	impure pop_registry(L, Name).
+	
+
+:- pragma foreign_proc("C",  push_upvalue(L::in, Id::in),
 	[promise_semipure, will_not_call_mercury],
 "
-	if(luaMR_valid_upvalue(L, Id)) {
-		luaMR_push_upvalue(L, Id);
-		SUCCESS_INDICATOR = 1;
-	}
-	else
-		SUCCESS_INDICATOR = 0;
+		luaMR_getupvalue(L, Id);
 ").
 
+get_upvalue(L, Id, T) :-
+	promise_semipure (
+		impure push_upvalue(L, Id),
+		semipure get_stack(L, -1),
+		impure pop(L, 1)
+	).
 
-:- pragma foreign_proc("C",  set_upvalue(L::in, Key::in, T::in),
+upvalue(L, Id) = T :- get_upvalue(L, Id, T).
+
+
+:- pragma foreign_proc("C",  pop_upvalue(L::in, Key::in),
 	[will_not_call_mercury],
 "
-	if(luaMR_valid_upvalue(L, Id)) {
-		luaMR_push_upvalue(L, Id);
-		SUCCESS_INDICATOR = 1;
-	}
-	else
-		SUCCESS_INDICATOR = 0;
+	luaMR_setupvalue(L, Id);
 ").
+
+set_upvalue(L, Name, T) :-
+	impure push(L, T),
+	impure pop_upvalue(L, Name).
 
 :- pragma foreign_proc("C",  push(L::in, T::in),
 	[will_not_call_mercury],
