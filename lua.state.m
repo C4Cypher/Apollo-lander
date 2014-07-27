@@ -114,32 +114,54 @@
 
 	% Push a global variable onto the stack.
 	%
+:- semipure pred push_global(lua::in, string::in) is det.
+
+	% Retreive a global variable.
+	%
 :- semipure some [T] pred get_global(lua::in, string::in, T::out) is det.
 
 	% Set a global variable from the top of the stack.
 	%
-:- impure pred set_global(lua::in, string::in) is det.
+:- impure pred pop_global(lua::in, string::in) is det.
 
+	% Set a global variable.
+	%
+:- impure pred set_global(lua::in, string::in, T::in) is det.
 
-	% Push a registry variable onto the stack.
+	% Push a registry value onto the stack.
+	%
+:- semipure pred push_registry(lua::in, string::in, T::out) is det.
+
+	% Retreive a registry value.
 	%
 :- semipure some [T] pred get_registry(lua::in, string::in, T::out) is det.
 
-	% Set a registry variable from the top of the stack.
+	% Set a registry valua from the top of the stack.
 	%
-:- impure pred set_registry(lua::in, string::in) is det.
+:- impure pred pop_registry(lua::in, string::in) is det.
 
+	% Set a registry value.
+	% 
+:- impure pred set_registry(lua::in, string::in) is det.
 
 	% Push a function upvalue onto the stack. Fail if the upvalue is 
 	% not valid.
 	%
+:- semipure pred push_upvalue(lua::in, int::in) is semidet.
+
+	% Retreive a function upvalue. Fail if the upvalue is not valid.
+	%
 :- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is semidet.
+
 
 	% Set a function upvalue from the top of the stack. Fail if the upvalue
 	% is not valid.
 	%
-:- impure pred set_upvalue(lua::in, int::in, T::in) is semidet.
+:- impure pred pop_upvalue(lua::in, int::in) is semidet.
 
+	% Set a function upvalue. Fail if the upvalue is not valid.
+	%
+:- impure pred set_upvalue(lua::in, int::in, T::in) is semidet.
 
 	% Push a value onto the stack.
 	%
