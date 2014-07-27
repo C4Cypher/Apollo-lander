@@ -99,10 +99,12 @@
 	%
 :- impure pred set_top(lua::in, index::in) is det.
 
+
 	% Ensure that there is space allocated to allow pushing the specified
 	% number of variables onto the stack.
 	%
 :- impure pred check_stack(lua::in, int::in) is det.
+	
 	
 	% Look up the type of a value indexed on the stack.
 	%
@@ -112,64 +114,6 @@
 	%
 :- semipure some [T] pred get_stack(lua::in, index::in, T::out) is det.
 
-:- semipure some [T] func stack(lua, index) = T.
-
-
-	% Push a global variable onto the stack.
-	%
-:- semipure pred push_global(lua::in, string::in) is det.
-
-	% Retreive a global variable.
-	%
-:- semipure some [T] pred get_global(lua::in, string::in, T::out) is det.
-
-:- semipure some [T] func global(lua, string) = T.
-
-	% Set a global variable from the top of the stack.
-	%
-:- impure pred pop_global(lua::in, string::in) is det.
-
-	% Set a global variable.
-	%
-:- impure pred set_global(lua::in, string::in, T::in) is det.
-
-	% Push a registry value onto the stack.
-	%
-:- semipure pred push_registry(lua::in, string::in, T::out) is det.
-
-	% Retreive a registry value.
-	%
-:- semipure some [T] pred get_registry(lua::in, string::in, T::out) is det.
-
-:- semipure some [T] func registry(lua, string) = T.
-
-
-	% Set a registry valua from the top of the stack.
-	%
-:- impure pred pop_registry(lua::in, string::in) is det.
-
-	% Set a registry value.
-	% 
-:- impure pred set_registry(lua::in, string::in) is det.
-
-	% Push a function upvalue onto the stack. 
-	%
-:- semipure pred push_upvalue(lua::in, int::in) is det.
-
-	% Retreive a function upvalue.
-	%
-:- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is det.
-
-:- semipure some [T] func upvalue(lua, int) = T.
-
-	% Set a function upvalue from the top of the stack. 
-	%
-:- impure pred pop_upvalue(lua::in, int::in) is det.
-
-	% Set a function upvalue. 
-	%
-:- impure pred set_upvalue(lua::in, int::in, T::in) is det.
-
 	% Push a value onto the stack.
 	%
 :- impure pred push(lua::in, T::in) is det.
@@ -177,7 +121,6 @@
 	% Pop the specified number of values off of the stack.
 	%
 :- impure pred pop(lua::in, int::in) is det.
-
 
 
 	% Call a function, specifying the number of arguments pushed onto the 
@@ -189,6 +132,73 @@
 :- impure pred pcall(lua, int, pred(string).
 :- mode pcall(in, in, pred(in) is det) is det.
 :- mode pcall(in, in, pred(in) is erroneous) is det. 
+
+
+%-----------------------------------------------------------------------------%
+%
+% Global variables.
+%
+
+	% Push a global variable onto the stack.
+	%
+:- semipure pred push_global(lua::in, string::in) is det.
+
+	% Retreive a global variable.
+	%
+:- semipure some [T] pred get_global(lua::in, string::in, T::out) is det.
+
+	% Set a global variable from the top of the stack.
+	%
+:- impure pred pop_global(lua::in, string::in) is det.
+
+	% Set a global variable.
+	%
+:- impure pred set_global(lua::in, string::in, T::in) is det.
+
+%-----------------------------------------------------------------------------%
+%
+% Registry Values.
+%
+
+	% Push a registry value onto the stack.
+	%
+:- semipure pred push_registry(lua::in, string::in, T::out) is det.
+
+	% Retreive a registry value.
+	%
+:- semipure some [T] pred get_registry(lua::in, string::in, T::out) is det.
+
+
+	% Set a registry valua from the top of the stack.
+	%
+:- impure pred pop_registry(lua::in, string::in) is det.
+
+	% Set a registry value.
+	% 
+:- impure pred set_registry(lua::in, string::in) is det.
+
+%-----------------------------------------------------------------------------%
+%
+% Upvalues.
+%
+
+	% Push a function upvalue onto the stack. 
+	%
+:- semipure pred push_upvalue(lua::in, int::in) is det.
+
+	% Retreive a function upvalue.
+	%
+:- semipure some [T] pred get_upvalue(lua::in, int::in, T::out) is det.
+
+
+	% Set a function upvalue from the top of the stack. 
+	%
+:- impure pred pop_upvalue(lua::in, int::in) is det.
+
+	% Set a function upvalue. 
+	%
+:- impure pred set_upvalue(lua::in, int::in, T::in) is det.
+
 
 
 
@@ -297,7 +307,6 @@ return_nil = nil.
 	} /* switch */
 ").
 
-stack(L, Id) = T :- get_stack(L, Id, T).
 
 %	none - "LUA_TNONE",
 %	nil - "LUA_TNIL",
@@ -309,6 +318,109 @@ stack(L, Id) = T :- get_stack(L, Id, T).
 %	function - "LUA_TFUNCTION",
 %	userdata - "LUA_TUSERDATA",
 %	thread - "LUA_TTHREAD"
+
+:- type primitive
+	---> 	nil
+	;	int
+	;	float
+	;	bool
+	;	string
+	;	char
+	;	c_pointer
+	;	c_function
+	;	ref
+	;	word.
+
+:- pragma foreign_export_enum("C", primitive,
+	[prefix("MR_LUA_T"), uppercase, 
+
+
+push(L, T) :- 
+	( T:nil ->
+		impure push(L, nil, T)
+	; T:int ->
+		impure push(L, int, T)
+	; T:float ->
+		impure push(L, float, T)
+	; T:bool ->
+		impure push(L, bool, T)
+	; T:string ->
+		impure push(L, string, T)
+	; T:char ->
+		impure push(L, char, T)
+	; T:c_pointer ->
+		impure push(L, bool, T)
+	; T:c_function ->
+		impure push(L, bool, T)
+	; T:ref ->
+		impure push(L, bool, T)
+	; T:string ->
+		impure push(L, bool, T)
+	; T:string ->
+		impure push(L, bool, T)
+	; T:string ->
+		impure push(L, bool, T)
+		
+
+:- impure pred push(lua::in, primitive::in, T::in) is det.
+
+:- pragma foreign_proc("C",  push(L::in, T::in),
+	[will_not_call_mercury],
+"
+		switch(lua_type(L, Index)) {
+		case LUA_TNIL:
+			T = luaMR_nil();
+			break;
+		case LUA_TBOOLEAN:
+			if (lua_toboolean(L, Index))
+				T = MR_YES;
+			else
+				T = MR_NO;
+			break;
+		case LUA_TLIGHTUSERDATA:
+			T = lua_tolightuserdata(L, Index);
+			break;
+		case LUA_TNUMBER:
+			T = lua_tonumber(L, Index);
+			break;
+		case LUA_TSTRING:
+			T = lua_tostring(L, Index);
+			break;
+		case LUA_TTABLE:
+		case LUA_TFUNCTION:
+			T = luaMR_new_ref(L, Index);
+			break;
+		case LUA_TUSERDATA:
+			T = lua_touserdata(L, Index);
+			break;
+		case LUA_TTHREAD;
+			T = lua_tothread(L, Index);
+			break;
+		case LUA_TNONE:
+		default:
+			MR_fatal_error(
+			""lua.state.get_stack/3: Invalid value on the stack"");
+	} /* switch */
+").
+
+").
+
+:- pragma foreign_proc("C",  pop(L::in, Num::in),
+	[will_not_call_mercury],
+"
+	lua_pop(L, Num);
+").
+
+
+:- pragma foreign_proc("C",  call(L::in, Args::in, Err::in) = Status,
+	[will_not_call_mercury],
+"
+	/* TODO */
+MR_fatal_error("lua.state.pcall/3 has not yet been implemented. Sorry.");
+").
+
+
+
 
 :- pragma foreign_proc("C",  push_global(L::in, Name::in),
 	[promise_semipure, will_not_call_mercury],
@@ -323,7 +435,6 @@ get_global(L, Name, T) :-
 		impure pop(L, 1)
 	).
 	
-global(L, Name) = T :- get_global(L, Name, T).
 
 :- pragma foreign_proc("C",  pop_global(L::in, Name::in),
 	[will_not_call_mercury],
@@ -348,7 +459,6 @@ get_registry(L, Key, T) :-
 		impure pop(L, 1)
 	).
 
-registry(L, Key) = T :- get_registry(L, Key, T).
 
 :- pragma foreign_proc("C",  pop_registry(L::in, Key::in),
 	[will_not_call_mercury],
@@ -374,8 +484,6 @@ get_upvalue(L, Id, T) :-
 		impure pop(L, 1)
 	).
 
-upvalue(L, Id) = T :- get_upvalue(L, Id, T).
-
 
 :- pragma foreign_proc("C",  pop_upvalue(L::in, Key::in),
 	[will_not_call_mercury],
@@ -387,24 +495,5 @@ set_upvalue(L, Name, T) :-
 	impure push(L, T),
 	impure pop_upvalue(L, Name).
 
-:- pragma foreign_proc("C",  push(L::in, T::in),
-	[will_not_call_mercury],
-"
-MR_fatal_error("lua.state.push/2 has not yet been implemented. Sorry.");
-").
-
-:- pragma foreign_proc("C",  pop(L::in, Num::in),
-	[will_not_call_mercury],
-"
-	lua_pop(L, Num);
-").
-
-
-:- pragma foreign_proc("C",  call(L::in, Args::in, Err::in) = Status,
-	[will_not_call_mercury],
-"
-	/* TODO */
-MR_fatal_error("lua.state.pcall/3 has not yet been implemented. Sorry.");
-").
 
 
