@@ -125,8 +125,11 @@
 % different than C's.   C interprets any numeric value other than 0 as true.
 % In contrast, Lua interprets ANY value other than boolean false or nil as true.
 
-:- type lua.nil == nil.nil.
+:- type nil ---> nil.
 
+	% Utility pred for evaluating whether or not an existential value is nil.
+	%
+:- pred is_nil(T::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -398,6 +401,7 @@ pred self_is(T::out) is semidet.
 #define MR_LUA_MODULE ""MR_LUA_LANDER_MODULE""
 #define MR_LUA_READY ""MR_LUA_LANDER_READY""
 #define MR_LUA_IMMUTABLE ""MR_LUA_IMMUTABLE""
+#define MR_LUA_UDATA ""MR_LUA_UDATA_METATABLE""
 
 #define MR_LUA_TYPE ""__mercury_type""
 
@@ -462,6 +466,9 @@ void luaMR_init(lua_State * L) {
 	lua_newtable(L);
 	luaMR_setregistry(L, MR_LUA_MODULE);
 
+	/* TODO: Define and export luaMR_userdata_metatable. */
+	luaMR_userdata_metatable(L);
+	luaMR_setregistry(L, MR_LUA_UDATA);
 	
 	
 
@@ -548,7 +555,7 @@ int luaMR_loader(lua_State * L) {
 ").
 
 
-
+%-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 %
 % Variables
@@ -591,6 +598,12 @@ var(T) = V :-
 :- pred var_equals(var(T)::in, var(T)::in
 
 :- impure pred push_arg(lua_state, arg
+
+
+%-----------------------------------------------------------------------------%
+%
+% Refrences
+%
 
 	% The ref type represents an indirect refrence to a variable 
 	% instantiated in Lua. So long as Mercury does not garbage collect 
@@ -671,6 +684,8 @@ lua_type(V) = Type :-
 
 equal_value(_, _) :- sorry($module, $pred).
 
+
+is_nil(T) :- dynamic_cast(T, nil).
 
 %-----------------------------------------------------------------------------%
 %

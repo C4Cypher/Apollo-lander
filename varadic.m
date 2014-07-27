@@ -33,7 +33,7 @@
 	% from a higher-order var_arg.
 	%
 :- typeclass args(T) where [
-	func args(var_arg(Args)) = T
+	func args(var_arg(U)) = T
 ].
 
 
@@ -48,7 +48,7 @@
 
 %-----------------------------------------------------------------------------%
 
-:- pred var_call(pred(T), var_arg(Args)) <= args(T).
+:- pred var_call(pred(T), var_arg(U)) <= args(T).
 :- mode var_call(in(pred(in) is det), in) is det.
 :- mode var_call(in(pred(in) is semidet), in) is semidet.
 :- mode var_call(in(pred(in) is multi), in) is multi.
@@ -56,11 +56,11 @@
 :- mode var_call(in(pred(in) is cc_multi), in) is cc_multi.
 :- mode var_call(in(pred(in) is cc_nondet), in) is cc_nondet.
 
-:- func var_apply(func(T) = U, var_arg(Args)) = U <= args(T).
+:- func var_apply(func(T) = U, var_arg(V)) = U <= args(T).
 :- mode var_apply(in(func(in) = out is det), in) = out is det.
 :- mode var_apply(in(func(in) = out is semidet), in) = out is semidet.
 
-:- func varadic(func(T) = U, var_arg(Args)) = var_arg(Return) 
+:- func varadic(func(T) = U, var_arg(V)) = var_arg(W) 
 	<= (args(T), to_args(U)).
 :- mode varadic(in(func(in) = out is det), in) = out is det.
 :- mode varadic(in(func(in) = out is semidet), in) = out is semidet.
