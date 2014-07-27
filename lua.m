@@ -310,10 +310,14 @@
 % a Lua function.  Note that this is a one way process. Once converted to a Lua
 % function, these values cannot be compared or tested against the preds or funcs
 % used to construct them.  
+%
+% It is highly reccomended that function prototypes be made polymorphic, not 
+% bound to a paticular type.  If more type strictness is needed, use of the
+% function typeclass is reccomended.
 
 	% Accepts and returns varadic arguments.
 	%
-:- type func_function_prototype(T) == (func(var_arg(T)) = var_arg(U)).
+:- type func_function_prototype(T) == (func(var_arg(T)) = var_arg(T)).
 :- inst func_function_prototype(T) == (func(in) = out is det).
 
 	% Det always returns nil. Semidet returns boolean true or false.
