@@ -305,6 +305,25 @@
 :- type var_arg(T) == pred(int, T).
 :- inst var_arg(T) == pred(out, out) is nondet.
 
+
+% Function prototypes are func and pred types that Lua can cast directly to
+% a Lua function.  Note that this is a one way process. Once converted to a Lua
+% function, these values cannot be compared or tested against the preds or funcs
+% used to construct them.  
+
+	% Accepts and returns varadic arguments.
+	%
+:- type func_function_prototype(T) == (func(var_arg(T)) = var_arg(U)).
+:- inst func_function_prototype(T) == (func(in) = out is det).
+
+	% Det always returns nil. Semidet returns boolean true or false.
+	%
+:- type pred_function_prototype(T) == (pred(var_arg(T))).
+:- inst pred_function_prototype(T) 
+	---> 	(pred(in) is det)
+	;	(pred(in) is semidet).
+
+
 	% The args typeclass represents a type that can be constructed from
 	% varadic arguments.
 	%
