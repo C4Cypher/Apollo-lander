@@ -288,14 +288,43 @@
 
 :- type function.
 
+	% Export Mercury code as a function.
+	%
+:- func function(T) = function <= function(T).
+
 	% Load a string and compile it into a Lua function.
 	%
-:- func chunk(string) = function.
+:- func load_string(string) = function.
+
+	% Var_Arg(Index::out, Argument::out) is nondet
+	% 
+	% A higher order type that represents varadic function arguments.
+	% Index represents the Argument's placement in the order of arguments
+	% passed, starting with 1 for the first argument.
+	%
+:- type var_arg(T) == pred(int, T).
+:- inst var_arg(T) == pred(out, out) is nondet.
+
+	% The args typeclass represents a type that can be constructed from
+	% varadic arguments.
+	%
+:- typeclass args(A) where [
+	func varargs(var_arg(T)) = A
+].
 
 
+	% The return typeclass represents a type that can be deconstructed into
+	% varadic arguments.
+	%
+:- typeclass return(R) where [
+	func return_varargs(R) = var_arg(T)
+].
 
+ 
 
-
+:- typeclass function(F) where [
+	func call_function(F, A) = R <= (args(A), return(R))
+].
 
 
 
@@ -457,6 +486,14 @@ void luaMR_getregistry(lua_State * L, const char * k) {
 
 void luaMR_setregistry(lua_State * L, const char * k) {
 	lua_setfield(L, LUA_REGISTRYINDEX, k);
+}
+
+void luaMR_getupvalue(lua_State * L, const int id) {
+	lua_pushvalue(L, lua_upvalueindex(id));
+}
+
+void luaMR_setupvalue(lua_State * L, const int id) {
+	lua_replace(L, lua_upvalueindex(id));
 }
 
 void luaMR_init(lua_State * L) {
