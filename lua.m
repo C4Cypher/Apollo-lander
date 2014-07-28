@@ -20,10 +20,6 @@
 
 :- interface.
 
-:- include_module lua.state.
-
-:- import_module nil.
-
 :- import_module io.
 :- import_module int.
 :- import_module bool.
@@ -31,10 +27,19 @@
 :- import_module list.
 :- import_module maybe.
 
+%-----------------------------------------------------------------------------%
+
+	% The lua type represents the Lua state in a functionally pure context.
+	% As such, it should behave like any other immutable mercury data
+	% structure.
+:- type lua.
 
 
+:- type lua_closure == pred(lua, lua)
+:- inst lua_closure == pred(di, uo) is det.
 
-
+:- pred do(lua, pred(lua, lua)).
+:- mode do(in, pred(in, out
 
 :- func global(string) = T is semidet.
 
