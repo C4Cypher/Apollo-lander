@@ -110,13 +110,7 @@
 	%
 :- semipure pred get_type(lua::in, index::in, lua_type::out) is det.
  
-	% Look up a value indexed on the stack.
-	%
-:- semipure some [T] pred get_stack(lua::in, index::in, T::out) is det.
 
-	% Push a value onto the stack.
-	%
-:- impure pred push(lua::in, T::in) is det.
 
 	% Pop the specified number of values off of the stack.
 	%
@@ -132,6 +126,70 @@
 :- impure pred pcall(lua, int, pred(string).
 :- mode pcall(in, in, pred(in) is det) is det.
 :- mode pcall(in, in, pred(in) is erroneous) is det. 
+
+%-----------------------------------------------------------------------------%
+%
+% Value Passing.
+%
+
+	% Push any value onto the Lua stack.
+	%
+:- impure pred push(lua::in, T::in) is det.
+
+	% Retreive the value at the given index, fail if the value cannot be
+	% cast to the desired type. Nondet modes can be used to look up the 
+	% indexes where a specific value may be found, or retreive all of
+	% the values on the stack.
+	%
+:- semipure pred pull(lua, index, T).
+:- mode pull(in, in, out) is semidet.
+:- mode pull(in, out, in) is nondet.
+:- mode pull(in, out, out) is nondet.
+
+	% The value typeclass facilitates methods for pushing variables onto 
+	% and off of the lua stack.
+	%
+:- typeclass value(T) where [
+
+	% Look up a value indexed on the stack. Fail if 
+	%
+	semipure pred pull_value(lua, index, T),
+	mode pull_value(in, in, out) is semidet,
+
+	% Push a value onto the stack. Shouldn't need to check for free space
+	% on the stack.
+	%
+	impure pred push_value(lua, T),
+	mode push_value(in, in) is det
+	
+].
+
+% Primitives
+
+:- instance value(nil).
+:- instance value(int).
+:- instance value(float).
+:- instance value(bool).
+:- instance value(string).
+:- instance value(char).
+
+% C Types.
+
+:- instance value(c_pointer).
+:- instance value(c_function).
+:- instance value(lua_state).
+:- instance value(ref)
+
+% Lua Refrence types.
+
+:- instance value(table).
+:- instance value(function).
+:- instance value(thread).
+:- instance value(userdata).
+
+% Generic Mercury type
+
+:- instance value(
 
 
 %-----------------------------------------------------------------------------%
