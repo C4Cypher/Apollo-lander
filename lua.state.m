@@ -32,6 +32,7 @@
 	% use the variable term 'L' to refer to the Lua state.
 	%
 :- type lua == lua_state.
+% TODO: replace lua with ls, I have plans for the lua type.
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
 % from one lua_state are NOT compatible with other seperately created
@@ -270,6 +271,9 @@
 
 :- implementation.
 
+:- import_module require.
+:- import_module type_desc.
+
 :- func return_nil = nil.
 
 return_nil = nil.
@@ -326,72 +330,9 @@ return_nil = nil.
 	Type = lua_type(L, Index);
 ").
 
-:- pragma foreign_proc("C",  get_stack(L::in, Index::in, T::out),
-	[promise_semipure, will_not_call_mercury],
-"
-	switch(lua_type(L, Index)) {
-		case LUA_TNIL:
-			T = luaMR_nil();
-			break;
-		case LUA_TBOOLEAN:
-			if (lua_toboolean(L, Index))
-				T = MR_YES;
-			else
-				T = MR_NO;
-			break;
-		case LUA_TLIGHTUSERDATA:
-			T = lua_tolightuserdata(L, Index);
-			break;
-		case LUA_TNUMBER:
-			T = lua_tonumber(L, Index);
-			break;
-		case LUA_TSTRING:
-			T = lua_tostring(L, Index);
-			break;
-		case LUA_TTABLE:
-		case LUA_TFUNCTION:
-			T = luaMR_new_ref(L, Index);
-			break;
-		case LUA_TUSERDATA:
-			T = lua_touserdata(L, Index);
-			break;
-		case LUA_TTHREAD;
-			T = lua_tothread(L, Index);
-			break;
-		case LUA_TNONE:
-		default:
-			MR_fatal_error(
-			""lua.state.get_stack/3: Invalid value on the stack"");
-	} /* switch */
-").
 
-
-%	none - "LUA_TNONE",
-%	nil - "LUA_TNIL",
-%	boolean - "LUA_TBOOLEAN",
-%	lightuserdata - "LUA_TLIGHTUSERDATA",
-%	number - "LUA_TNUMBER",
-%	string - "LUA_TSTRING",
-%	table - "LUA_TTABLE",
-%	function - "LUA_TFUNCTION",
-%	userdata - "LUA_TUSERDATA",
-%	thread - "LUA_TTHREAD"
-
-:- type primitive
-	---> 	nil
-	;	int
-	;	float
-	;	bool
-	;	string
-	;	char
-	;	c_pointer
-	;	c_function
-	;	ref
-	;	word.
-
-:- pragma foreign_export_enum("C", primitive,
-	[prefix("MR_LUA_T"), uppercase, 
-
+pull(L, Index, T) :- 
+	sorry($p
 
 push(L, T) :- 
 	( T:nil ->
@@ -418,14 +359,18 @@ push(L, T) :-
 		impure push(L, bool, T)
 	; T:string ->
 		impure push(L, bool, T)
-		
 
-:- impure pred push(lua::in, primitive::in, T::in) is det.
 
-:- pragma foreign_proc("C",  push(L::in, T::in),
-	[will_not_call_mercury],
+
+
+:- pred some[T] pull_primitive(lua::in, index::in, lua_type::out, T::out) is det.
+
+:- pragma foreign_proc("C",  pull_primitive(L::in, Index::in, Type::out, T::out, type),
+	[promise_semipure, will_not_call_mercury],
 "
-		switch(lua_type(L, Index)) {
+	Type = lua_type(L, Index);
+	
+	switch(Type) {
 		case LUA_TNIL:
 			T = luaMR_nil();
 			break;
@@ -461,7 +406,23 @@ push(L, T) :-
 	} /* switch */
 ").
 
-").
+
+
+
+
+:- impure pred push2(lua::in, string::in, T::in) is det.
+
+:- pragma foreign_proc("C",  push2(L::in, Type::in, T::in),
+	[will_not_call_mercury],
+	switch(Type) {
+		case "nil.nil"
+
+
+		
+
+
+
+
 
 :- pragma foreign_proc("C",  pop(L::in, Num::in),
 	[will_not_call_mercury],
