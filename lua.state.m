@@ -32,6 +32,7 @@
 	% use the variable term 'L' to refer to the Lua state.
 	%
 :- type lua == lua_state.
+% TODO: replace lua with ls, I have plans for the lua type.
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
 % from one lua_state are NOT compatible with other seperately created
@@ -110,13 +111,7 @@
 	%
 :- semipure pred get_type(lua::in, index::in, lua_type::out) is det.
  
-	% Look up a value indexed on the stack.
-	%
-:- semipure some [T] pred get_stack(lua::in, index::in, T::out) is det.
 
-	% Push a value onto the stack.
-	%
-:- impure pred push(lua::in, T::in) is det.
 
 	% Pop the specified number of values off of the stack.
 	%
@@ -132,6 +127,70 @@
 :- impure pred pcall(lua, int, pred(string).
 :- mode pcall(in, in, pred(in) is det) is det.
 :- mode pcall(in, in, pred(in) is erroneous) is det. 
+
+%-----------------------------------------------------------------------------%
+%
+% Value Passing.
+%
+
+	% Push any value onto the Lua stack.
+	%
+:- impure pred push(lua::in, T::in) is det.
+
+	% Retreive the value at the given index, fail if the value cannot be
+	% cast to the desired type. Nondet modes can be used to look up the 
+	% indexes where a specific value may be found, or retreive all of
+	% the values on the stack.
+	%
+:- semipure pred pull(lua, index, T).
+:- mode pull(in, in, out) is semidet.
+:- mode pull(in, out, in) is nondet.
+:- mode pull(in, out, out) is nondet.
+
+	% The value typeclass facilitates methods for pushing variables onto 
+	% and off of the lua stack.
+	%
+:- typeclass value(T) where [
+
+	% Look up a value indexed on the stack. Fail if 
+	%
+	semipure pred pull_value(lua, index, T),
+	mode pull_value(in, in, out) is semidet,
+
+	% Push a value onto the stack. Shouldn't need to check for free space
+	% on the stack.
+	%
+	impure pred push_value(lua, T),
+	mode push_value(in, in) is det
+	
+].
+
+% Primitives
+
+:- instance value(nil).
+:- instance value(int).
+:- instance value(float).
+:- instance value(bool).
+:- instance value(string).
+:- instance value(char).
+
+% C Types.
+
+:- instance value(c_pointer).
+:- instance value(c_function).
+:- instance value(lua_state).
+:- instance value(ref)
+
+% Lua Refrence types.
+
+:- instance value(table).
+:- instance value(function).
+:- instance value(thread).
+:- instance value(userdata).
+
+% Generic Mercury type
+
+:- instance value(
 
 
 %-----------------------------------------------------------------------------%
@@ -212,6 +271,9 @@
 
 :- implementation.
 
+:- import_module require.
+:- import_module type_desc.
+
 :- func return_nil = nil.
 
 return_nil = nil.
@@ -268,72 +330,9 @@ return_nil = nil.
 	Type = lua_type(L, Index);
 ").
 
-:- pragma foreign_proc("C",  get_stack(L::in, Index::in, T::out),
-	[promise_semipure, will_not_call_mercury],
-"
-	switch(lua_type(L, Index)) {
-		case LUA_TNIL:
-			T = luaMR_nil();
-			break;
-		case LUA_TBOOLEAN:
-			if (lua_toboolean(L, Index))
-				T = MR_YES;
-			else
-				T = MR_NO;
-			break;
-		case LUA_TLIGHTUSERDATA:
-			T = lua_tolightuserdata(L, Index);
-			break;
-		case LUA_TNUMBER:
-			T = lua_tonumber(L, Index);
-			break;
-		case LUA_TSTRING:
-			T = lua_tostring(L, Index);
-			break;
-		case LUA_TTABLE:
-		case LUA_TFUNCTION:
-			T = luaMR_new_ref(L, Index);
-			break;
-		case LUA_TUSERDATA:
-			T = lua_touserdata(L, Index);
-			break;
-		case LUA_TTHREAD;
-			T = lua_tothread(L, Index);
-			break;
-		case LUA_TNONE:
-		default:
-			MR_fatal_error(
-			""lua.state.get_stack/3: Invalid value on the stack"");
-	} /* switch */
-").
 
-
-%	none - "LUA_TNONE",
-%	nil - "LUA_TNIL",
-%	boolean - "LUA_TBOOLEAN",
-%	lightuserdata - "LUA_TLIGHTUSERDATA",
-%	number - "LUA_TNUMBER",
-%	string - "LUA_TSTRING",
-%	table - "LUA_TTABLE",
-%	function - "LUA_TFUNCTION",
-%	userdata - "LUA_TUSERDATA",
-%	thread - "LUA_TTHREAD"
-
-:- type primitive
-	---> 	nil
-	;	int
-	;	float
-	;	bool
-	;	string
-	;	char
-	;	c_pointer
-	;	c_function
-	;	ref
-	;	word.
-
-:- pragma foreign_export_enum("C", primitive,
-	[prefix("MR_LUA_T"), uppercase, 
-
+pull(L, Index, T) :- 
+	sorry($p
 
 push(L, T) :- 
 	( T:nil ->
@@ -360,14 +359,18 @@ push(L, T) :-
 		impure push(L, bool, T)
 	; T:string ->
 		impure push(L, bool, T)
-		
 
-:- impure pred push(lua::in, primitive::in, T::in) is det.
 
-:- pragma foreign_proc("C",  push(L::in, T::in),
-	[will_not_call_mercury],
+
+
+:- pred some[T] pull_primitive(lua::in, index::in, lua_type::out, T::out) is det.
+
+:- pragma foreign_proc("C",  pull_primitive(L::in, Index::in, Type::out, T::out, type),
+	[promise_semipure, will_not_call_mercury],
 "
-		switch(lua_type(L, Index)) {
+	Type = lua_type(L, Index);
+	
+	switch(Type) {
 		case LUA_TNIL:
 			T = luaMR_nil();
 			break;
@@ -403,7 +406,23 @@ push(L, T) :-
 	} /* switch */
 ").
 
-").
+
+
+
+
+:- impure pred push2(lua::in, string::in, T::in) is det.
+
+:- pragma foreign_proc("C",  push2(L::in, Type::in, T::in),
+	[will_not_call_mercury],
+	switch(Type) {
+		case "nil.nil"
+
+
+		
+
+
+
+
 
 :- pragma foreign_proc("C",  pop(L::in, Num::in),
 	[will_not_call_mercury],
