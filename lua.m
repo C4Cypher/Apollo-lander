@@ -28,21 +28,27 @@
 :- import_module maybe.
 
 %-----------------------------------------------------------------------------%
+%
+% Lua Closures
+%
 
-	% The lua type represents the Lua state in a functionally pure context.
-	% As such, it should behave like any other immutable mercury data
-	% structure.
-:- type lua.
-
-
-:- type lua_closure == pred(lua, lua)
-:- inst lua_closure == pred(di, uo) is det.
-
-:- pred do(lua, pred(lua, lua)).
-:- mode do(in, pred(in, out
-
-:- func global(string) = T is semidet.
-
+	% The closure represents the context of a Lua state at a given
+	% moment.  K represents a variable identifier, usually a string
+	% for Lua global variables, and integers for local variables, (including
+	% function arguments and return values) and V represents.
+	%
+	% Local variables
+	% Given Lua's dynamic type system,  
+	%
+	% Note that when passing a closure back to Lua as a function return
+	% value, only 
+:- type closure(K, V) == pred(K, V).
+:- inst closure 
+	---> 	pred(in, out) is semidet.
+	;	pred(out, out) is nondet.
+	
+:- mode ci = in(closure).
+:- mode co = out(closure).
 
 
 
@@ -77,6 +83,10 @@
 %
 % 'thread' is a lua_state, usually a coroutine, note that the main
 % lua_state should not be treated like a coroutine.
+%
+% Note that there is no seperate implementation for Lua's number, string and
+% boolean types, given that Mercury's int, float, string and bool types can be
+% used to pass said types by value to and from Lua.
 
 
 
@@ -94,11 +104,10 @@
 	;	userdata
 	;	thread.
 
-	% type/1 and type/2 query Lua for a Lua variable's type.  If 
-	% provided a Mercury primitive value that can be implicity
-	% cast to a Lua value, that type's equivalent value will be
-	% returned.  For more complex Mercury types, 'none' will be
-	% returned.
+	% Look up the Lua type of a given variable. If provided a Mercury
+	% primitive value that can be implicity cast to a Lua value, that 
+	% type's equivalent Lua type will be returned.  For more complex 
+	% Mercury types, 'none' will be returned.
 	% 
 :- func lua_type(T) = lua_type.
 
@@ -142,8 +151,9 @@
 % Lua objects/refrence types
 %
 
-% These types represent lua.vars of a specific Lua type.  In terms of Lua 
-% semantics, these variables are passed by refrence, not by value. 
+% These types represent Lua values that cannot easily be passed by value as a 
+% C or Mercury primitive type. In terms of Lua semantics, these variables are
+% passed by refrence, not by value. 
 % 
 % This is important to keep in mind when performing equality tests.  
 % An equality test on two of these variables created seperately will fail, 
@@ -157,11 +167,6 @@
 % Lua variables with assigned refrence types may be assigned metatables, 
 % Lua tables that store metadata about how Lua may interact with said variables.
 
-:- type var.
-
-:- func var(T) = var.
-:- mode var(in) = out is det.
-:- mode var(out) = in is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -293,22 +298,11 @@
 
 :- type function.
 
-	% Export Mercury code as a function.
-	%
-:- func function(T) = function <= function(T).
 
 	% Load a string and compile it into a Lua function.
 	%
 :- func load_string(string) = function.
 
-	% Var_Arg(Index::out, Argument::out) is nondet
-	% 
-	% A higher order type that represents varadic function arguments.
-	% Index represents the Argument's placement in the order of arguments
-	% passed, starting with 1 for the first argument.
-	%
-:- type var_arg(T) == pred(int, T).
-:- inst var_arg(T) == pred(out, out) is nondet.
 
 
 % Function prototypes are func and pred types that Lua can cast directly to
@@ -320,46 +314,30 @@
 % bound to a paticular type.  If more type strictness is needed, use of the
 % function typeclass is reccomended.
 
-	% Accepts and returns varadic arguments.
+	% Prototype for a functionally pure Lua function.
+	% Semidet/cc_nondet versions return nil on falure.
 	%
-:- type func_function_prototype(T) == (func(var_arg(T)) = var_arg(T)).
-:- inst func_function_prototype(T) == (func(in) = out is det).
+:- type function_pred(K, V) == pred(closure(K,V), closure(int,V)). 
+:- inst function_pred(K, V) 
+	--->	pred(ci, uo) is det
+	;	pred(ci, uo) is semidet
+	;	pred(ci, uo) is cc_multi
+	;	pred(ci, uo) is cc_nondet.
 
-	% Det always returns nil. Semidet returns boolean true or false.
-	%
-:- type pred_function_prototype(T) == (pred(var_arg(T))).
-:- inst pred_function_prototype(T) 
-	---> 	(pred(in) is det)
-	;	(pred(in) is semidet).
+:- func pred_to_function(function_pred(K,V)) = function.
 
+:- type function_func(K, V) == func(closure(K,V)) = closure(int,V). 
+:- inst function_func(K, V) 
+	--->	func(ci) = uo is det
+	;	func(ci) = uo is semidet.
 
-	% The args typeclass represents a type that can be constructed from
-	% varadic arguments.
-	%
-:- typeclass args(A) where [
-	func varargs(var_arg(T)) = A
-].
+:- func func_to_function(function_func(K, V)) = function.
 
-
-	% The return typeclass represents a type that can be deconstructed into
-	% varadic arguments.
-	%
-:- typeclass return(R) where [
-	func return_varargs(R) = var_arg(T)
-].
-
- 
-
-:- typeclass function(F) where [
-	func call_function(F, A) = R <= (args(A), return(R))
-].
-
-
-
+% TODO: iterators?, multi/nondet functions?
 
 %-----------------------------------------------------------------------------%
 
-% TODO: coroutines?, iterators?, multi/nondet functions?
+% TODO: coroutines?
 
 %-----------------------------------------------------------------------------%
 %
@@ -386,42 +364,7 @@
 :- mode userdata(in) = out is det.
 :- mode userdata(out) = in is semidet.
 
-:- type metamethod
-	---> 	add
-	;	subtract
-	;	multiply
-	;	divide
-	;	modulo
-	;	power
-	;	negative
-	;	concatenate
-	;	length
-	;	equals
-	;	lessthan
-	;	less_or_equal
-	;	index
-	;	newindex
-	;	call
-	;	gc.
 
-
-	% This typeclass allows additinal metamethod calls to be attached
-	% to specific Mercury types.
-	%
-:- typeclass userdata(T) where [
-	
-	
-	% Return the metamethod associated with this instance.
-	%
-	func metamethod(metamethod, T) = (func(T),
-	mode metamethod(in, in) = out is semidet
-].
-	
-	% Examine the first (bottom) value on the stack and return it's
-	% mercury value if it is of this type.
-	% For use implementing self_is_userdata.
-	%
-pred self_is(T::out) is semidet.
 
 
 %-----------------------------------------------------------------------------%
@@ -430,6 +373,8 @@ pred self_is(T::out) is semidet.
 %
 
 % TODO: Explain Lua coroutines.
+
+% TODO: Implement coroutines with threads.
 
 :- type thread.
 
@@ -440,7 +385,7 @@ pred self_is(T::out) is semidet.
 
 :- implementation.
 
-:- import_module lua__state.
+:- import_module lua.state.
 
 :- import_module type_desc.
 :- import_module int.
