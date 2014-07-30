@@ -10,8 +10,45 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% This file presents a simple interface for handling and passing values to
-% and from the Lua runtime VM.
+% This file presents an interface for handling and passing values between
+% compiled Mercury modules and the Lua runtime VM.
+%
+% Lua is known for being a lightweight, easy to write, (comparatively) fast 
+% dynamically typed scripting language.  With first-class functions, lexical 
+% closures, varadic argument-passing/variable-assignment, it offers a set of
+% language features one might expect of a functional language, rather than an 
+% imperative scripting language.  With the usage of metatables and a stack
+% based C interface, Lua is extremely exstensible and easily embedded or bound
+% with other languages.  This flexibility allows Lua programmers to define
+% and use their own semantics, be it functional, object-oriented or otherwise.
+%
+%
+% The Semantic gap.
+%
+% a Lua program can be considered a set of instructions on what to do to.
+% These instructions impose changes oand when.In Lua, statements represent 
+% imperative changes to the Lua state by producing side effects. In sequential 
+% order, Lua evaluates each statement and modifies the Lua state to reflect the 
+% truth-value intended by the statement, within the context of the local scope. 
+% As such,  Instead of requiring the declaration and deletion of variables, Lua 
+% uses 'nil' to represent unnasigned values. 
+% 
+% In Lua, 'Foo = 3' can be read as 'Foo is now the number 3'.
+%
+% In contrast to Lua's imperative semantics, Mercury is a purely declarative
+% language.  A Mercury program can be considered a set of predicates that
+% describe whether or not things are true. Mercury variables aren't containers
+% for values that can change, they represent values that Mercury may not know.
+% A 'free' variable is one whose value has not yet been determined.
+%
+% in Mercury, 'Foo = 3' can be read as 'Foo is 3', a statement that can either
+% be true or false.
+% 
+% These are two very different ways of looking at things, and in order to 
+% bridge that gap, this Library defines a means of expressing Lua in a given
+% context at a specific moment in time.  That context may be the entire Lua
+% state of execution, or it could only be the local scope inside a function
+% call.  
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -25,17 +62,43 @@
 :- import_module bool.
 :- import_module string.
 :- import_module list.
-:- import_module maybe.
+
+%-----------------------------------------------------------------------------%
+%
+% Lua Statements
+%
+
+	% In Lua 'statements' are more commands telling Lua what to do.
+	% Mercury's equivalent, the predicate, is a statement of absolute 
+	% truth.  Here statements are closer to predicates, describing truth
+	% values within a given Lua context.  
+	%
+	% K is the type of a key, name, index or identifier representing a 
+	% Lua variable. 
+	%
+	% V is the type of the value assigned to a Lua variable.
+	%
+	% Bear in mind that statements used in the context of actual Lua code
+	% will be polymorphic, type variables will be dynamically cast to
+	% and from Lua at runtime.
+
+
+:- type statement.
+
+:- func =(K,V) = statement.
+:- mode =(in, in) = 
+
 
 %-----------------------------------------------------------------------------%
 %
 % Lua Closures
 %
 
-	% The closure represents the context of a Lua state at a given
-	% moment.  K represents a variable identifier, usually a string
-	% for Lua global variables, and integers for local variables, (including
-	% function arguments and return values) and V represents.
+	% The closure represents the context of a Lua scope at a given moment, 
+	% be it the entire Lua state, or the local scope of a Lua function call.
+	% K represents a variable identifier, usually a string for Lua global 
+	% variables, and integers for local variables, (including function 
+	% arguments and return values) and V represents.
 	%
 	% Local variables
 	% Given Lua's dynamic type system,  
