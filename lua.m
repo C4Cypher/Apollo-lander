@@ -62,68 +62,93 @@
 :- import_module bool.
 :- import_module string.
 :- import_module list.
-
-%-----------------------------------------------------------------------------%
-%
-% Lua Statements
-%
-
-	% In Lua 'statements' are more commands telling Lua what to do.
-	% Mercury's equivalent, the predicate, is a statement of absolute 
-	% truth.  Here statements are closer to predicates, describing truth
-	% values within a given Lua context.  
-	%
-	% K is the type of a key, name, index or identifier representing a 
-	% Lua variable. 
-	%
-	% V is the type of the value assigned to a Lua variable.
-	%
-	% Bear in mind that statements used in the context of actual Lua code
-	% will be polymorphic, type variables will be dynamically cast to
-	% and from Lua at runtime.
-
-
-:- type statement.
-
-:- func =(K,V) = statement.
-:- mode =(in, in) = 
+:- import_module map.
 
 
 %-----------------------------------------------------------------------------%
 %
-% Lua Closures
+% The Lua state
 %
 
-	% The closure represents the context of a Lua scope at a given moment, 
-	% be it the entire Lua state, or the local scope of a Lua function call.
-	% K represents a variable identifier, usually a string for Lua global 
-	% variables, and integers for local variables, (including function 
-	% arguments and return values) and V represents.
+	% The lua_state type represents the state of a running 
+	% Lua Virtual Machine. (Lua VM for short) Note that as a convention 
+	% borrowed from the C API, procedures that query or manipulate the Lua 
+	% state will use the variable term 'L' to refer to the Lua state.
 	%
-	% Local variables
-	% Given Lua's dynamic type system,  
-	%
-	% Note that when passing a closure back to Lua as a function return
-	% value, only 
-:- type closure(K, V) == pred(K, V).
-:- inst closure 
-	---> 	pred(in, out) is semidet.
-	;	pred(out, out) is nondet.
+:- type lua_state
+
+	% Abstract representation of a global Lua state
+	--->	global_state(	
+			globals::map(string, value), 
+			refs::map(int, value),
+			registry::map(string, value)
+		),
+		
+		
+	;	lua_state(lua_state_ptr)	% Concrete lua_State
+	;	coroutine(thread)		% Child thread
+	;	scope(environment)		% Local scope
+	;	call(environment, args) 	% Function call
+	;	return(lua_state, return)	% Call with return values
+	.
 	
-:- mode ci = in(closure).
-:- mode co = out(closure).
+	
+:- type lua == lua_state.
 
+
+	% The lua_state_ptr is a refrence to a lua_State derived from an
+	% instantiated Lua VM.  This type is defined in lua.h as
+	% the C type "lua_State *". 
+	%
+:- type lua_state_ptr.
+
+
+% WARNING! Refrences to Lua types (tables, functions, userdata) derived
+% from one global lua_state are NOT compatible with other seperately created
+% lua_states. The only exception to this is lua_states created as threads.
+% lua_threads may freely pass variables to or from their parent state and
+% sibling threads.
+
+%-----------------------------------------------------------------------------%
+%
+% Lua Variables
+%
 
 
 %-----------------------------------------------------------------------------%
 %
-% Lua types
+% Lua Values and types
 %
 
-% In Lua, variables are not typed, values are.  Lua recognizes eight
-% types.
+:- type value
+	--->	some(univ)		% unknown type
+	
+% In Lua, variables are not typed, values are.  Lua recognizes eight types.
+	
+	% Value types
+	;	nil				% the abscence of value.
+	;	number(float)			% double prescision float
+	;	number(int)			% Number with an int value
+	;	true				% boolean true
+	;	false				% boolean false
+	;	string(string)			% string
+	;	lightuserdata(c_pointer)	% A C void pointer
+	
+	% Refrence types
+	;	function(function)		% A Lua function
+	;	table(table)			% A Lua table
+	;	thread(thread)			% A Lua coroutine
+	;	userdata(userdata)		% Full userdata
+	
+	where equality is equal.			
+
+
+% In Lua, variables are not typed, values are.  Lua recognizes eight types.
 %
-% 'nil' represents the abscence of value. 
+%
+%  
+%
+% 'nil'  
 % 'number' is equivalent to float type.
 % 'boolean' is equivalent to the bool type.
 % 'string' is equivalent to the string type.
@@ -146,10 +171,7 @@
 %
 % 'thread' is a lua_state, usually a coroutine, note that the main
 % lua_state should not be treated like a coroutine.
-%
-% Note that there is no seperate implementation for Lua's number, string and
-% boolean types, given that Mercury's int, float, string and bool types can be
-% used to pass said types by value to and from Lua.
+
 
 
 
@@ -398,6 +420,17 @@
 
 % TODO: iterators?, multi/nondet functions?
 
+
+%-----------------------------------------------------------------------------%
+%
+% Lua Statements
+%
+
+	% In Lua 'statements' are more commands telling Lua what to do.
+	% Mercury's equivalent, the predicate, is a statement of absolute 
+	% truth.  Here statements are closer to predicates, describing truth
+	% values within a given Lua context.  
+	
 %-----------------------------------------------------------------------------%
 
 % TODO: coroutines?
