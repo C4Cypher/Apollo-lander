@@ -114,6 +114,38 @@
 % Lua Variables
 %
 
+	% In Lua, Variables contain values, however, due to the fact that 
+	% the values represented by Lua variables are stored in the Lua state
+	% by string name or int index, outside the context of a Lua state,
+	% a Lua variable is meaningless.  In Mercury, Lua variables act more
+	% like identifiers, used to look up a desired value from the Lua state.
+	%
+:- type var
+	--->	global(string)
+	;	local(string)
+	;	var(id, ref)
+	;	feild(var, var)		% Table lookup
+	.
+	
+	% Opaque identifier for local variables id's,
+	%
+:- 
+	
+:- type var(T)
+	---> 	var(T)
+
+	% Look up the value represented by a variable, or create a new variable
+	% representing a value. Fails on Mercury type mismatch.
+	%
+:- pred var(T::out, var::in, lua::in) is semidet.
+
+:- pred var(T, var, lua, lua).
+:- mode var(in, out, in, out) is det.
+:- mode var(out, in, in, out) is semidet. 
+
+:- func value(var, lua) = T is semidet.
+:- func det_value(var, lua) = value is det.
+	
 
 %-----------------------------------------------------------------------------%
 %
@@ -128,7 +160,6 @@
 	% Value types
 	;	nil				% the abscence of value.
 	;	number(float)			% double prescision float
-	;	number(int)			% Number with an int value
 	;	true				% boolean true
 	;	false				% boolean false
 	;	string(string)			% string
@@ -139,40 +170,19 @@
 	;	table(table)			% A Lua table
 	;	thread(thread)			% A Lua coroutine
 	;	userdata(userdata)		% Full userdata
+	.
+				
+
+	% Succeeds if two values are equal under Lua semantics.
+	% Will not call metamethods, does NOT unify Mercury variables.
+:- pred equal(T1::in, T2::in, lua::in) is semidet.
+:- pred equal(T1::in, T2::in, lua::in, lua::out) is semidet.
+
+
+	% Operators for use with DCG notation
 	
-	where equality is equal.			
-
-
-% In Lua, variables are not typed, values are.  Lua recognizes eight types.
-%
-%
-%  
-%
-% 'nil'  
-% 'number' is equivalent to float type.
-% 'boolean' is equivalent to the bool type.
-% 'string' is equivalent to the string type.
-%
-% 'table', a refrence to an associative array, used for lists and maps.
-%	Unlike an assoc_list, a Lua table may not associate more than
-%	one value with any given key, and thus, behaves more like the
-% 	Mercury map type.
-% 
-% 'function' is a refrence to a Lua function, which are impure, 
-%       may have a variable number of arguments, multiple return
-%	values and can be passed freely like any other variable.
-%
-% 'userdata' is lua's type for handling foreign data, unless otherwise
-%	noted, values stored as userdata are subject to collection by 	
-% 	Lua's Garbage Collector.
-%
-% 'lightuserdata' is seen in Lua as identical to userdata, but contains
-%	a C pointer which will not be collected by Lua's GC.
-%
-% 'thread' is a lua_state, usually a coroutine, note that the main
-% lua_state should not be treated like a coroutine.
-
-
+:- pred ==(T1::in, T2::in, lua::in, lua::out) is semidet.
+:- pred ~=(T1::in, T2::in, lua::in, lua::out) is semidet.
 
 
 	% The type lua.type represents the types that Lua recognizes.
@@ -189,12 +199,9 @@
 	;	userdata
 	;	thread.
 
-	% Look up the Lua type of a given variable. If provided a Mercury
-	% primitive value that can be implicity cast to a Lua value, that 
-	% type's equivalent Lua type will be returned.  For more complex 
-	% Mercury types, 'none' will be returned.
+	% Look up the Lua type of a given variable. 
 	% 
-:- func lua_type(T) = lua_type.
+:- func lua_type(lua, var) = lua_type.
 
 %-----------------------------------------------------------------------------%
 %
