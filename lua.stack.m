@@ -10,41 +10,23 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% This file provides low level access to calls for manipulating the Lua state.
+% This file provides low level access to calls for manipulating the Lua stack.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module state.
+:- module stack.
 
 :- interface.
 
 
-%-----------------------------------------------------------------------------%
-%
-% The Lua state
-%
 
-	% The lua type is a refrence to the Lua state, also known as the
-	% Lua Virtual Machine.  This type is defined in lua.h as
-	% the C type "lua_State *". Note that as a convention borrowed from 
-	% the C API, operations that query or manipulate the Lua state will
-	% use the variable term 'L' to refer to the Lua state.
-	%
-:- type lua == lua_state.
-% TODO: replace lua with ls, I have plans for the lua type.
-
-% WARNING! Refrences to Lua types (tables, functions, userdata) derived
-% from one lua_state are NOT compatible with other seperately created
-% lua_states. The only exception to this is lua_states created as threads.
-% lua_threads may freely pass variables to or from their parent state and
-% sibling threads.
 
 	% Create a fresh, new , initialized lua_state.
 	%
 :- pred new_state(lua::out).
 
-
+:- func state_ptr(lua_state) = lua_state_ptr.
 
 	% Return the Lua state's current status.
 	%
