@@ -57,13 +57,15 @@
 
 :- interface.
 
-:- import_module io.
 :- import_module int.
 :- import_module float.
 :- import_module bool.
 :- import_module string.
 :- import_module list.
+:- import_module pair.
+:- import_module assoc_list.
 :- import_module map.
+:- import_module univ.
 
 
 %-----------------------------------------------------------------------------%
@@ -77,21 +79,21 @@
 	% state will use the variable term 'L' to refer to the Lua state.
 	%
 :- type lua_state
-
-	% Abstract representation of a global Lua state
-	--->	global_state(	
-			globals::map(string, value), 
-			registry::map(value, value),
-			stack::stack
-		),
-		
-		
-	;	lua_state(lua_state_ptr)	% Concrete lua_State
-	;	coroutine(thread)		% Child thread
-	;	lua_state(lua_state, vars) 	% Lazy lua_State
-	;	scope(lua_state, environment)	% Local scope
-	.
+	--->	lua_state(lua_state_ptr)	% Concrete lua_State
+	;	function_call(state::lua_state, args::stack, 
+	;	coroutine(thread)		% Lua coroutine
 	
+	% Abstract representation of a global Lua state
+	;	global_state(	
+			globals::map(string, univ), 
+			registry::map(univ, univ),
+			stack::vars
+		)
+	
+	where equality is equiv_state.
+
+
+:- pred equiv_state(lua_state::in, lua_state::in) is semidet.
 	
 :- type lua == lua_state.
 
@@ -111,6 +113,13 @@
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
 
+	% Perform operations on a Lua state.
+	%
+:- type state_op == pred(lua, lua).
+
+:- inst unique_op == pred(di, uo) is det.
+:- inst mostly_unique_op == pred(mdi, muo) is det.
+
 
 
 %-----------------------------------------------------------------------------%
@@ -118,94 +127,89 @@
 % Lua Variables
 %
 
+
+
 	% In Lua, Variables contain values, however, due to the fact that 
 	% the values represented by Lua variables are stored in the Lua state
 	% by string name or int index, outside the context of a Lua state,
 	% a Lua variable is meaningless.  In Mercury, Lua variables act more
 	% like identifiers, used to look up a desired value from the Lua state.
 	%
-:- type var
-	--->	var(id)
-	;	local(string)
-	;	ref(ref)
-	.
-	
-	% Opaque identifier for local variables id's,
+:- type var.
+
+
+	% Sequential list of variables.
 	%
-:- 
-	
-:- type var(T)
-	---> 	var(T)
+:- type vars = list(var).
 
-	% Look up the value represented by a variable, or create a new variable
-	% representing a value. Fails on Mercury type mismatch.
+
+	% Retreive the value of a variable.
 	%
-:- pred var(T::out, var::in, lua::in) is semidet.
+:- func var(var, lua) = T is semidet.
+:- some [T] func det_var(var, lua) = T.
+%-----------------------------------------------------------------------------%
+%
+% Variable assignment
+%
 
-:- pred var(T, var, lua, lua).
-:- mode var(in, out, in, out) is det.
-:- mode var(out, in, in, out) is semidet. 
 
-:- func value(var, lua) = T is semidet.
-:- func det_value(var, lua) = value is det.
+	% Assign a value to a variable.
+	%
+:- pred new_var(T, var, lua, lua).
+:- mode new_var(in, out, in, out) is det.
+:- mode new_var(out, in, out, in) is semidet. 
+
+	% Variable assignment. 
+	%
+:- type assignment
+	---> 	some [T] assignment(var, T)
+	;	unassigned(var)
+	where equality is equiv_assignment.
 	
+	% assign(Var, T) = 'new assignment'(Var, T).
+	%
+:- func assign(var, T) = assignment.
+
+	% assign((Var - T)) = assign(Var, T).
+	%
+:- func assign(pair(var, T)) = assignment.
+
+:- some [T] func pair(assignment) = pair(var, T).
+	
+	% Potentially impure sequential list of variable assignments.
+	%
+:- type assignments == list(assignment).
+
+	% Range of variables within a list, (First - Last).
+	%
+:- type range == pair(var).
+:- type args == range.
 
 %-----------------------------------------------------------------------------%
 %
-% Lua Values and types
+% Lua Types
 %
 
-:- type value
-	--->	some(univ)		% unknown type
 	
 % In Lua, variables are not typed, values are.  Lua recognizes eight types.
+
+:- type lua_type
+	--->	none			% rarely used, represents invalid type
 	
 	% Value types
-	;	nil				% the abscence of value.
-	;	number(float)			% double prescision float
-	;	true				% boolean true
-	;	false				% boolean false
-	;	string(string)			% string
-	;	lightuserdata(c_pointer)	% A C void pointer
+	;	nil			% the abscence of value
+	;	number			% double prescision, casts to float
+	;	boolean			% boolean truth value, casts to bool
+	;	string			% string value, casts to string
+	;	lightuserdata		% A C pointer
 	
 	% Refrence types
-	;	function(function)		% A Lua function
-	;	table(table)			% A Lua table
-	;	thread(thread)			% A Lua coroutine
-	;	userdata(userdata)		% Full userdata
+	;	function		% A Lua function
+	;	table			% A Lua table
+	;	thread			% A Lua coroutine
+	;	userdata		% Full userdata 
+	.
 	
-	where equality is equal.
-				
-
-	% Succeeds if two values are equal under Lua semantics.
-	% Will not call metamethods, does NOT unify Mercury variables.
-	% Variables compared without passing a Lua state will not be compared
-	% by-value.
-	%
-:- pred equal(T1::in, T2::in) is semidet.
-:- pred equal(T1::in, T2::in, lua::in) is semidet.
-:- pred equal(T1::in, T2::in, lua::in, lua::out) is semidet.
-
-
-	% Operators for use with DCG notation
-	
-:- pred ==(T1::in, T2::in, lua::in, lua::out) is semidet.
-:- pred ~=(T1::in, T2::in, lua::in, lua::out) is semidet.
-
-
-	% The type lua.type represents the types that Lua recognizes.
-	% 
-:- type lua_type 
-	--->	none
-	;	nil
-	;	boolean
-	;	lightuserdata
-	;	number
-	;	string
-	;	table
-	;	function
-	;	userdata
-	;	thread.
 
 	% Look up the Lua type of a given variable. 
 	% 
