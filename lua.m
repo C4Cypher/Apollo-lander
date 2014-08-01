@@ -67,44 +67,55 @@
 :- import_module map.
 :- import_module univ.
 
+:- include_module state.
 
 %-----------------------------------------------------------------------------%
 %
 % The Lua state
 %
 
-	% The lua_state type represents the state of a running 
+:- import_module state.
+
+	% The lua type represents the state of a running 
 	% Lua Virtual Machine. (Lua VM for short) Note that as a convention 
 	% borrowed from the C API, procedures that query or manipulate the Lua 
 	% state will use the variable term 'L' to refer to the Lua state.
 	%
-:- type lua_state
-	--->	lua_state(lua_state_ptr)	% Concrete lua_State
-	;	function_call(state::lua_state, args::stack, 
-	;	coroutine(thread)		% Lua coroutine
+:- type lua
 	
-	% Abstract representation of a global Lua state
-	;	global_state(	
-			globals::map(string, univ), 
-			registry::map(univ, univ),
-			stack::vars
-		)
+	% concrete base lua_state
+	--->	some [L] (lua_state(L) => lua_state(L))
 	
-	where equality is equiv_state.
-
-
-:- pred equiv_state(lua_state::in, lua_state::in) is semidet.
+	% Lua with a value pushed on the stack
+	;	some [T] push(lua, T)
 	
-:- type lua == lua_state.
+	% a lexical scope
+	;	scope(lua, scope)
+	
+	
+	% State in the process of making a function call, range specifies
+	% 
+	;	function_call(lua::lua, args::range, return::int)
+	
+	% TODO:Coroutines		% Lua coroutine
+	
+	where equality is equiv_lua.
 
-:- type stack == list(value).
 
+
+	% Verify that two Lua states represent the same information.
+	%
+:- pred equiv_lua(lua::in, lua::in) is semidet.
+	
 
 	% The lua_state_ptr is a refrence to a lua_State derived from an
 	% instantiated Lua VM.  This type is defined in lua.h as
 	% the C type "lua_State *". 
 	%
 :- type lua_state_ptr.
+
+	% A mapping of strings to values
+:- type globals == map(string, univ).
 
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
@@ -113,12 +124,6 @@
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
 
-	% Perform operations on a Lua state.
-	%
-:- type state_op == pred(lua, lua).
-
-:- inst unique_op == pred(di, uo) is det.
-:- inst mostly_unique_op == pred(mdi, muo) is det.
 
 
 
