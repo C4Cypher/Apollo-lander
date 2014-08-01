@@ -67,7 +67,6 @@
 :- import_module map.
 :- import_module univ.
 
-:- include_module state.
 
 %-----------------------------------------------------------------------------%
 %
@@ -81,27 +80,10 @@
 	% borrowed from the C API, procedures that query or manipulate the Lua 
 	% state will use the variable term 'L' to refer to the Lua state.
 	%
-:- type lua
-	
-	% concrete base lua_state
-	--->	some [L] (lua_state(L) => state.lua_state(L))
-	
-	% Lua with a value pushed on the stack
-	;	some [T] push(lua, T)
-	
-	% a lexical scope
-	;	scope(lua, scope)
-	
-	
-	% State in the process of making a function call, range specifies
-	% 
-	;	function_call(lua::lua, args::range, return::int)
-	
-	% TODO:Coroutines		% Lua coroutine
-	
-	where equality is equiv_lua.
+:- type lua_state.
 
-
+:- type lua == lua_state.
+	
 
 	% Verify that two Lua states represent the same information.
 	%
@@ -112,10 +94,14 @@
 	% instantiated Lua VM.  This type is defined in lua.h as
 	% the C type "lua_State *". 
 	%
-:- type lua_state_ptr.
+:- type state_ptr.
 
-	% A mapping of strings to values
-:- type globals == map(string, univ).
+	% Retreives the varadic arguments passed to the current
+	% state, if in the context of a function call.
+	%
+:- pred args(var, lua, lua).
+:- mode args(out, in, out). is det
+
 
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
@@ -124,12 +110,59 @@
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
 
+%-----------------------------------------------------------------------------%
+%
+% Lua Chunks
+%
 
 
+
+	% A chunk is a call to a Lua state within it's own variable scope.
+	% chunks may modify a Lua state and any variable visible to it's
+	% scope.  The current implementation does not permit chunks
+	% defined in Mercury to modify mutable Lua states in order to maintain
+	% functional purity.  A chunk that returns a value is an expression.
+	% The determinsim of a chunk is determined by the determinsm of
+	% the variables accessable to that chunk.
+	%
+:- type chunk == pred(lua,lua).
+
+:- inst det_chunk
+	--->	pred(in, out) is det
+	;	pred(in, out) is cc_multi.
+	
+:- inst sem_chunk
+	---> 	pred(in, out) is semidet
+	;	pred(in, out) is cc_nondet.
+	
+:- inst mul_chunk == pred(in, out) is multi.
+:- inst non_chunk == pred(in, out) is nondet.
+
+:- inst any_chunk 
+	--->	det_chunk
+	;	sem_chunk
+	;	mul_chunk
+	;	non_chunk
+	.
+	
+
+	% Call a chunk in a new variable scope.
+	%
+:- pred do(chunk, lua, lua).
+:- mode do(det_chunk, in, out) is det.
+:- mode do(sem_chunk, in, out) is semidet.
+:- mode do(mul_chunk, in, out) is multi.
+:- mode do(non_chunk, in, out) is nondet.
+
+
+
+
+	
+	
 
 %-----------------------------------------------------------------------------%
 %
-% Lua Variables
+% Lua Variables and Expressions
 %
 
 
@@ -139,56 +172,102 @@
 	% by string name or int index, outside the context of a Lua state,
 	% a Lua variable is meaningless.  In Mercury, Lua variables act more
 	% like identifiers, used to look up a desired value from the Lua state.
+	% Unlike in Lua, vars in Mercury are evaluated lazily.
 	%
-:- type var.
+:- type var 
+	---> 	name(string)
+	;	id(id)
+	;	some [T] (literal(T)).
+	;	some [T] (exp(T)).
 
+:- inst det_var
+	--->	name(ground)
+	;	id(ground)
+	;	literal(ground).
+	;	exp(det_exp).
+	
+:- type id.
+	
+:- inst semi_var == exp(semi_exp).
+:- inst mult_var == exp(mult_exp).
+:- inst nond_var == exp(nond_exp).
+:- inst fail_var == exp(fail_var).
 
-	% Sequential list of variables.
-	%
-:- type vars = list(var).
+:- type expression(T) == pred(lua, T).
+
+:- type exp(T) == expression(T).
+
+:- inst det_exp 
+	-->	pred(in, out(I)) is det
+	;	pred(in, out(I)) is cc_multi.
+	
+:- inst semi_exp 
+	--->	pred(in, out(I)) is semidet
+	;	pred(in, out(I)) is cc_nondet.
+	
+:- inst mult_exp == pred(in, out(I)) is multi.
+:- isnt nond_exp == pred(in, out(I)) is nondet.
+:- inst fail_exp == pred(in, out(I)) is failure.
+	
+:- func var(exp(T)) = var.
 
 
 	% Retreive the value of a variable.
+	% Nondeterministic variables are called with a comitted choice context.
 	%
-:- func var(var, lua) = T is semidet.
-:- some [T] func det_var(var, lua) = T.
+:- func value(var, lua) = T is semidet.
+
+
+	% A named variable, refers to the global variable
+	% with that name unless refrenced in a scope which
+	% has that variable assigned to an upvalue.
+	%
+:- func name(string) = var.
+
+	% Assign a locally scoped variable, creating a new one if needed.
+	% If the var already exists in a higher scope, it will act as if overwritten 
+	% in the local (or lower) scopes
+	%
+:- pred local(T, var, lua, lua).
+:- mode local(in(I), out, in, out) is det.
+:- mode local(in(I), in, in, out) is det.
+
+
+
+
+
 %-----------------------------------------------------------------------------%
 %
-% Variable assignment
+% Lua expressions
 %
 
 
-	% Assign a value to a variable.
-	%
-:- pred new_var(T, var, lua, lua).
-:- mode new_var(in, out, in, out) is det.
-:- mode new_var(out, in, out, in) is semidet. 
 
-	% Variable assignment. 
-	%
-:- type assignment
-	---> 	some [T] assignment(var, T)
-	;	unassigned(var)
-	where equality is equiv_assignment.
-	
-	% assign(Var, T) = 'new assignment'(Var, T).
-	%
-:- func assign(var, T) = assignment.
+% Varadic lists, (parenthesis reccomended)
+:- func var, var = var.
+:- mode in, in = out is det.
+:- mode out, out = in is det. % nil is used to fill in for non-varadic input
 
-	% assign((Var - T)) = assign(Var, T).
-	%
-:- func assign(pair(var, T)) = assignment.
+% The type of the result, when evaluated, should be boolean 
+:- func var == var = var. 	
+:- func var ~= var = var.
 
-:- some [T] func pair(assignment) = pair(var, T).
-	
-	% Potentially impure sequential list of variable assignments.
-	%
-:- type assignments == list(assignment).
+% Table lookup.
+:- func (var).(var) = var. 
 
-	% Range of variables within a list, (First - Last).
-	%
-:- type range == pair(var).
-:- type args == range.
+% Global variable
+:- func global(string) = var.
+
+% Function declaration
+:- func function(var, proc
+
+
+
+
+
+:- type exp(T) == expression(T).
+:- type expression == expression(var).
+:- type exp == expression.
 
 %-----------------------------------------------------------------------------%
 %
@@ -253,6 +332,9 @@
 	% Utility pred for evaluating whether or not an existential value is nil.
 	%
 :- pred is_nil(T::in) is semidet.
+
+
+
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
