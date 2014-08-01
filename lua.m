@@ -74,7 +74,7 @@
 % The Lua state
 %
 
-:- import_module state.
+:- use_module state.
 
 	% The lua type represents the state of a running 
 	% Lua Virtual Machine. (Lua VM for short) Note that as a convention 
@@ -84,7 +84,7 @@
 :- type lua
 	
 	% concrete base lua_state
-	--->	some [L] (lua_state(L) => lua_state(L))
+	--->	some [L] (lua_state(L) => state.lua_state(L))
 	
 	% Lua with a value pushed on the stack
 	;	some [T] push(lua, T)
