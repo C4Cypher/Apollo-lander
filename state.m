@@ -6,16 +6,16 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: lua.state.m.
+% File: state.m.
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% This file provides low level access to calls for manipulating the Lua stack.
+% This file provides typeclass for the Lua state.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module stack.
+:- module state.
 
 :- interface.
 
