@@ -10,4 +10,4 @@
 
 MCFLAGS-lua += --no-inform-inferred --no-warn-det-decls-too-lax --no-warn-inferred-erroneous
 
-MCFLAGS-varadic += --no-inform-inferred --no-warn-det-decls-too-lax --no-warn-inferred-erroneous 
+MCFLAGS-lua.stack += --no-inform-inferred --no-warn-det-decls-too-lax --no-warn-inferred-erroneous 

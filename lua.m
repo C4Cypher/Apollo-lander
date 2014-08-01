@@ -59,6 +59,7 @@
 
 :- import_module io.
 :- import_module int.
+:- import_module float.
 :- import_module bool.
 :- import_module string.
 :- import_module list.
@@ -80,20 +81,21 @@
 	% Abstract representation of a global Lua state
 	--->	global_state(	
 			globals::map(string, value), 
-			refs::map(int, value),
-			registry::map(string, value)
+			registry::map(value, value),
+			stack::stack
 		),
 		
 		
 	;	lua_state(lua_state_ptr)	% Concrete lua_State
 	;	coroutine(thread)		% Child thread
-	;	scope(environment)		% Local scope
-	;	call(environment, args) 	% Function call
-	;	return(lua_state, return)	% Call with return values
+	;	lua_state(lua_state, vars) 	% Lazy lua_State
+	;	scope(lua_state, environment)	% Local scope
 	.
 	
 	
 :- type lua == lua_state.
+
+:- type stack == list(value).
 
 
 	% The lua_state_ptr is a refrence to a lua_State derived from an
@@ -109,6 +111,8 @@
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
 
+
+
 %-----------------------------------------------------------------------------%
 %
 % Lua Variables
@@ -121,10 +125,9 @@
 	% like identifiers, used to look up a desired value from the Lua state.
 	%
 :- type var
-	--->	global(string)
+	--->	var(id)
 	;	local(string)
-	;	var(id, ref)
-	;	feild(var, var)		% Table lookup
+	;	ref(ref)
 	.
 	
 	% Opaque identifier for local variables id's,
@@ -170,11 +173,16 @@
 	;	table(table)			% A Lua table
 	;	thread(thread)			% A Lua coroutine
 	;	userdata(userdata)		% Full userdata
-	.
+	
+	where equality is equal.
 				
 
 	% Succeeds if two values are equal under Lua semantics.
 	% Will not call metamethods, does NOT unify Mercury variables.
+	% Variables compared without passing a Lua state will not be compared
+	% by-value.
+	%
+:- pred equal(T1::in, T2::in) is semidet.
 :- pred equal(T1::in, T2::in, lua::in) is semidet.
 :- pred equal(T1::in, T2::in, lua::in, lua::out) is semidet.
 
@@ -530,25 +538,44 @@
 % The Lua state
 %
 
-	% The lua_state type is a literal refrence to the Lua runtime, but the
-	% lua type is an abstraction of the Lua state.
+:- type lua_state
+
+	% Abstract representation of a global Lua state
+	--->	global_state(	
+			globals::map(string, value), 
+			refs::map(int, value),
+			registry::map(string, value)
+		),
+		
+	;	lua_state(lua_state_ptr)	% Concrete lua_State
+	;	coroutine(thread)		% Child thread
+	;	scope(environment)		% Local scope
+	.
+	
+	
+
+
+	% The lua_state_ptr is a refrence to a lua_State derived from an
+	% instantiated Lua VM.  This type is defined in lua.h as
+	% the C type "lua_State *". 
 	%
-:- pragma foreign_type("C", lua_state, "lua_State *",
+:- type lua_state_ptr.
+
+
+:- pragma foreign_type("C", lua_state_ptr, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-	% For the sake of safety and sanity checking, produce a lua_state
+	% For the sake of safety and sanity checking, produce a lua_state_ptr
 	% instantiated as a NULL pointer.
 	%
-:- func null_state = lua_state.
+:- func null_state = lua_state_ptr.
 
 :- pragma foreign_proc("C", null_state = Null::out, 
 	[promise_pure, will_not_call_mercury], 
 	"Null = NULL;").
 
 
-% TODO: Module/thread local mutvar for current state.
 
- 
 
 %-----------------------------------------------------------------------------%
 
