@@ -1,3 +1,12 @@
+/* ###  In module `lua': */
+/* ###    warning: modules `assoc_list', `bool', `float', `int', `list', */
+/* ###    `map', `pair' and `univ' are imported in the interface, but are */
+/* ###    not used in the interface. */
+/* ###  In module `lua': */
+/* ###    warning: modules `assoc_list', `bool', `float', `int', `list', */
+/* ###    `map', `pair' and `univ' are imported in the interface, but are */
+/* ###    not used in the interface. */
+
 %-----------------------------------------------------------------------------%
 % vim: ft=mercury
 %-----------------------------------------------------------------------------%
@@ -73,8 +82,6 @@
 % The Lua state
 %
 
-:- use_module state.
-
 	% The lua type represents the state of a running 
 	% Lua Virtual Machine. (Lua VM for short) Note that as a convention 
 	% borrowed from the C API, procedures that query or manipulate the Lua 
@@ -87,6 +94,7 @@
 
 	% Verify that two Lua states represent the same information.
 	%
+/* ###  Error: no clauses for predicate `equiv_lua'/2. */
 :- pred equiv_lua(lua::in, lua::in) is semidet.
 	
 
@@ -94,13 +102,13 @@
 	% instantiated Lua VM.  This type is defined in lua.h as
 	% the C type "lua_State *". 
 	%
-:- type state_ptr.
+:- type lua_state_ptr.
 
 	% Retreives the varadic arguments passed to the current
 	% state, if in the context of a function call.
 	%
-:- pred args(var, lua, lua).
-:- mode args(out, in, out). is det
+/* ###  Error: no clauses for predicate `args'/3. */
+:- pred args(var::out, lua::in, lua::out) is semidet.
 
 
 
@@ -127,37 +135,42 @@
 	%
 :- type chunk == pred(lua,lua).
 
-:- inst det_chunk
-	--->	pred(in, out) is det
-	;	pred(in, out) is cc_multi.
-	
-:- inst sem_chunk
-	---> 	pred(in, out) is semidet
-	;	pred(in, out) is cc_nondet.
-	
-:- inst mul_chunk == pred(in, out) is multi.
-:- inst non_chunk == pred(in, out) is nondet.
+:- inst det_chunk == (pred(in, out) is det).
+:- inst sem_chunk == (pred(in, out) is semidet).		
+:- inst mul_chunk == (pred(in, out) is multi).
+:- inst non_chunk == (pred(in, out) is nondet).
+:- inst cc_mul_chunk == (pred(in, out) is cc_multi).
+:- inst cc_non_chunk == (pred(in, out) is cc_nondet).
 
+/* ###  Warning: inst `lua.any_chunk'/0 does not match any of the types in */
+/* ###    scope. */
 :- inst any_chunk 
 	--->	det_chunk
 	;	sem_chunk
 	;	mul_chunk
 	;	non_chunk
+	;	cc_mul_chunk
+	;	cc_non_chunk
 	.
 	
 
 	% Call a chunk in a new variable scope.
 	%
+/* ###  Error: no clauses for predicate `do'/3. */
 :- pred do(chunk, lua, lua).
-:- mode do(det_chunk, in, out) is det.
-:- mode do(sem_chunk, in, out) is semidet.
-:- mode do(mul_chunk, in, out) is multi.
-:- mode do(non_chunk, in, out) is nondet.
+:- mode do(in(det_chunk), in, out) is det.
+:- mode do(in(sem_chunk), in, out) is semidet.
+:- mode do(in(mul_chunk), in, out) is multi.
+:- mode do(in(non_chunk), in, out) is nondet.
 
 
 
-
-	
+	% Load a string and compile it into a chunk.
+	%
+/* ###  Error: no determinism declaration for exported function */
+/* ###    `lua.load_string'/2. */
+/* ###  Error: no clauses for function `load_string'/1. */
+:- func load_string(string::in) = (chunk::out(any_chunk)) is semidet.
 	
 
 %-----------------------------------------------------------------------------%
@@ -174,47 +187,12 @@
 	% like identifiers, used to look up a desired value from the Lua state.
 	% Unlike in Lua, vars in Mercury are evaluated lazily.
 	%
-:- type var 
-	---> 	name(string)
-	;	id(id)
-	;	some [T] (literal(T)).
-	;	some [T] (exp(T)).
-
-:- inst det_var
-	--->	name(ground)
-	;	id(ground)
-	;	literal(ground).
-	;	exp(det_exp).
-	
-:- type id.
-	
-:- inst semi_var == exp(semi_exp).
-:- inst mult_var == exp(mult_exp).
-:- inst nond_var == exp(nond_exp).
-:- inst fail_var == exp(fail_var).
-
-:- type expression(T) == pred(lua, T).
-
-:- type exp(T) == expression(T).
-
-:- inst det_exp 
-	-->	pred(in, out(I)) is det
-	;	pred(in, out(I)) is cc_multi.
-	
-:- inst semi_exp 
-	--->	pred(in, out(I)) is semidet
-	;	pred(in, out(I)) is cc_nondet.
-	
-:- inst mult_exp == pred(in, out(I)) is multi.
-:- isnt nond_exp == pred(in, out(I)) is nondet.
-:- inst fail_exp == pred(in, out(I)) is failure.
-	
-:- func var(exp(T)) = var.
-
+:- type var.
 
 	% Retreive the value of a variable.
 	% Nondeterministic variables are called with a comitted choice context.
 	%
+/* ###  Error: no clauses for function `value'/2. */
 :- func value(var, lua) = T is semidet.
 
 
@@ -222,12 +200,14 @@
 	% with that name unless refrenced in a scope which
 	% has that variable assigned to an upvalue.
 	%
-:- func name(string) = var.
+/* ###  Error: no clauses for function `name'/1. */
+:- func name(T) = var.
 
 	% Assign a locally scoped variable, creating a new one if needed.
-	% If the var already exists in a higher scope, it will act as if overwritten 
-	% in the local (or lower) scopes
+	% If the var already exists in a higher scope, it will act as if
+	% overwritten in the local (or lower) scopes
 	%
+/* ###  Error: no clauses for predicate `local'/4. */
 :- pred local(T, var, lua, lua).
 :- mode local(in(I), out, in, out) is det.
 :- mode local(in(I), in, in, out) is det.
@@ -241,33 +221,35 @@
 % Lua expressions
 %
 
+	% Varadic lists, (parenthesis reccomended)
+	%
+/* ###  Error: no clauses for function `,'/2. */
+:- func (var, var) = var.
+:- mode (in, in) = out is det.
+:- mode (out, out) = in is det. % nil is used to fill in for non-varadic input
 
+	% The type of the result, when evaluated, should be boolean 
+	%
+/* ###  Error: no clauses for function `=='/2. */
+:- func (var == var) = var. 	
+/* ###  Error: no clauses for function `~='/2. */
+:- func (var ~= var) = var.
 
-% Varadic lists, (parenthesis reccomended)
-:- func var, var = var.
-:- mode in, in = out is det.
-:- mode out, out = in is det. % nil is used to fill in for non-varadic input
+	% Table lookup.
+	%
+/* ###  Error: no clauses for function `var'/1. */
+:- func var^var = var. 
 
-% The type of the result, when evaluated, should be boolean 
-:- func var == var = var. 	
-:- func var ~= var = var.
-
-% Table lookup.
-:- func (var).(var) = var. 
-
-% Global variable
-:- func global(string) = var.
+	% Function call
+	%
+/* ###  Error: no clauses for function `'/2. */
+:- func ''(var, var) = var.
 
 % Function declaration
-:- func function(var, proc
-
-
-
-
-
-:- type exp(T) == expression(T).
-:- type expression == expression(var).
-:- type exp == expression.
+/* ###  Error: no determinism declaration for exported function */
+/* ###    `lua.function'/3. */
+/* ###  Error: no clauses for function `function'/2. */
+:- func function(var::in, chunk::in(any_chunk)) = (var::out) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -281,23 +263,24 @@
 	--->	none			% rarely used, represents invalid type
 	
 	% Value types
-	;	nil			% the abscence of value
-	;	number			% double prescision, casts to float
-	;	boolean			% boolean truth value, casts to bool
-	;	string			% string value, casts to string
-	;	lightuserdata		% A C pointer
+	;	nil_type		% the abscence of value
+	;	number_type		% double prescision, casts to float
+	;	boolean_type		% boolean truth value, casts to bool
+	;	string_type		% string value, casts to string
+	;	lightuserdata_type	% A C pointer
 	
 	% Refrence types
-	;	function		% A Lua function
-	;	table			% A Lua table
-	;	thread			% A Lua coroutine
-	;	userdata		% Full userdata 
+	;	function_type		% A Lua function
+	;	table_type		% A Lua table
+	;	thread_type		% A Lua coroutine
+	;	userdata_type		% Full userdata 
 	.
 	
 
 	% Look up the Lua type of a given variable. 
 	% 
-:- func lua_type(lua, var) = lua_type.
+/* ###  Error: no clauses for function `lua_type'/2. */
+:- func lua_type(var, lua) = lua_type.
 
 %-----------------------------------------------------------------------------%
 %
@@ -331,7 +314,8 @@
 
 	% Utility pred for evaluating whether or not an existential value is nil.
 	%
-:- pred is_nil(T::in) is semidet.
+/* ###  Error: no clauses for predicate `is_nil'/2. */
+:- pred is_nil(var::in, lua::in) is semidet.
 
 
 
@@ -394,11 +378,13 @@
 	% tables that preserve a table's uniqueness, given that unique tables
 	% represent new tables created and assigned values by Mercury.    
 	%
+/* ###  Error: no clauses for predicate `get'/3. */
 :- pred get(K, V, table).
 :- mode get(in, out, in) is semidet.
 :- mode get(out, in, in) is cc_nondet.
 :- mode get(out, out, in) is nondet.
 
+/* ###  Error: no clauses for function `get'/2. */
 :- func get(K, table) = V.
 :- mode get(in, in) = out is semidet.
 :- mode get(out, in) = in is cc_nondet.
@@ -406,6 +392,7 @@
 
 	% The keys of a table.
 	%
+/* ###  Error: no clauses for predicate `key'/2. */
 :- pred key(K, table).
 :- mode key(in, in) is semidet.
 :- mode key(out, in) is nondet.
@@ -416,14 +403,22 @@
 
 	% Create an empty table.
 	%
+/* ###  Error: no clauses for predicate `new_table'/1. */
 :- pred new_table(table::uo) is det.
+/* ###  Error: no clauses for function `new_table'/0. */
 :- func new_table = table.
+/* ###  Error: no determinism declaration for exported function */
+/* ###    `lua.new_table'/1. */
 :- mode new_table = uo.
 
 	% Create an empty table and assign a metatable to it.
 	%
+/* ###  Error: no clauses for predicate `table_meta'/2. */
 :- pred table_meta(table::uo, table::in) is det.
+/* ###  Error: no clauses for function `table_meta'/1. */
 :- func table_meta(table) = table.
+/* ###  Error: no determinism declaration for exported function */
+/* ###    `lua.table_meta'/2. */
 :- mode table_meta(in) = uo.
 
 % Metatables can define 'weakness' in tables, stating that keys and/or values in
@@ -438,14 +433,22 @@
 
 	% Determine the weakness of a table.
 	%
+/* ###  Error: no clauses for predicate `weakness'/2. */
 :- pred weakness(weakness::out, table::in) is det.
+/* ###  Error: no clauses for function `weakness'/1. */
 :- func weakness(table) = weakness.
 
 	% The following is shorthand for table_meta, assigning a metatable to a
 	% new table that only defines the table's weakness.
 	%
-:- pred new_weak_table(weakness::in, table::uo).
+/* ###  Error: no determinism declaration for exported predicate */
+/* ###    `lua.new_weak_table'/2. */
+/* ###  Error: no clauses for predicate `new_weak_table'/2. */
+:- pred new_weak_table(weakness::in, table::uo) is det.
+/* ###  Error: no clauses for function `new_weak_table'/1. */
 :- func new_weak_table(weakness) = table.
+/* ###  Error: no determinism declaration for exported function */
+/* ###    `lua.new_weak_table'/2. */
 :- mode new_weak_table(in) = uo.
 
 	% Assign a value to a unique table.
@@ -459,8 +462,9 @@
 	% WARNING: attempting to assign a value to a nil key will produce an
 	% error.
 	%
+/* ###  Error: no clauses for predicate `set'/4. */
 :- pred set(K::in, V::in, table::di, table::uo) is det.
-:- pred 'set :='(K::in, table::di, V::in) = (table::uo) is det.
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -489,58 +493,6 @@
 
 :- type function.
 
-
-	% Load a string and compile it into a Lua function.
-	%
-:- func load_string(string) = function.
-
-
-
-% Function prototypes are func and pred types that Lua can cast directly to
-% a Lua function.  Note that this is a one way process. Once converted to a Lua
-% function, these values cannot be compared or tested against the preds or funcs
-% used to construct them.  
-%
-% It is highly reccomended that function prototypes be made polymorphic, not 
-% bound to a paticular type.  If more type strictness is needed, use of the
-% function typeclass is reccomended.
-
-	% Prototype for a functionally pure Lua function.
-	% Semidet/cc_nondet versions return nil on falure.
-	%
-:- type function_pred(K, V) == pred(closure(K,V), closure(int,V)). 
-:- inst function_pred(K, V) 
-	--->	pred(ci, uo) is det
-	;	pred(ci, uo) is semidet
-	;	pred(ci, uo) is cc_multi
-	;	pred(ci, uo) is cc_nondet.
-
-:- func pred_to_function(function_pred(K,V)) = function.
-
-:- type function_func(K, V) == func(closure(K,V)) = closure(int,V). 
-:- inst function_func(K, V) 
-	--->	func(ci) = uo is det
-	;	func(ci) = uo is semidet.
-
-:- func func_to_function(function_func(K, V)) = function.
-
-% TODO: iterators?, multi/nondet functions?
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua Statements
-%
-
-	% In Lua 'statements' are more commands telling Lua what to do.
-	% Mercury's equivalent, the predicate, is a statement of absolute 
-	% truth.  Here statements are closer to predicates, describing truth
-	% values within a given Lua context.  
-	
-%-----------------------------------------------------------------------------%
-
-% TODO: coroutines?
-
 %-----------------------------------------------------------------------------%
 %
 % Lua userdata
@@ -562,6 +514,7 @@
 
 :- type lightuserdata ---> lightuserdata(c_pointer).
 
+/* ###  Error: no clauses for function `userdata'/1. */
 :- func userdata(T) = userdata.
 :- mode userdata(in) = out is det.
 :- mode userdata(out) = in is semidet.
@@ -587,7 +540,7 @@
 
 :- implementation.
 
-:- import_module lua.state.
+%:- import_module lua.state.
 
 :- import_module type_desc.
 :- import_module int.
@@ -629,18 +582,12 @@
 % The Lua state
 %
 
+
 :- type lua_state
 
 	% Abstract representation of a global Lua state
-	--->	global_state(	
-			globals::map(string, value), 
-			refs::map(int, value),
-			registry::map(string, value)
-		),
-		
-	;	lua_state(lua_state_ptr)	% Concrete lua_State
+	--->	lua_state(lua_state_ptr)	% Concrete lua_State
 	;	coroutine(thread)		% Child thread
-	;	scope(environment)		% Local scope
 	.
 	
 	
@@ -661,7 +608,7 @@
 	%
 :- func null_state = lua_state_ptr.
 
-:- pragma foreign_proc("C", null_state = Null::out, 
+:- pragma foreign_proc("C", null_state = (Null::out), 
 	[promise_pure, will_not_call_mercury], 
 	"Null = NULL;").
 
@@ -733,6 +680,12 @@ int luaMR_is_immutable(lua_State * L) {
 
 ").
 
+/* ###  Error: `:- pragma foreign_proc' declaration for predicate */
+/* ###    `lua.init'/3 */
+/* ###    without preceding `pred' declaration. */
+/* ###  Error: `:- pragma foreign_proc' declaration for undeclared mode of */
+/* ###    predicate `lua.init'/3. */
+/* ###  Error: no clauses for predicate `init'/3. */
 :- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
 
@@ -751,11 +704,23 @@ int luaMR_is_immutable(lua_State * L) {
 
 ").
 
+/* ###  Error: `:- pragma foreign_proc' declaration for predicate */
+/* ###    `lua.ready'/1 */
+/* ###    without preceding `pred' declaration. */
+/* ###  Error: `:- pragma foreign_proc' declaration for undeclared mode of */
+/* ###    predicate `lua.ready'/1. */
+/* ###  Error: no clauses for predicate `ready'/1. */
 :- pragma foreign_proc("C", ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaMR_ready(L);
 ").
 
+/* ###  Error: `:- pragma foreign_proc' declaration for predicate */
+/* ###    `lua.ready'/3 */
+/* ###    without preceding `pred' declaration. */
+/* ###  Error: `:- pragma foreign_proc' declaration for undeclared mode of */
+/* ###    predicate `lua.ready'/3. */
+/* ###  Error: no clauses for predicate `ready'/3. */
 :- pragma foreign_proc("C", ready(L::di, L1::uo, Answer::out), 
 	[promise_pure, will_not_call_mercury], "
 	if(luaMR_ready(L))
@@ -808,27 +773,9 @@ int luaMR_loader(lua_State * L) {
 % environment will not be collected by it's own garbage collector until the
 % non-native garbage collector calls the finalizer associated with it.
 
-:- type var(T)
-	---> 	arg(int)
-	;	local(int)
-	;	upvalue(int)
-	;	ref(ref)
-	;	value(T)
-	where equality is var_equals.
+:- type var ---> todo.
 
-var(T) = V :-
-	( 
-		I = Index, 
-			( 
-				V@arg(Index) 
-			; 
-				V@local(Index)
-			),
-		
 
-:- pred var_equals(var(T)::in, var(T)::in
-
-:- impure pred push_arg(lua_state, arg
 
 
 %-----------------------------------------------------------------------------%
@@ -885,38 +832,26 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 :- pragma foreign_enum("C", lua_type/0, 
 [
 	none - "LUA_TNONE",
-	nil - "LUA_TNIL",
-	boolean - "LUA_TBOOLEAN",
-	lightuserdata - "LUA_TLIGHTUSERDATA",
-	number - "LUA_TNUMBER",
-	string - "LUA_TSTRING",
-	table - "LUA_TTABLE",
-	function - "LUA_TFUNCTION",
-	userdata - "LUA_TUSERDATA",
-	thread - "LUA_TTHREAD"
+	nil_type - "LUA_TNIL",
+	boolean_type - "LUA_TBOOLEAN",
+	lightuserdata_type - "LUA_TLIGHTUSERDATA",
+	number_type - "LUA_TNUMBER",
+	string_type - "LUA_TSTRING",
+	table_type - "LUA_TTABLE",
+	function_type - "LUA_TFUNCTION",
+	userdata_type - "LUA_TUSERDATA",
+	thread_type - "LUA_TTHREAD"
 ]).
 
 
-lua_type(V) = Type :-
-	( V:nil ->
-		Type = nil
-	; V:bool ->
-		Type = boolean
-	; 
-	; (V:int ; V:float) ->
-		Type = number
-	; V:bool	
- sorry($module, $pred), fail.
 
-:- use_module lua.value.
-
-:- type value == lua.value.value.
-
-
-equal_value(_, _) :- sorry($module, $pred).
-
-
-is_nil(T) :- dynamic_cast(T, nil).
+/* ###  Error: clause for predicate `lua.is_nil'/1 */
+/* ###    without preceding `pred' declaration. */
+/* ###  In clause for predicate `is_nil'/1: */
+/* ###    error: ambiguous overloading causes type ambiguity. */
+/* ###    Possible type assignments include: */
+/* ###    V_3: lua.nil or lua.lua_type */
+is_nil(T) :- dynamic_cast(T, nil:nil).
 
 %-----------------------------------------------------------------------------%
 %
