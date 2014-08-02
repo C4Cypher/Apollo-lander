@@ -1,12 +1,3 @@
-/* ###  In module `lua': */
-/* ###    warning: modules `assoc_list', `bool', `float', `int', `list', */
-/* ###    `map', `pair' and `univ' are imported in the interface, but are */
-/* ###    not used in the interface. */
-/* ###  In module `lua': */
-/* ###    warning: modules `assoc_list', `bool', `float', `int', `list', */
-/* ###    `map', `pair' and `univ' are imported in the interface, but are */
-/* ###    not used in the interface. */
-
 %-----------------------------------------------------------------------------%
 % vim: ft=mercury
 %-----------------------------------------------------------------------------%
@@ -104,11 +95,15 @@
 	%
 :- type lua_state_ptr.
 
+	% Retreive the lua_State * of a given lua_state.
+	% Returns NULL for an abstract Lua state.
+	%
+:- func lua_state_ptr(lua) = lua_state_ptr.
+
 	% Retreives the varadic arguments passed to the current
 	% state, if in the context of a function call.
 	%
-/* ###  Error: no clauses for predicate `args'/3. */
-:- pred args(var::out, lua::in, lua::out) is semidet.
+:- pred args(var::out, lua::in) is semidet.
 
 
 
@@ -142,8 +137,7 @@
 :- inst cc_mul_chunk == (pred(in, out) is cc_multi).
 :- inst cc_non_chunk == (pred(in, out) is cc_nondet).
 
-/* ###  Warning: inst `lua.any_chunk'/0 does not match any of the types in */
-/* ###    scope. */
+
 :- inst any_chunk 
 	--->	det_chunk
 	;	sem_chunk
@@ -156,7 +150,6 @@
 
 	% Call a chunk in a new variable scope.
 	%
-/* ###  Error: no clauses for predicate `do'/3. */
 :- pred do(chunk, lua, lua).
 :- mode do(in(det_chunk), in, out) is det.
 :- mode do(in(sem_chunk), in, out) is semidet.
@@ -167,9 +160,6 @@
 
 	% Load a string and compile it into a chunk.
 	%
-/* ###  Error: no determinism declaration for exported function */
-/* ###    `lua.load_string'/2. */
-/* ###  Error: no clauses for function `load_string'/1. */
 :- func load_string(string::in) = (chunk::out(any_chunk)) is semidet.
 	
 
@@ -192,7 +182,6 @@
 	% Retreive the value of a variable.
 	% Nondeterministic variables are called with a comitted choice context.
 	%
-/* ###  Error: no clauses for function `value'/2. */
 :- func value(var, lua) = T is semidet.
 
 
@@ -200,14 +189,12 @@
 	% with that name unless refrenced in a scope which
 	% has that variable assigned to an upvalue.
 	%
-/* ###  Error: no clauses for function `name'/1. */
 :- func name(T) = var.
 
 	% Assign a locally scoped variable, creating a new one if needed.
 	% If the var already exists in a higher scope, it will act as if
 	% overwritten in the local (or lower) scopes
 	%
-/* ###  Error: no clauses for predicate `local'/4. */
 :- pred local(T, var, lua, lua).
 :- mode local(in(I), out, in, out) is det.
 :- mode local(in(I), in, in, out) is det.
@@ -223,32 +210,24 @@
 
 	% Varadic lists, (parenthesis reccomended)
 	%
-/* ###  Error: no clauses for function `,'/2. */
 :- func (var, var) = var.
 :- mode (in, in) = out is det.
 :- mode (out, out) = in is det. % nil is used to fill in for non-varadic input
 
 	% The type of the result, when evaluated, should be boolean 
 	%
-/* ###  Error: no clauses for function `=='/2. */
 :- func (var == var) = var. 	
-/* ###  Error: no clauses for function `~='/2. */
 :- func (var ~= var) = var.
 
 	% Table lookup.
 	%
-/* ###  Error: no clauses for function `var'/1. */
 :- func var^var = var. 
 
 	% Function call
 	%
-/* ###  Error: no clauses for function `'/2. */
 :- func ''(var, var) = var.
 
 % Function declaration
-/* ###  Error: no determinism declaration for exported function */
-/* ###    `lua.function'/3. */
-/* ###  Error: no clauses for function `function'/2. */
 :- func function(var::in, chunk::in(any_chunk)) = (var::out) is det.
 
 %-----------------------------------------------------------------------------%
@@ -279,7 +258,6 @@
 
 	% Look up the Lua type of a given variable. 
 	% 
-/* ###  Error: no clauses for function `lua_type'/2. */
 :- func lua_type(var, lua) = lua_type.
 
 %-----------------------------------------------------------------------------%
@@ -314,7 +292,6 @@
 
 	% Utility pred for evaluating whether or not an existential value is nil.
 	%
-/* ###  Error: no clauses for predicate `is_nil'/2. */
 :- pred is_nil(var::in, lua::in) is semidet.
 
 
@@ -378,13 +355,11 @@
 	% tables that preserve a table's uniqueness, given that unique tables
 	% represent new tables created and assigned values by Mercury.    
 	%
-/* ###  Error: no clauses for predicate `get'/3. */
 :- pred get(K, V, table).
 :- mode get(in, out, in) is semidet.
 :- mode get(out, in, in) is cc_nondet.
 :- mode get(out, out, in) is nondet.
 
-/* ###  Error: no clauses for function `get'/2. */
 :- func get(K, table) = V.
 :- mode get(in, in) = out is semidet.
 :- mode get(out, in) = in is cc_nondet.
@@ -392,7 +367,6 @@
 
 	% The keys of a table.
 	%
-/* ###  Error: no clauses for predicate `key'/2. */
 :- pred key(K, table).
 :- mode key(in, in) is semidet.
 :- mode key(out, in) is nondet.
@@ -403,23 +377,15 @@
 
 	% Create an empty table.
 	%
-/* ###  Error: no clauses for predicate `new_table'/1. */
 :- pred new_table(table::uo) is det.
-/* ###  Error: no clauses for function `new_table'/0. */
 :- func new_table = table.
-/* ###  Error: no determinism declaration for exported function */
-/* ###    `lua.new_table'/1. */
 :- mode new_table = uo.
 
 	% Create an empty table and assign a metatable to it.
 	%
-/* ###  Error: no clauses for predicate `table_meta'/2. */
 :- pred table_meta(table::uo, table::in) is det.
-/* ###  Error: no clauses for function `table_meta'/1. */
 :- func table_meta(table) = table.
-/* ###  Error: no determinism declaration for exported function */
-/* ###    `lua.table_meta'/2. */
-:- mode table_meta(in) = uo.
+:- mode table_meta(in) = uo is det.
 
 % Metatables can define 'weakness' in tables, stating that keys and/or values in
 % tables are weak refrences that do not prevent Lua from garbage collecting
@@ -433,22 +399,14 @@
 
 	% Determine the weakness of a table.
 	%
-/* ###  Error: no clauses for predicate `weakness'/2. */
 :- pred weakness(weakness::out, table::in) is det.
-/* ###  Error: no clauses for function `weakness'/1. */
 :- func weakness(table) = weakness.
 
 	% The following is shorthand for table_meta, assigning a metatable to a
 	% new table that only defines the table's weakness.
 	%
-/* ###  Error: no determinism declaration for exported predicate */
-/* ###    `lua.new_weak_table'/2. */
-/* ###  Error: no clauses for predicate `new_weak_table'/2. */
 :- pred new_weak_table(weakness::in, table::uo) is det.
-/* ###  Error: no clauses for function `new_weak_table'/1. */
 :- func new_weak_table(weakness) = table.
-/* ###  Error: no determinism declaration for exported function */
-/* ###    `lua.new_weak_table'/2. */
 :- mode new_weak_table(in) = uo.
 
 	% Assign a value to a unique table.
@@ -462,7 +420,6 @@
 	% WARNING: attempting to assign a value to a nil key will produce an
 	% error.
 	%
-/* ###  Error: no clauses for predicate `set'/4. */
 :- pred set(K::in, V::in, table::di, table::uo) is det.
 
 
@@ -514,7 +471,6 @@
 
 :- type lightuserdata ---> lightuserdata(c_pointer).
 
-/* ###  Error: no clauses for function `userdata'/1. */
 :- func userdata(T) = userdata.
 :- mode userdata(in) = out is det.
 :- mode userdata(out) = in is semidet.
