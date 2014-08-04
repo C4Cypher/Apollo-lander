@@ -78,15 +78,32 @@
 	% borrowed from the C API, procedures that query or manipulate the Lua 
 	% state will use the variable term 'L' to refer to the Lua state.
 	%
-:- type lua_state.
+:- type lua_state
 
-:- type lua == lua_state.
-	
-
-	% Verify that two Lua states represent the same information.
+	% Concrete state representation.
 	%
-/* ###  Error: no clauses for predicate `equiv_lua'/2. */
-:- pred equiv_lua(lua::in, lua::in) is semidet.
+	--->	lua_state(
+			state::lua_state_ptr,
+			context::status, 
+			environment::scope
+		).
+		
+:- instance index(lua_state, string).
+:- instance index(lua_state, int).
+	
+:- type status
+	--->	ready
+	;	scope(scope)
+	;	calling(function)
+	;	resumed(function)
+	;	error(string, error_type).
+
+:- type error_type
+	--->	runtime_error
+	;	syntax_error
+	;	memory_error
+	;	unhandled_error.
+:- type lua == lua_state.
 	
 
 	% The lua_state_ptr is a refrence to a lua_State derived from an
@@ -100,12 +117,6 @@
 	%
 :- func lua_state_ptr(lua) = lua_state_ptr.
 
-	% Retreives the varadic arguments passed to the current
-	% state, if in the context of a function call.
-	%
-:- pred args(var::out, lua::in) is semidet.
-
-
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
 % from one global lua_state are NOT compatible with other seperately created
@@ -115,53 +126,45 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Lua Chunks
+% Lua Variables and Scope
 %
 
 
 
-	% A chunk is a call to a Lua state within it's own variable scope.
-	% chunks may modify a Lua state and any variable visible to it's
-	% scope.  The current implementation does not permit chunks
-	% defined in Mercury to modify mutable Lua states in order to maintain
-	% functional purity.  A chunk that returns a value is an expression.
-	% The determinsim of a chunk is determined by the determinsm of
-	% the variables accessable to that chunk.
-	%
-:- type chunk == pred(lua,lua).
+:- type var
+	--->	stack(int)
+	;	global(string)
+	;	upvalue(id)
+	;	ref(id).
 
-:- inst det_chunk == (pred(in, out) is det).
-:- inst sem_chunk == (pred(in, out) is semidet).		
-:- inst mul_chunk == (pred(in, out) is multi).
-:- inst non_chunk == (pred(in, out) is nondet).
-:- inst cc_mul_chunk == (pred(in, out) is cc_multi).
-:- inst cc_non_chunk == (pred(in, out) is cc_nondet).
+:- type var(T
+
+:- type scope(T)
+	--->	some [S] (scope(S) => index(S, T)),
+	;	some [S] (local_scope(scope::S, parent::scope) => index(S, T)).
+
+:- instance index(scope, var).
+:- instance index(
+
+	% Identifiers specific to Lua's implementation.
+:- type id.
 
 
-:- inst any_chunk 
-	--->	det_chunk
-	;	sem_chunk
-	;	mul_chunk
-	;	non_chunk
-	;	cc_mul_chunk
-	;	cc_non_chunk
-	.
-	
+:- typeclass index(I, K) where [
+	some [V] pred index(I, K, V),
+	mode index(in, in, out) is semidet,
+	mode index(in, out, out) is nondet
+].
 
-	% Call a chunk in a new variable scope.
-	%
-:- pred do(chunk, lua, lua).
-:- mode do(in(det_chunk), in, out) is det.
-:- mode do(in(sem_chunk), in, out) is semidet.
-:- mode do(in(mul_chunk), in, out) is multi.
-:- mode do(in(non_chunk), in, out) is nondet.
+:- instance index(list(var)
+
+%-----------------------------------------------------------------------------%
+%
+% Lua Statements
+%	
 
 
 
-	% Load a string and compile it into a chunk.
-	%
-:- func load_string(string::in) = (chunk::out(any_chunk)) is semidet.
-	
 
 %-----------------------------------------------------------------------------%
 %
@@ -170,65 +173,7 @@
 
 
 
-	% In Lua, Variables contain values, however, due to the fact that 
-	% the values represented by Lua variables are stored in the Lua state
-	% by string name or int index, outside the context of a Lua state,
-	% a Lua variable is meaningless.  In Mercury, Lua variables act more
-	% like identifiers, used to look up a desired value from the Lua state.
-	% Unlike in Lua, vars in Mercury are evaluated lazily.
-	%
-:- type var.
 
-	% Retreive the value of a variable.
-	% Nondeterministic variables are called with a comitted choice context.
-	%
-:- func value(var, lua) = T is semidet.
-
-
-	% A named variable, refers to the global variable
-	% with that name unless refrenced in a scope which
-	% has that variable assigned to an upvalue.
-	%
-:- func name(T) = var.
-
-	% Assign a locally scoped variable, creating a new one if needed.
-	% If the var already exists in a higher scope, it will act as if
-	% overwritten in the local (or lower) scopes
-	%
-:- pred local(T, var, lua, lua).
-:- mode local(in(I), out, in, out) is det.
-:- mode local(in(I), in, in, out) is det.
-
-
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua expressions
-%
-
-	% Varadic lists, (parenthesis reccomended)
-	%
-:- func (var, var) = var.
-:- mode (in, in) = out is det.
-:- mode (out, out) = in is det. % nil is used to fill in for non-varadic input
-
-	% The type of the result, when evaluated, should be boolean 
-	%
-:- func (var == var) = var. 	
-:- func (var ~= var) = var.
-
-	% Table lookup.
-	%
-:- func var^var = var. 
-
-	% Function call
-	%
-:- func ''(var, var) = var.
-
-% Function declaration
-:- func function(var::in, chunk::in(any_chunk)) = (var::out) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -260,39 +205,6 @@
 	% 
 :- func lua_type(var, lua) = lua_type.
 
-%-----------------------------------------------------------------------------%
-%
-% The nil value
-%
-
-% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
-% that is not assigned a value with produce a nil result.
-%
-% Furthermore, assigning a key value to nil will unassign that value. Note that 
-% this does not neccicarily delete the value, if Lua holds a refrence to that
-% value elsewhere, it will not be garbage collected.
-%
-% In normal Lua semantics, using nil as a key value produces an error, however
-% due to the Mercury semantics used in this library, doing so will either fail
-% or return another nil value.  This is both for the sake of safer runtime
-% integration of Mercury's strict type system with Lua's dynamic type system,
-% and also as a practical consideration of Mercury's potentially
-% nondeterministic nature, as testing for a paticular type wil result in a
-% backtracking failure.
-%
-% It is to be noted that Lua's nil value is not to be confused with C's NULL
-% value.  While used in similar ways, Lua will interpret C's NULL as the number
-% zero, wheras C has no direct representation for Lua's nil value.
-%
-% As a result of this, Lua's semantics on conditional tests are slightly
-% different than C's.   C interprets any numeric value other than 0 as true.
-% In contrast, Lua interprets ANY value other than boolean false or nil as true.
-
-:- type nil ---> nil.
-
-	% Utility pred for evaluating whether or not an existential value is nil.
-	%
-:- pred is_nil(var::in, lua::in) is semidet.
 
 
 
@@ -539,14 +451,6 @@
 %
 
 
-:- type lua_state
-
-	% Abstract representation of a global Lua state
-	--->	lua_state(lua_state_ptr)	% Concrete lua_State
-	;	coroutine(thread)		% Child thread
-	.
-	
-	
 
 
 	% The lua_state_ptr is a refrence to a lua_State derived from an
