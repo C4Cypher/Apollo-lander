@@ -132,15 +132,15 @@
 
 
 :- type var
-	--->	stack(int)
+	--->	some [T] (var(T))	
+	;	stack(int)
 	;	global(string)
 	;	upvalue(id)
 	;	ref(id).
 
-:- type var(T
 
-:- type scope(T)
-	--->	some [S] (scope(S) => index(S, T)),
+:- type scope
+	--->	scope(,
 	;	some [S] (local_scope(scope::S, parent::scope) => index(S, T)).
 
 :- instance index(scope, var).
