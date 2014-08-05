@@ -57,78 +57,54 @@
 
 :- interface.
 
-:- import_module int.
-:- import_module float.
-:- import_module bool.
-:- import_module string.
-:- import_module list.
-:- import_module pair.
-:- import_module assoc_list.
-:- import_module map.
+:- import_module io.
 :- import_module univ.
 
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua state
+% The Lua Global environment.
 %
-
-	% The lua type represents the state of a running 
-	% Lua Virtual Machine. (Lua VM for short) Note that as a convention 
-	% borrowed from the C API, procedures that query or manipulate the Lua 
-	% state will use the variable term 'L' to refer to the Lua state.
-	%
-:- type lua_state
-
-	% Concrete state representation.
-	%
-	--->	lua_state(
-			state::lua_state_ptr,
-			context::status, 
-			environment::scope
-		).
-		
-:- instance index(lua_state, string).
-:- instance index(lua_state, int).
 	
-:- type status
-	--->	ready
-	;	scope(scope)
-	;	calling(function)
-	;	resumed(function)
-	;	error(string, error_type).
+	
+% These calls are relevant inside the context of a Mercury predicate being
+% called as a Lua function.
+
+	% Retreives a refrence to the function being called.
+	%
+:- func get_call = function.
+
+	% If the call in question passes io.state, access and modification
+	% of global variables is permitted, as is the calling of other
+	% Lua functions.
+	
+:- pred get_global(string::in, univ::out, io::di, io::uo) is det.
+:- pred set_global(string::in, T::in, io::di, io::uo) is det.
+
+:- pred call_function(function::in, vars::in, vars::out, io::di, io::uo) 
+	is det.
+
+
+
+	% Thrown when Lua experiences an error.
+	%
+:- type lua_error(error_type, string).
 
 :- type error_type
 	--->	runtime_error
 	;	syntax_error
 	;	memory_error
 	;	unhandled_error.
-:- type lua == lua_state.
-	
-
-	% The lua_state_ptr is a refrence to a lua_State derived from an
-	% instantiated Lua VM.  This type is defined in lua.h as
-	% the C type "lua_State *". 
-	%
-:- type lua_state_ptr.
-
-	% Retreive the lua_State * of a given lua_state.
-	% Returns NULL for an abstract Lua state.
-	%
-:- func lua_state_ptr(lua) = lua_state_ptr.
 
 
-% WARNING! Refrences to Lua types (tables, functions, userdata) derived
-% from one global lua_state are NOT compatible with other seperately created
-% lua_states. The only exception to this is lua_states created as threads.
-% lua_threads may freely pass variables to or from their parent state and
-% sibling threads.
+
 
 %-----------------------------------------------------------------------------%
 %
-% Lua Variables and Scope
+% The nil value
 %
 
+<<<<<<< HEAD
 
 
 :- type var
@@ -159,19 +135,70 @@
 :- instance index(list(var)
 
 %-----------------------------------------------------------------------------%
+=======
+% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
+% that is not assigned a value with produce a nil result.
+>>>>>>> 98800fd6b28631a130b3a361a853e2f71a14eec4
 %
-% Lua Statements
-%	
+% Furthermore, assigning a key value to nil will unassign that value. Note that 
+% this does not neccicarily delete the value, if Lua holds a refrence to that
+% value elsewhere, it will not be garbage collected.
+%
+% In normal Lua semantics, using nil as a key value produces an error, however
+% due to the Mercury semantics used in this library, doing so will either fail
+% or return another nil value.  This is both for the sake of safer runtime
+% integration of Mercury's strict type system with Lua's dynamic type system,
+% and also as a practical consideration of Mercury's potentially
+% nondeterministic nature, as testing for a paticular type wil result in a
+% backtracking failure.
+%
+% It is to be noted that Lua's nil value is not to be confused with C's NULL
+% value.  While used in similar ways, Lua will interpret C's NULL as the number
+% zero, wheras C has no direct representation for Lua's nil value.
+%
+% As a result of this, Lua's semantics on conditional tests are slightly
+% different than C's.   C interprets any numeric value other than 0 as true.
+% In contrast, Lua interprets ANY value other than boolean false or nil as true.
 
+:- type nil ---> nil.
 
-
+	% Utility pred for evaluating whether or not an existential value is nil.
+	%
+:- pred is_nil(var::in, lua::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
-% Lua Variables and Expressions
+% Lua Variables.
 %
 
+	% This type represents the Mercury equivalent to Lua's variable list
+	% espression, used to pass varadic function arguments and return
+	% values.
+	
+:- type vars
+	--->	some [T] (var(T))
+	;	some [T] (cons_var(T, vars))
+	where equality is unify_vars.
+	
+	% Due to nil's special status as the abscence of value, a single
+	% nil value is passed in place of the empty list and will unify
+	% with lists of nil.
+	%
+:- pred unify_vars(vars::in, vars::in) is det.
 
+:- func vars(T, vars) = vars.
+:- mode vars(in, in) = out is det.
+:- mode vars(unused, out) = in is det.
+:- mode vars(out, out) = in is semidet.
+	
+:- func vars , vars = vars.
+:- mode in, in = out is det.
+:- mode out, out = in is semidet.
+
+:- func univ_list(list(univ)) = vars.
+:- mode univ_list(in) = out is det.
+:- mode uinv_list(out) = in is det.
+	
 
 
 
@@ -206,39 +233,6 @@
 :- func lua_type(var, lua) = lua_type.
 
 
--%-----------------------------------------------------------------------------%
-%
-% The nil value
-%
-
-% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
-% that is not assigned a value with produce a nil result.
-%
-% Furthermore, assigning a key value to nil will unassign that value. Note that 
-% this does not neccicarily delete the value, if Lua holds a refrence to that
-% value elsewhere, it will not be garbage collected.
-%
-% In normal Lua semantics, using nil as a key value produces an error, however
-% due to the Mercury semantics used in this library, doing so will either fail
-% or return another nil value.  This is both for the sake of safer runtime
-% integration of Mercury's strict type system with Lua's dynamic type system,
-% and also as a practical consideration of Mercury's potentially
-% nondeterministic nature, as testing for a paticular type wil result in a
-% backtracking failure.
-%
-% It is to be noted that Lua's nil value is not to be confused with C's NULL
-% value.  While used in similar ways, Lua will interpret C's NULL as the number
-% zero, wheras C has no direct representation for Lua's nil value.
-%
-% As a result of this, Lua's semantics on conditional tests are slightly
-% different than C's.   C interprets any numeric value other than 0 as true.
-% In contrast, Lua interprets ANY value other than boolean false or nil as true.
-
-:- type nil ---> nil.
-
-	% Utility pred for evaluating whether or not an existential value is nil.
-	%
-:- pred is_nil(var::in, lua::in) is semidet.
 
 
 %-----------------------------------------------------------------------------%
@@ -301,19 +295,12 @@
 	%
 :- pred get(K, V, table).
 :- mode get(in, out, in) is semidet.
-:- mode get(out, in, in) is cc_nondet.
+:- mode get(out, in, in) is nondet.
 :- mode get(out, out, in) is nondet.
 
-:- func get(K, table) = V.
-:- mode get(in, in) = out is semidet.
-:- mode get(out, in) = in is cc_nondet.
-:- mode get(out, in) = out is nondet.
+:- func table ^ key(K) = V is semidet.
 
-	% The keys of a table.
-	%
-:- pred key(K, table).
-:- mode key(in, in) is semidet.
-:- mode key(out, in) is nondet.
+
 
 % Tables may not be modified unless they are unique, garunteeing that Mercury
 % holds the only refrence to a table, and as a result avoids causing any 
@@ -355,9 +342,6 @@
 
 	% Assign a value to a unique table.
 	%
-	% !Table ^ set(Key, Value).
-	% Table0 ^ set(Key) := Value = Table1.
-	%
 	% Assigning multiple values to the same key will overwrite any existing
 	% value assigned to that key.
 	%
@@ -365,6 +349,9 @@
 	% error.
 	%
 :- pred set(K::in, V::in, table::di, table::uo) is det.
+
+:- func (table ^ elem(K) := V) = table.
+:- mode (di ^ elem(in) := in) = uo is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -455,17 +442,10 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
-#define MR_LUA_MODULE ""MR_LUA_LANDER_MODULE""
-#define MR_LUA_READY ""MR_LUA_LANDER_READY""
-#define MR_LUA_IMMUTABLE ""MR_LUA_IMMUTABLE""
+#define MR_LUA_MODULE ""MR_LUA_MODULE""
 #define MR_LUA_UDATA ""MR_LUA_UDATA_METATABLE""
 
 #define MR_LUA_TYPE ""__mercury_type""
-
-
-
-#define MR_LUA_FUNCTION_UPVALUE 1
-
 
 ").
 
@@ -484,27 +464,30 @@
 
 
 
+% The lua type represents the state of a running Lua Virtual Machine. (Lua VM
+% for short) Note that as a convention borrowed from the C API, procedures 
+% that query or manipulate the Lua state will use the variable term 'L' to refer 
+% to the Lua state.
 
-	% The lua_state_ptr is a refrence to a lua_State derived from an
-	% instantiated Lua VM.  This type is defined in lua.h as
-	% the C type "lua_State *". 
-	%
-:- type lua_state_ptr.
-
-
-:- pragma foreign_type("C", lua_state_ptr, "lua_State *",
+:- pragma foreign_type("C", lua_state, "lua_State *",
 	[can_pass_as_mercury_type]).
 
 	% For the sake of safety and sanity checking, produce a lua_state_ptr
 	% instantiated as a NULL pointer.
 	%
-:- func null_state = lua_state_ptr.
+:- func null_state = lua_state.
 
 :- pragma foreign_proc("C", null_state = (Null::out), 
 	[promise_pure, will_not_call_mercury], 
 	"Null = NULL;").
 
+% WARNING! Refrences to Lua types (tables, functions, userdata) derived
+% from one global lua_state are NOT compatible with other seperately created
+% lua_states. The only exception to this is lua_states created as threads.
+% lua_threads may freely pass variables to or from their parent state and
+% sibling threads.
 
+% TODO: Mutable current state
 
 
 %-----------------------------------------------------------------------------%
@@ -554,30 +537,12 @@ void luaMR_init(lua_State * L) {
 	/* Mark Lua as ready */
 	lua_pushboolean(L, 1);
 	luaMR_setregistry(L, MR_LUA_READY);
-}
-
-/* Mark a Lua state (and all of it's child threads) as immutable. */
-void luaMR_make_immutable(lua_State * L) {
-	lua_pushboolean(L, 1);
-	luaMR_setregistry(L, MR_LUA_IMMUTABLE);
-}
-
-/* Check to see if a lua_State is marked as immutable. */
-int luaMR_is_immutable(lua_State * L) {
-	luaMR_getregistry(L, MR_LUA_IMMUTABLE);
-	const int result = lua_toboolean(L, -1);
-	lua_pop(L, 1);
-	return result;
-}
+} 
 
 ").
 
-/* ###  Error: `:- pragma foreign_proc' declaration for predicate */
-/* ###    `lua.init'/3 */
-/* ###    without preceding `pred' declaration. */
-/* ###  Error: `:- pragma foreign_proc' declaration for undeclared mode of */
-/* ###    predicate `lua.init'/3. */
-/* ###  Error: no clauses for predicate `init'/3. */
+:- pred init(lua_state::in, io::di, io::uo).
+
 :- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
 
@@ -596,23 +561,13 @@ int luaMR_is_immutable(lua_State * L) {
 
 ").
 
-/* ###  Error: `:- pragma foreign_proc' declaration for predicate */
-/* ###    `lua.ready'/1 */
-/* ###    without preceding `pred' declaration. */
-/* ###  Error: `:- pragma foreign_proc' declaration for undeclared mode of */
-/* ###    predicate `lua.ready'/1. */
-/* ###  Error: no clauses for predicate `ready'/1. */
+
 :- pragma foreign_proc("C", ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaMR_ready(L);
 ").
 
-/* ###  Error: `:- pragma foreign_proc' declaration for predicate */
-/* ###    `lua.ready'/3 */
-/* ###    without preceding `pred' declaration. */
-/* ###  Error: `:- pragma foreign_proc' declaration for undeclared mode of */
-/* ###    predicate `lua.ready'/3. */
-/* ###  Error: no clauses for predicate `ready'/3. */
+
 :- pragma foreign_proc("C", ready(L::di, L1::uo, Answer::out), 
 	[promise_pure, will_not_call_mercury], "
 	if(luaMR_ready(L))
