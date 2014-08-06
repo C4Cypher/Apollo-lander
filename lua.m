@@ -57,6 +57,8 @@
 
 :- interface.
 
+:- include_module lua.state.
+
 :- import_module io.
 :- import_module univ.
 
@@ -70,9 +72,6 @@
 % These calls are relevant inside the context of a Mercury predicate being
 % called as a Lua function.
 
-	% Retreives a refrence to the function being called.
-	%
-:- func get_call = function.
 
 	% If the call in question passes io.state, access and modification
 	% of global variables is permitted, as is the calling of other
@@ -83,8 +82,6 @@
 
 :- pred call_function(function::in, vars::in, vars::out, io::di, io::uo) 
 	is det.
-
-
 
 	% Thrown when Lua experiences an error.
 	%
@@ -104,41 +101,9 @@
 % The nil value
 %
 
-<<<<<<< HEAD
 
-
-:- type var
-	--->	some [T] (var(T))	
-	;	stack(int)
-	;	global(string)
-	;	upvalue(id)
-	;	ref(id).
-
-
-:- type scope
-	--->	scope(,
-	;	some [S] (local_scope(scope::S, parent::scope) => index(S, T)).
-
-:- instance index(scope, var).
-:- instance index(
-
-	% Identifiers specific to Lua's implementation.
-:- type id.
-
-
-:- typeclass index(I, K) where [
-	some [V] pred index(I, K, V),
-	mode index(in, in, out) is semidet,
-	mode index(in, out, out) is nondet
-].
-
-:- instance index(list(var)
-
-%-----------------------------------------------------------------------------%
-=======
 % In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
 % that is not assigned a value with produce a nil result.
->>>>>>> 98800fd6b28631a130b3a361a853e2f71a14eec4
 %
 % Furthermore, assigning a key value to nil will unassign that value. Note that 
 % this does not neccicarily delete the value, if Lua holds a refrence to that
@@ -186,14 +151,48 @@
 	%
 :- pred unify_vars(vars::in, vars::in) is det.
 
+:- implementation. % TODO: Move to main implementation
+
+unify_vars(var(T1), var(T2)) :- dynamic_cast(T1, T2).
+
+unify_vars(cons_var(T1, Vars1), cons_var(T2, Vars2) :-
+	dynamic_cast(T1, T2),
+	unify_vars(Vars1, Vars2).
+	
+unify_vars(var(T1), cons_var(T2, var(nil))) :- dynamic_cast(T1, T2).
+
+unify_vars(cons_var(T1, var(nil)), var(T2)) :- dynamic_cast(T1, T2).
+
+:- interface.
+
 :- func vars(T, vars) = vars.
 :- mode vars(in, in) = out is det.
 :- mode vars(unused, out) = in is det.
 :- mode vars(out, out) = in is semidet.
+
+:- implementation. % TODO: Move to main implementation
+
+vars(T::in, Vars::in) = ('new cons_var'(T, Vars)::out).
+
+vars(_, Vars) = cons_var(_, Vars).
+
+vars(T1, Vars) = cons_var(T2, Vars) :- dynamic_cast(T1, T2). 
+
+:- interface.
 	
 :- func vars , vars = vars.
 :- mode in, in = out is det.
 :- mode out, out = in is semidet.
+
+:- implementation. % TODO: Move to main implementation
+
+(T::in) , (Vars::in) = ('new cons_var'(T, Vars)::out).
+
+_ , Vars:vars = cons_var(_, Vars).
+
+T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2). 
+
+:- interface.
 
 :- func univ_list(list(univ)) = vars.
 :- mode univ_list(in) = out is det.
@@ -257,6 +256,9 @@
 % Lua variables with assigned refrence types may be assigned metatables, 
 % Lua tables that store metadata about how Lua may interact with said variables.
 
+:- type ref.
+
+:- func value(ref) = T is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -299,8 +301,6 @@
 :- mode get(out, out, in) is nondet.
 
 :- func table ^ key(K) = V is semidet.
-
-
 
 % Tables may not be modified unless they are unique, garunteeing that Mercury
 % holds the only refrence to a table, and as a result avoids causing any 
@@ -379,7 +379,14 @@
 % dostring, or passing a lua_CFunction function pointer.
 
 
-:- type function.
+:- type function
+	---> 	func_function(func(vars) = vars)
+	;	pred_function(pred(vars, vars))
+	;	impure_function(pred(vars, vars, io, io))
+	;	c_function(c_function)
+	;	lua_function(ref).
+	
+:- type c_function.
 
 %-----------------------------------------------------------------------------%
 %
@@ -427,7 +434,7 @@
 
 :- implementation.
 
-%:- import_module lua.state.
+:- import_module lua.state.
 
 :- import_module type_desc.
 :- import_module int.
@@ -444,6 +451,7 @@
 
 #define MR_LUA_MODULE ""MR_LUA_MODULE""
 #define MR_LUA_UDATA ""MR_LUA_UDATA_METATABLE""
+#define MR_LUA_READY ""MR_LUA_IS_READY""
 
 #define MR_LUA_TYPE ""__mercury_type""
 
@@ -482,12 +490,14 @@
 	"Null = NULL;").
 
 % WARNING! Refrences to Lua types (tables, functions, userdata) derived
-% from one global lua_state are NOT compatible with other seperately created
+% from one global lua_state are NOT compatible with other se+perately created
 % lua_states. The only exception to this is lua_states created as threads.
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
 
-% TODO: Mutable current state
+:- mutable(current_lua_state, lua_state, null_state, ground, 
+	[trailed, attatched_to_io_state, 
+	foreign_name("C", "luaMR_current_lua_state"), thread local]).
 
 
 %-----------------------------------------------------------------------------%
@@ -513,7 +523,11 @@ void luaMR_setupvalue(lua_State * L, const int id) {
 }
 
 void luaMR_init(lua_State * L) {
-
+	
+	/* set the given Lua state as the current Lua state */
+	
+	luaMR_current_lua_state = L;
+	
 	/* Add tables to the registry. */
 	
 	lua_newtable(L);
@@ -561,21 +575,22 @@ void luaMR_init(lua_State * L) {
 
 ").
 
+:- pred ready(lua_state::in) is semidet.
 
 :- pragma foreign_proc("C", ready(L::in), 
 	[promise_pure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaMR_ready(L);
 ").
 
+:- pred ready(lua_state::in, bool::out, io::di, io::uo) is det.
 
-:- pragma foreign_proc("C", ready(L::di, L1::uo, Answer::out), 
+:- pragma foreign_proc("C", ready(L::in, , Answer::out, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "
 	if(luaMR_ready(L))
 		Answer = MR_YES;
 	else
 		Answer = MR_NO;
 
-	L1 = L;
 ").
 
 
@@ -598,10 +613,11 @@ int luaMR_loader(lua_State * L) {
 ").
 
 
-%-----------------------------------------------------------------------------%
+
+
 %-----------------------------------------------------------------------------%
 %
-% Variables
+% Refrences
 %
 
 % A Lua variable can be used to store any value that can be stored as a 
@@ -619,16 +635,6 @@ int luaMR_loader(lua_State * L) {
 % Mercury and Lua in such a manner that a Variable passed to it's non-native 
 % environment will not be collected by it's own garbage collector until the
 % non-native garbage collector calls the finalizer associated with it.
-
-:- type var ---> todo.
-
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Refrences
-%
 
 	% The ref type represents an indirect refrence to a variable 
 	% instantiated in Lua. So long as Mercury does not garbage collect 
