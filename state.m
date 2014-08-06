@@ -10,7 +10,31 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% This file provides typeclass for the Lua state.
+% This file provides access to some of the impure, lower level calls of the
+% Lua API for manipulating the Lua state.
+%
+%
+% Each function call is provided with a local stack which function arguments
+% are pushed onto before the call.  The function call returns an integer
+% and Lua uses that number to determine the number of return values to take
+% off the top of the stack (from the bottom up).  In both cases the first 
+% argument is pushed first, with the last argument on the top of the stack.
+% 
+% Values on the stack can be refrenced by integer index values. Positive 
+% integers refrence values from the bottom of the stack, starting at one,
+% while negative integers refrences the stack from the top down (-1 referring
+% to the value at the top of the stack).
+%
+% Due to the fact that different versions of Lua handle the global environment
+% and the registry in different ways, for the sake of compatability, this
+% library will not permit the explicit use of pseudo-indexes.  Instead, 
+% seperate access predicates have been provided in the place of pseudo-indexes.
+%
+% Warning: Lua employs minimal error checking when performing low level
+% stack operations. It trusts that code directly manipulating the stack
+% will avoid using invalid stack refrences or stack overflows through the use
+% of top, get_top, set_top and check_stack.  For more information, refer
+% to the Lua Refrence Manual, and the examples provided at the Lua User's Wiki.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -18,8 +42,6 @@
 :- module state.
 
 :- interface.
-
-
 
 
 	% Create a fresh, new , initialized lua_state.
@@ -47,27 +69,6 @@
 
 :- type index == int.
 
-% Each function call is provided with a local stack which function arguments
-% are pushed onto before the call.  The function call returns an integer
-% and Lua uses that number to determine the number of return values to take
-% off the top of the stack (from the bottom up).  In both cases the first 
-% argument is pushed first, with the last argument on the top of the stack.
-% 
-% Values on the stack can be refrenced by integer index values. Positive 
-% integers refrence values from the bottom of the stack, starting at one,
-% while negative integers refrences the stack from the top down (-1 referring
-% to the value at the top of the stack).
-
-% Due to the fact that different versions of Lua handle the global environment
-% and the registry in different ways, for the sake of compatability, this
-% library will not permit the explicit use of pseudo-indexes.  Instead, 
-% seperate access predicates have been provided in the place of pseudo-indexes.
-
-% Warning: Lua employs minimal error checking when performing low level
-% stack operations. It trusts that code directly manipulating the stack
-% will avoid using invalid stack refrences or stack overflows through the use
-% of top, get_top, set_top and check_stack.  For more information, refer
-% to the Lua Refrence Manual, and the examples provided at the Lua User's Wiki.
 
 	% Retreive the index for the top value on the stack.
 	% Also represents the number of values on the stack.
