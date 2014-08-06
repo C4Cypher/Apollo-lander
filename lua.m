@@ -72,6 +72,10 @@
 % These calls are relevant inside the context of a Mercury predicate being
 % called as a Lua function.
 
+	% Verify that the current context has a valid Lua state
+	%
+:- pred ready is semidet.
+:- pred ready(bool::out, io::di, io::uo) is det.
 
 	% If the call in question passes io.state, access and modification
 	% of global variables is permitted, as is the calling of other
@@ -353,7 +357,7 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 :- func (table ^ elem(K) := V) = table.
 :- mode (di ^ elem(in) := in) = uo is det.
 
-
+%-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 %
 % Lua functions
@@ -374,20 +378,84 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 % scoped, allowing side effects on any local variable declared in a scope
 % outside of the function's scope.
 %
-% This fact effectively removes any way of determining a Lua function's purity
-% outside of compiling a function directly with calls like loadstring and
-% dostring, or passing a lua_CFunction function pointer.
+% This fact effectively removes any way of garunteeing the purity a compiled 
+% Lua function.
+%
+% Lua defines a closure as a foreign function with a number of associated
+% upvalues.
 
-
-:- type function
-	---> 	func_function(func(vars) = vars)
-	;	pred_function(pred(vars, vars))
-	;	impure_function(pred(vars, vars, io, io))
-	;	c_function(c_function)
-	;	lua_function(ref).
 	
+:- type function
+	---> 	mr_function(mr_function)
+	;	mr_closure(mr_function, vars)
+	;	c_function(c_function)
+	;	c_closure(c_function, vars)
+	;	lua_function(ref).
+
+	% A C function pointer adhering to the signature defined by
+	% the lua_CFunction typedef.
+	%
 :- type c_function.
 
+
+%-----------------------------------------------------------------------------%
+%
+% Mercury calls as Lua functions
+%
+
+% The names of the constructors for the mr_function are slight misnomers, 
+% indicating intended usage, not strict Mercury purity casting.
+%
+% All of these types must be cast as pure.
+%
+% Note: Mercury function calls are a C function closures with the higher order
+% value passed as the first upvalue.
+%
+% Functions constructed from calls with nondeterministic modes will return a 
+% Lua function iterator.  
+
+	
+	% Higher order calls that may be passed to Lua as callable
+	% functions.
+	%
+:- type mr_function
+	--->	pure_function(pred(vars, vars), det)
+	;	pure_closure(pred(vars, vars, vars), det)
+	;	semipure_function(pred(vars, vars, io, io))
+	;	impure_function(pred(io, io)).
+	
+:- inst pure_function
+	--->	pure_function(pred(in, out) is det, bound(det))
+	;	pure_function(pred(in, out) is cc_multi, bound(det))
+	;	pure_function(pred(in, out) is semidet, bound(semidet))
+	;	pure_function(pred(in, out) is cc_nondet, bound(semidet))
+	;	pure_function(pred(in, out) is multi, bound(multi))
+	;	pure_function(pred(in, out) is nondet, bound(nondet)).
+	
+:- inst pure_closure
+	--->	pure_closure(pred(in, in, out) is det, bound(det))
+	;	pure_closure(pred(in, in, out) is cc_multi, bound(det))
+	;	pure_closure(pred(in, in, out) is semidet, bound(semidet))
+	;	pure_closure(pred(in, in, out) is cc_nondet, bound(semidet))
+	;	pure_closure(pred(in, in, out) is multi, bound(multi))
+	;	pure_closure(pred(in, in, out) is nondet, bound(nondet)).
+	
+:- inst semipure_function
+	---> 	semipure_function(pred(in, out, di, uo) is det).
+	
+:- inst semipure_closure
+	---> 	semipure_closure(pred(in, in, out, di, uo) is det).
+	
+:- inst impure_function
+	--->	impure_function(pred(di, uo) is det).
+
+:- type det
+	--->	det
+	;	semidet
+	;	multi
+	;	nondet.
+	
+%-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 %
 % Lua userdata
