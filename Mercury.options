@@ -6,8 +6,11 @@
 # Mercury.options - module-specific flags for Mmake and `mmc --make'.
 #-----------------------------------------------------------------------------#
 
+# MCFLAGS += --flag
 # MCFLAGS-module += --flag
 
-MCFLAGS-lua += --no-inform-inferred --no-warn-det-decls-too-lax --no-warn-inferred-erroneous
+MCFLAGS += --no-inform-inferred
+MCFLAGS += --no-warn-det-decls-too-lax
+MCFLAGS += --no-warn-inferred-erroneous
 
-MCFLAGS-state += --no-inform-inferred --no-warn-det-decls-too-lax --no-warn-inferred-erroneous 
+
