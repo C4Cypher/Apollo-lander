@@ -140,66 +140,72 @@
 	% espression, used to pass varadic function arguments and return
 	% values.
 	
-:- type vars
-	--->	some [T] (var(T))
-	;	some [T] (cons_var(T, vars))
-	where equality is unify_vars.
+:- type vars.
 	
+:- implementation. % TODO: Merge with main implementation
+
+:- type vars
+	--->	var(univ)
+	;	cons(univ, vars))
+	where equality is unify_vars.	
+	
+
+
 	% Due to nil's special status as the abscence of value, a single
 	% nil value is passed in place of the empty list and will unify
 	% with lists of nil.
 	%
 :- pred unify_vars(vars::in, vars::in) is det.
 
-:- implementation. % TODO: Move to main implementation
-
-unify_vars(var(T1), var(T2)) :- dynamic_cast(T1, T2).
-
-unify_vars(cons_var(T1, Vars1), cons_var(T2, Vars2) :-
-	dynamic_cast(T1, T2),
-	unify_vars(Vars1, Vars2).
+unify_vars(var(U), var(U)).
+ 
+unify_vars(cons(U, Us1), cons(U, Us2) :-
+	unify_vars(Us1, Us2).
 	
-unify_vars(var(T1), cons_var(T2, var(nil))) :- dynamic_cast(T1, T2).
+unify_vars(var(U), cons(U, Us)) :- 
+	nil_vars(Us).
+	
+unify_vars(cons(U, Us)), var(U)) :- 
+	nil_vars(Us).
 
-unify_vars(cons_var(T1, var(nil)), var(T2)) :- dynamic_cast(T1, T2).
+	% A given set of vars is composed of nothing but nil values.
+	%
+:- pred nil_vars(vars::in) is semidet.
+
+nil_vars(var(univ(nil))).
+nil_vars(cons(univ(nil), Us)) :- nil_vars(Us).
 
 :- interface.
 
-:- func vars(T, vars) = vars.
-:- mode vars(in, in) = out is det.
-:- mode vars(unused, out) = in is det.
-:- mode vars(out, out) = in is semidet.
+:- func vars(T) = vars.
+:- mode vars(in) = out is det.
+:- mode vars(out) = in is semidet.
 
-:- implementation. % TODO: Move to main implementation
-
-vars(T::in, Vars::in) = ('new cons_var'(T, Vars)::out).
-
-vars(_, Vars) = cons_var(_, Vars).
-
-vars(T1, Vars) = cons_var(T2, Vars) :- dynamic_cast(T1, T2). 
-
-:- interface.
-	
-:- func vars , vars = vars.
+:- func T1 , T2 = vars.
 :- mode in, in = out is det.
 :- mode out, out = in is semidet.
-
-:- implementation. % TODO: Move to main implementation
-
-(T::in) , (Vars::in) = ('new cons_var'(T, Vars)::out).
-
-_ , Vars:vars = cons_var(_, Vars).
-
-T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2). 
-
-:- interface.
 
 :- func univ_list(list(univ)) = vars.
 :- mode univ_list(in) = out is det.
 :- mode uinv_list(out) = in is det.
+
+:- implementation. % TODO: Merge with main implementation
+
+vars(T) = Vars :- 
+	( T:vars -> 
+		Vars = T 
+	; 
+		Vars = var(univ(T))
+	).
 	
+T1 , T2 = cons(vars(T1), vars(T2)).
 
 
+univ_list([]) = var(univ(nil)).
+univ_list([U]) = var(U) :- not(U = univ(nil))).
+univ_list([U | Us]) = cons(U, Us).
+
+:- interface.
 
 %-----------------------------------------------------------------------------%
 %
@@ -223,13 +229,13 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 	;	function_type		% A Lua function
 	;	table_type		% A Lua table
 	;	thread_type		% A Lua coroutine
-	;	userdata_type		% Full userdata 
-	.
+	;	userdata_type.		% Full userdata 
+	
 	
 
 	% Look up the Lua type of a given variable. 
 	% 
-:- func lua_type(var, lua) = lua_type.
+:- func lua_type(T) = lua_type.
 
 
 
@@ -281,6 +287,13 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 	% 
 :- type table.
 
+:- implementation. % TODO: Merge with main implementation
+
+:- type table
+	---> table(lua, ref).
+	
+:- interface.
+
 % Note that the nondeterministic calls for table lookups have a notably higher
 % performance cost than the semidet ones.
 
@@ -300,7 +313,15 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 :- mode get(out, in, in) is nondet.
 :- mode get(out, out, in) is nondet.
 
-:- func table ^ key(K) = V is semidet.
+:- func table ^ index(K) = V is semidet.
+
+:- implementation. % TODO: Merge with main implementation
+
+:- import_module state.
+
+%get(K, V, table(L, R)) :- Hold that thought...
+
+
 
 % Tables may not be modified unless they are unique, garunteeing that Mercury
 % holds the only refrence to a table, and as a result avoids causing any 
@@ -379,14 +400,8 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 % dostring, or passing a lua_CFunction function pointer.
 
 
-:- type function
-	---> 	func_function(func(vars) = vars)
-	;	pred_function(pred(vars, vars))
-	;	impure_function(pred(vars, vars, io, io))
-	;	c_function(c_function)
-	;	lua_function(ref).
+:- type function.
 	
-:- type c_function.
 
 %-----------------------------------------------------------------------------%
 %
@@ -405,27 +420,11 @@ T1 , Vars:vars = cons_var(T2, Vars) :- dynamic_cast(T1, T2).
 	% not compatable with Mercury, although such types can still be 
 	% refrenced by c_pointer.
 	
-:- type userdata.
-
-:- type lightuserdata ---> lightuserdata(c_pointer).
-
-:- func userdata(T) = userdata.
-:- mode userdata(in) = out is det.
-:- mode userdata(out) = in is semidet.
+% TODO: Metamethods for userdata
 
 
 
 
-%-----------------------------------------------------------------------------%
-%
-% Lua Coroutines
-%
-
-% TODO: Explain Lua coroutines.
-
-% TODO: Implement coroutines with threads.
-
-:- type thread.
 
 
 
@@ -698,12 +697,7 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 
 
-/* ###  Error: clause for predicate `lua.is_nil'/1 */
-/* ###    without preceding `pred' declaration. */
-/* ###  In clause for predicate `is_nil'/1: */
-/* ###    error: ambiguous overloading causes type ambiguity. */
-/* ###    Possible type assignments include: */
-/* ###    V_3: lua.nil or lua.lua_type */
+
 is_nil(T) :- dynamic_cast(T, nil:nil).
 
 %-----------------------------------------------------------------------------%
