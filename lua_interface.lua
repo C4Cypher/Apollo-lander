@@ -1,65 +1,68 @@
 -- lua_interface.lua
 
-local proc = "foreign_proc"
-
 local types = {
+	--[[
 	["nil"] = "nil",
 	integer = "int",
 	number = "float",
 	boolean = "bool",
 	string = "string",
-	thread = "lua_state_ptr",
+	table = "table",
+	[ "function" ] = "function",
+	cfunction = "c_function",
+	thread = "lua_state",
 	lightuserdata = "c_pointer",
-	userdata = "T"
+	userdata = "T",
+	]]
+	ref = "ref"
+	
 }
 
-print ":- interface.\n\n"
+local function line()
+	print(
+"\n%-----------------------------------------------------------------------------%\n"
+) end
 
 for k,v in pairs(types) do
+
+	print("\t% Value is "..k..".\n\t%")
 	print(":- semipure pred is_"..k..
-	"(lua_state_ptr::in, int::in) is semidet.")
-end
-
-print "\n"
-
-for k,v in pairs(types) do
-	print(":- semipure pred pull_"..k.."(lua_state_ptr::in, "..v..
-		"::out) is det.")
-end
-
-print "\n"
-
-for k,v in pairs(types) do
-	print(":- impure pred push_"..k.."(lua_state_ptr::in, "..v..
-		"::in) is det.")
-end
-
-print "\n"
-
-print ":- implementation.\n\n"
-
-
-for k,v in pairs(types) do
+	"(lua::in, int::in) is semidet. \n")
+	
 	print(":- pragma foreign_proc(\"C\", is_"..k..
-	"\t(L::in, Index::in),\n [promise_semipure, will_not_call_mercury],\n"..
-"\"\n\t SUCCESS_INDICATOR = lua_is"..k.."(L, Index);\n\").")
+	"\t(L::in, Index::in),\n\t[promise_semipure, will_not_call_mercury],\n"..
+"\"\n\t SUCCESS_INDICATOR = lua_is"..k.."(L, Index);\n\").\n")
 end
 
-print "\n"
+
+line()
 
 for k,v in pairs(types) do
+
+	print("\t% Pull "..k.." value.\n\t%")
+	print(":- semipure pred pull_"..k.."(lua::in, index::in, "..v..
+		"::out) is det.\n")
+		
 	print(":- pragma foreign_proc(\"C\", pull_"..k.."(L::in, Index::in, "..
-	"V::out),\n [promise_semipure, will_not_call_mercury],\n"..
-"\"\n\t V = lua_to"..k.."(L, Index);\n\").")
+	"V::out),\n\t[promise_semipure, will_not_call_mercury],\n"..
+"\"\n\t V = lua_to"..k.."(L, Index);\n\").\n")
 end
+
+line()
 
 for k,v in pairs(types) do
+
+	print("\t% Push "..k.." value.\n\t%")
+	print(":- impure pred push_"..k.."(lua::in, "..v..
+		"::in) is det.\n")
+
 	print(":- pragma foreign_proc(\"C\", push_"..k.."(L::in, V::in),\n"..
-	 "[will_not_call_mercury],\n"..
-"\"\n\t lua_push"..k.."(L, V);\n\").")
+	 "\t[will_not_call_mercury],\n"..
+"\"\n\t lua_push"..k.."(L, V);\n\").\n")
 end
 
-print "\n"
+
+
 
 
 
