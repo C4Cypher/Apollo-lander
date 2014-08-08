@@ -62,6 +62,19 @@
 :- import_module io.
 :- import_module univ.
 
+%-----------------------------------------------------------------------------%
+%
+% Dynamic mapping and indexing and scope
+%
+
+
+:- typeclass index(I, K) where [
+	pred index(I, K, V),
+	mode index(in, in, out) is det,
+	mode index(in, out, out) is nondet
+].
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -69,13 +82,7 @@
 %
 	
 	
-% These calls are relevant inside the context of a Mercury predicate being
-% called as a Lua function.
 
-	% Verify that the current context has a valid Lua state
-	%
-:- pred ready is semidet.
-:- pred ready(bool::out, io::di, io::uo) is det.
 
 	% If the call in question passes io.state, access and modification
 	% of global variables is permitted, as is the calling of other
