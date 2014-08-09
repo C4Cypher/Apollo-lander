@@ -57,10 +57,7 @@
 
 :- interface.
 
-:- include_module lua.state.
-:- include_module lua.nil.
-
-:- import_module lua.nil.
+:- include_module state.
 
 :- import_module io.
 :- import_module univ.
@@ -87,7 +84,8 @@
 
 	% Thrown when Lua experiences an error.
 	%
-:- type lua_error(error_type, string).
+:- type lua_error
+	---> 	lua_error(error_type, string).
 
 :- type error_type
 	--->	runtime_error
@@ -97,7 +95,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Lua variables.
+% Lua stack.
 %
 
 
@@ -138,6 +136,43 @@
 	% 
 :- func lua_type(T) = lua_type.
 
+%-----------------------------------------------------------------------------%
+%
+% The nil type.
+%
+% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
+% that is not assigned a value with produce a nil result.
+%
+% Furthermore, assigning a key value to nil will unassign that value. Note that 
+% this does not neccicarily delete the value, if Lua holds a refrence to that
+% value elsewhere, it will not be garbage collected.
+%
+% In normal Lua semantics, using nil as a key value produces an error, however
+% due to the Mercury semantics used in this library, doing so will either fail
+% or return another nil value.  This is both for the sake of safer runtime
+% integration of Mercury's strict type system with Lua's dynamic type system,
+% and also as a practical consideration of Mercury's potentially
+% nondeterministic nature, as testing for a paticular type wil result in a
+% backtracking failure.
+%
+% It is to be noted that Lua's nil value is not to be confused with C's NULL
+% value.  While used in similar ways, Lua will interpret C's NULL as the number
+% zero, wheras C has no direct representation for Lua's nil value.
+%
+% As a result of this, Lua's semantics on conditional tests are slightly
+% different than C's.   C interprets any numeric value other than 0 as true.
+% In contrast, Lua interprets ANY value other than boolean false or nil as true.
+
+:- type nil ---> nil.
+
+	% Utility pred for evaluating whether or not an existential value is 
+	% nil.
+	%
+:- pred is_nil(T::in, lua_state::in) is semidet.
+
+
+
+:- implementation.
 
 
 
@@ -218,9 +253,6 @@
 
 :- implementation. % TODO: Merge with main implementation
 
-:- import_module state.
-
-%get(K, V, table(L, R)) :- Hold that thought...
 
 
 
@@ -231,8 +263,9 @@
 	% Create an empty table.
 	%
 :- pred new_table(table::uo) is det.
+
 :- func new_table = table.
-:- mode new_table = uo.
+:- mode new_table = uo is det.
 
 	% Create an empty table and assign a metatable to it.
 	%
@@ -259,8 +292,9 @@
 	% new table that only defines the table's weakness.
 	%
 :- pred new_weak_table(weakness::in, table::uo) is det.
+
 :- func new_weak_table(weakness) = table.
-:- mode new_weak_table(in) = uo.
+:- mode new_weak_table(in) = uo is det.
 
 	% Assign a value to a unique table.
 	%
@@ -344,7 +378,7 @@
 :- import_module string.
 :- import_module require.
 
-:- pragma require_feature_set([conservative_gc, double_prec_float])  
+:- pragma require_feature_set([conservative_gc, double_prec_float]). 
 
 :- pragma foreign_decl("C", 
 "
@@ -397,10 +431,6 @@
 % lua_states. The only exception to this is lua_states created as threads.
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
-
-:- mutable(current_lua_state, lua_state, null_state, ground, 
-	[trailed, attatched_to_io_state, 
-	foreign_name("C", "luaMR_current_lua_state"), thread local]).
 
 
 %-----------------------------------------------------------------------------%
@@ -458,7 +488,7 @@ void luaMR_init(lua_State * L) {
 
 ").
 
-:- pred init(lua_state::in, io::di, io::uo).
+:- pred init(lua_state::in, io::di, io::uo) is det.
 
 :- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
@@ -487,7 +517,7 @@ void luaMR_init(lua_State * L) {
 
 :- pred ready(lua_state::in, bool::out, io::di, io::uo) is det.
 
-:- pragma foreign_proc("C", ready(L::in, , Answer::out, _I::di, _O::uo), 
+:- pragma foreign_proc("C", ready(L::in, Answer::out, _I::di, _O::uo), 
 	[promise_pure, will_not_call_mercury], "
 	if(luaMR_ready(L))
 		Answer = MR_YES;
@@ -600,6 +630,7 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 ]).
 
 
+is_nil(T) :- dynamic_cast(T, nil:nil).
 
 
 
