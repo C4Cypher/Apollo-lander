@@ -75,6 +75,9 @@
 	%
 :- pred linear(int::in, int::in, T::in) is semidet <= index(T).
 
+	% Convert an index into a list of univ values.
+	%
+:- func univ_list(T) = list(univ) is semidet <= index(T). 
 
 %-----------------------------------------------------------------------------%
 %
@@ -107,6 +110,7 @@
 :- implementation.
 
 :- import_module solutions.
+:- import_module require.
 
 Index ^ index(Id) = Value :- index(Id, Value, Index).
 
@@ -139,7 +143,20 @@ linear(F, L, T) :-
 		index(F, T),
 		linear(F + 1, L, T)
 	). 
+
+univ_list(T) = List :-
+	expect(linear(T), $module, "Bounds error, index must be continous."), 
+	bounds(_, F, L, T),	
+	univ_list(F, L, T, List).
 	
+:- pred univ_list(int::in, int::in, T::in, list(univ)::out) is det.
+
+univ_list(F, L, T, List) :-
+		List = [univ(T ^ index(F)) | Next ],
+		univ_list(F + 1, L, T, Next)
+	;
+		unexpected($module, $pred, 
+			"Unexpected non value in linear index").
 
 %-----------------------------------------------------------------------------%
 
