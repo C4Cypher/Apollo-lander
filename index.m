@@ -152,11 +152,12 @@ univ_list(T) = List :-
 :- pred univ_list(int::in, int::in, T::in, list(univ)::out) is det.
 
 univ_list(F, L, T, List) :-
-		List = [univ(T ^ index(F)) | Next ],
-		univ_list(F + 1, L, T, Next)
-	;
-		unexpected($module, $pred, 
-			"Unexpected non value in linear index").
+	List = [univ(T ^ index(F)) | Next ],
+	( F = L , Next = []
+	; univ_list(F + 1, L, T, Next)
+	;	unexpected($module, $pred, 
+			"Unexpected non value in linear index")
+	).
 
 %-----------------------------------------------------------------------------%
 
