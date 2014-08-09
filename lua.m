@@ -454,6 +454,8 @@ univ_list([U | Us]) = cons(U, Us).
 :- import_module string.
 :- import_module require.
 
+:- pragma require_feature_set([conservative_gc, double_prec_float])  
+
 :- pragma foreign_decl("C", 
 "
 #include <lua.h>
