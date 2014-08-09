@@ -48,10 +48,6 @@
 	%
 :- pred new_state(lua::out).
 
-<<<<<<< HEAD
-:- func state_ptr(lua_state) = lua.
-=======
->>>>>>> fe2f1273149f72556fffaf9781e287ae31a61c55
 
 	% Return the Lua state's current status.
 	%
@@ -747,7 +743,7 @@ pull_table(L, I, table(L, Ref)) :-
 	 V = lua_tocfunction(L, Index);
 ").
 
-<<<<<<< HEAD
+
 	% Pull ref value.
 	%
 :- semipure pred pull_ref(lua::in, ref::out) is det.
@@ -765,10 +761,6 @@ pull_table(L, I, table(L, Ref)) :-
 	%
 :- impure pred push_number(lua::in, float::in) is det.
 
-=======
-%-----------------------------------------------------------------------------%
-
->>>>>>> fe2f1273149f72556fffaf9781e287ae31a61c55
 :- pragma foreign_proc("C", push_number(L::in, V::in),
 	[will_not_call_mercury],
 "
@@ -878,7 +870,7 @@ pull_table(L, I, table(L, Ref)) :-
 	 lua_pushcfunction(L, V);
 ").
 
-<<<<<<< HEAD
+
 	% Push ref value.
 	%
 :- impure pred push_ref(lua::in, ref::in) is det.
@@ -888,7 +880,7 @@ pull_table(L, I, table(L, Ref)) :-
 "
 	 luaMR_push_ref(L, V);
 ").
-=======
+
+
 %-----------------------------------------------------------------------------%
->>>>>>> fe2f1273149f72556fffaf9781e287ae31a61c55
 
