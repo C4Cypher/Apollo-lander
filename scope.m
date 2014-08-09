@@ -10,7 +10,8 @@
 % Main author: C4Cypher.
 % Stability: low.
 % 
-% TODO
+% A set of indexable types that emulate lexical scope for dynamically typed
+% variable assignments.
 %
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -21,16 +22,67 @@
 
 :- import_module index.
 
+:- import_module type_desc.
+:- import_module map.
 
-	% Provide an unbound index.
+%-----------------------------------------------------------------------------%
+%
+% Scope
+%
+
+	% The scope type represents a set of dynamic variable assignments
+	% bound by type T in a given context.
+	% 
+:- type scope.
+
+
+
+	% Produces a global scope without any variable bindings.
 	%
-:- typeclass free(T)  where [
-	pred free(I::in, T::out) is cc_multi <= index(I, T)
-].
+:- func empty_scope = scope.
 
-:- func free(I) = T <= (free(T), index(I, T)).
 
-:- type scope(T).
-:- type scope == scope(univ).
+	% Take an indexed value and use it as the initial global scope.
+	% Changes made to the global scope will be interned.  This makes a
+	% 'weak' global scope, as the internal representation of the global
+	% scope 
+	%
+:- func new_scope(T) = scope <= (index(T, _K)).
 
-:- instance index(scope(T)) <= index
+	% Retreive the global
+
+%-----------------------------------------------------------------------------%
+%
+% Accessing and modifying scope values.
+%
+
+	% get(Key, Value, Scope):
+	% 
+	% Retreive Value indexed by Key within Scope.
+	% Fail on type mismatch.
+	%
+:- pred get(K, V, scope).
+:- mode get(in, out, in) is semidet.
+:- mode get(out, out, in) is nondet.
+
+:- pred set(K::in, V::in, scope::in, scope::out) is det.
+
+%-----------------------------------------------------------------------------%
+
+
+:- instance index(scope(T), univ).
+
+%-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+
+:- interface.
+
+
+:- type global_index(T)
+	---> 	some [S] (global_scope(S) => (free(S, T), new_index(S, T)))
+	;	global_scope(global_scope(T), map(univ, T)).
+
+
+
+
+
