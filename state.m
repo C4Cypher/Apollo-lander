@@ -201,14 +201,6 @@
 :- impure pred set_upvalue(lua::in, int::in, T::in) is det.
 
 
-<<<<<<< HEAD
-=======
-
-:- impure pred push_thread(lua_state_ptr::in, lua_state_ptr::in) is det.
-
-
->>>>>>> fe2f1273149f72556fffaf9781e287ae31a61c55
-
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -281,57 +273,7 @@ get_indexes(L, I) :-
 	Type = lua_type(L, Index);
 ").
 
-<<<<<<< HEAD
 
-pull(L, Index, T) :- 
-	( T:nil, 
-		semipure is_nil(L, Index) -> T = nil
-	; T:int, 
-		semipure is_integer(L, Index) ->
-		semipure pull_integer(L, Index, T)
-	; T:float, 
-		semipure is_number(L, Index) ->
-		semipure pull_number(L, Index, T)
-	; T:bool, 
-		semipure is_boolean(L, Index) ->
-		semipure pull_boolean(L, Index, T)
-	; T:string, 
-		semipure is_string(L, Index) ->
-		semipure pull_string(L, Index, T)
-	; T:c_pointer, 
-		semipure is_lightuserdata(L, Index) ->
-		semipure pull_lightuserdata(L, Index, T)
-	; T:lua_state_pointer, 
-		semipure is_thread(L, Index) ->
-		semipure pull_thread(L, Index, T)
-	; pull_userdata(L, Index, T).
-	
-
-push(L, T) :- 
-	( T:nil ->
-		impure push_nil(L)
-	; T:int ->
-		impure push_integer(L, int)
-	; T:float ->
-		impure push_number(L, float)
-	; T:bool ->
-		impure push_boolean(L, bool)
-	; T:string ->
-		impure push_string(L, string)
-	; T:char ->
-		impure push_string(L, char)
-	; T:c_pointer ->
-		impure push_lightuserdata(L, T)
-	; T:c_function ->
-		sorry($module, $pred)
-	; T:lua ->
-		impure push_thread(L, T)
-	; impure push_userdata(L, T).
-
-
-
-=======
->>>>>>> fe2f1273149f72556fffaf9781e287ae31a61c55
 :- pragma foreign_proc("C",  pop(L::in, Num::in),
 	[will_not_call_mercury],
 "

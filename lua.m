@@ -58,41 +58,32 @@
 :- interface.
 
 :- include_module lua.state.
+:- include_module lua.nil.
+
+:- import_module lua.nil.
 
 :- import_module io.
 :- import_module univ.
 
 %-----------------------------------------------------------------------------%
 %
-% Dynamic mapping and indexing and scope
+% The Lua State
 %
 
+% The Lua State is a mutable structure, given Lua's imperative nature, as a
+% result, direct interaction with the Lua state with Mercury's semantics offers
+% little advantage over writing code for Lua in C or Lua.
 
-:- typeclass index(I, K) where [
-	pred index(I, K, V),
-	mode index(in, in, out) is det,
-	mode index(in, out, out) is nondet
-].
+	% A refrence to the Lua VM as defined by the lua_State type in lua.h
+	%
+:- type lua_state.
 
+:- type lua == lua_state.
 
+	% Retreive the value of a global variable.
+	%
+:- func global(string, lua) = T is semidet.
 
-%-----------------------------------------------------------------------------%
-%
-% The Lua Global environment.
-%
-	
-	
-
-
-	% If the call in question passes io.state, access and modification
-	% of global variables is permitted, as is the calling of other
-	% Lua functions.
-	
-:- pred get_global(string::in, univ::out, io::di, io::uo) is det.
-:- pred set_global(string::in, T::in, io::di, io::uo) is det.
-
-:- pred call_function(function::in, vars::in, vars::out, io::di, io::uo) 
-	is det.
 
 	% Thrown when Lua experiences an error.
 	%
@@ -104,119 +95,18 @@
 	;	memory_error
 	;	unhandled_error.
 
-
-
-
 %-----------------------------------------------------------------------------%
 %
-% The nil value
+% Lua variables.
 %
 
 
-% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
-% that is not assigned a value with produce a nil result.
-%
-% Furthermore, assigning a key value to nil will unassign that value. Note that 
-% this does not neccicarily delete the value, if Lua holds a refrence to that
-% value elsewhere, it will not be garbage collected.
-%
-% In normal Lua semantics, using nil as a key value produces an error, however
-% due to the Mercury semantics used in this library, doing so will either fail
-% or return another nil value.  This is both for the sake of safer runtime
-% integration of Mercury's strict type system with Lua's dynamic type system,
-% and also as a practical consideration of Mercury's potentially
-% nondeterministic nature, as testing for a paticular type wil result in a
-% backtracking failure.
-%
-% It is to be noted that Lua's nil value is not to be confused with C's NULL
-% value.  While used in similar ways, Lua will interpret C's NULL as the number
-% zero, wheras C has no direct representation for Lua's nil value.
-%
-% As a result of this, Lua's semantics on conditional tests are slightly
-% different than C's.   C interprets any numeric value other than 0 as true.
-% In contrast, Lua interprets ANY value other than boolean false or nil as true.
-
-:- type nil ---> nil.
-
-	% Utility pred for evaluating whether or not an existential value is nil.
-	%
-:- pred is_nil(var::in, lua::in) is semidet.
-
-%-----------------------------------------------------------------------------%
-%
-% Lua Variables.
-%
-
-	% This type represents the Mercury equivalent to Lua's variable list
-	% espression, used to pass varadic function arguments and return
-	% values.
-	
-:- type vars.
-	
-:- implementation. % TODO: Merge with main implementation
-
-:- type vars
-	--->	var(univ)
-	;	cons(univ, vars))
-	where equality is unify_vars.	
-	
 
 
-	% Due to nil's special status as the abscence of value, a single
-	% nil value is passed in place of the empty list and will unify
-	% with lists of nil.
-	%
-:- pred unify_vars(vars::in, vars::in) is det.
-
-unify_vars(var(U), var(U)).
- 
-unify_vars(cons(U, Us1), cons(U, Us2) :-
-	unify_vars(Us1, Us2).
-	
-unify_vars(var(U), cons(U, Us)) :- 
-	nil_vars(Us).
-	
-unify_vars(cons(U, Us)), var(U)) :- 
-	nil_vars(Us).
-
-	% A given set of vars is composed of nothing but nil values.
-	%
-:- pred nil_vars(vars::in) is semidet.
-
-nil_vars(var(univ(nil))).
-nil_vars(cons(univ(nil), Us)) :- nil_vars(Us).
-
-:- interface.
-
-:- func vars(T) = vars.
-:- mode vars(in) = out is det.
-:- mode vars(out) = in is semidet.
-
-:- func T1 , T2 = vars.
-:- mode in, in = out is det.
-:- mode out, out = in is semidet.
-
-:- func univ_list(list(univ)) = vars.
-:- mode univ_list(in) = out is det.
-:- mode uinv_list(out) = in is det.
-
-:- implementation. % TODO: Merge with main implementation
-
-vars(T) = Vars :- 
-	( T:vars -> 
-		Vars = T 
-	; 
-		Vars = var(univ(T))
-	).
-	
-T1 , T2 = cons(vars(T1), vars(T2)).
 
 
-univ_list([]) = var(univ(nil)).
-univ_list([U]) = var(U) :- not(U = univ(nil))).
-univ_list([U | Us]) = cons(U, Us).
 
-:- interface.
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -712,7 +602,6 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 
 
-is_nil(T) :- dynamic_cast(T, nil:nil).
 
 %-----------------------------------------------------------------------------%
 %

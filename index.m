@@ -49,7 +49,7 @@
 	% Count the number of values in an index, providing the first and last
 	% indexes.
 	%
-:- pred bounds(int::out, int::out, int::out, T::in) is det. 
+:- pred bounds(int::out, int::out, int::out, T::in) is det <= index(T). 
 
 	% Count the number of values in an index.
 	%
@@ -78,6 +78,11 @@
 	% Convert an index into a list of univ values.
 	%
 :- func univ_list(T) = list(univ) is semidet <= index(T). 
+
+	% Convert an index into a list of univ values.
+	% Abort if index is not linear.
+	%
+:- func det_univ_list(T) = list(univ) is semidet <= index(T). 
 
 %-----------------------------------------------------------------------------%
 %
@@ -144,8 +149,7 @@ linear(F, L, T) :-
 		linear(F + 1, L, T)
 	). 
 
-univ_list(T) = List :-
-	expect(linear(T), $module, "Bounds error, index must be continous."), 
+univ_list(T) = List :- 
 	bounds(_, F, L, T),	
 	univ_list(F, L, T, List).
 	
@@ -153,11 +157,14 @@ univ_list(T) = List :-
 
 univ_list(F, L, T, List) :-
 	List = [univ(T ^ index(F)) | Next ],
-	( F = L , Next = []
-	; univ_list(F + 1, L, T, Next)
-	;	unexpected($module, $pred, 
-			"Unexpected non value in linear index")
+	(
+		F = L , Next = []
+	; 
+		univ_list(F + 1, L, T, Next)
 	).
+	
+det_univ_list(T) = univ_list(T) :- 
+	expect(linear(T), $module, "Bounds error, index must be continous.").
 
 %-----------------------------------------------------------------------------%
 
