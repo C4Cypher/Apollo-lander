@@ -23,71 +23,110 @@
 
 :- interface.
 
+:- import_module list.
+:- import_module univ.
+
 :- type vars.
 	
+:- pred vars(T, vars).
+:- mode vars(in, out) is det.
+:- mode vars(out, in) is semidet.
 
 :- func vars(T) = vars.
 :- mode vars(in) = out is det.
 :- mode vars(out) = in is semidet.
 
-:- func T1 , T2 = vars.
-:- mode in, in = out is det.
-:- mode out, out = in is semidet.
+:- func (T1 , T2) = vars.
+:- mode (in, in) = out is det.
+:- mode (out, out) = in is nondet.
+:- mode (out, out) = in is cc_nondet.
+
+:- pred vars_to_list(vars::in, list(univ)::out) is det.
+:- pred list_to_vars(list(univ)::in, vars::out) is det.
 
 :- func univ_list(list(univ)) = vars.
 :- mode univ_list(in) = out is det.
 :- mode univ_list(out) = in is det.
 
-:
+
+%:- type nil ---> nil.  % Declared in lua.m 
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
 :- implementation. 
+
+:- import_module require.
+
 :- type vars
 	--->	var(univ)
-	;	cons(univ, vars))
-	where equality is unify_vars.	
-	
-
-
-	% Due to nil's special status as the abscence of value, a single
-	% nil value is passed in place of the empty list and will unify
-	% with lists of nil.
-	%
-:- pred unify_vars(vars::in, vars::in) is det.
-
-unify_vars(var(U), var(U)).
- 
-unify_vars(cons(U, Us1), cons(U, Us2) :-
-	unify_vars(Us1, Us2).
-	
-unify_vars(var(U), cons(U, Us)) :- 
-	nil_vars(Us).
-	
-unify_vars(cons(U, Us)), var(U)) :- 
-	nil_vars(Us).
-
-	% A given set of vars is composed of nothing but nil values.
-	%
-:- pred nil_vars(vars::in) is semidet.
-
-nil_vars(var(univ(nil))).
-nil_vars(cons(univ(nil), Us)) :- nil_vars(Us).
-
-
-vars(T) = Vars :- 
-	( T:vars -> 
-		Vars = T 
-	; 
-		Vars = var(univ(T))
+	;	cons(univ, vars)
+	;	nil_vars.
+		
+vars(T::in, V::out) :-
+	( dynamic_cast(T, Tv:vars) ->
+		V = Tv
+	;
+		V = var(univ(T))
+	).
+			
+vars(T::out, V::in) :-
+	( 
+		V = var(U), 
+		univ(T) = U
+	;
+		V = cons(_, _),
+		dynamic_cast(V, T) 
+	;
+		V = nil_vars,
+		dynamic_cast(nil, T)
 	).
 	
-T1 , T2 = cons(vars(T1), vars(T2)).
+vars(T) = V :- vars(T, V).
 
 
-univ_list([]) = var(univ(nil)).
-univ_list([U]) = var(U) :- not(U = univ(nil))).
-univ_list([U | Us]) = cons(U, Us).
+:- pragma promise_pure(vars/2). 
+		
+	
+	
+(T1 , T2) = cons(univ(T1), vars(T2)).
 
+vars_to_list(V, L) :-
+	require_complete_switch [V]
+	( V = var(U) ->
+		L = [U]
+	; V = cons(U, Vs) ->
+		L = [U | Ls],
+		vars_to_list(Vs, Ls)
+	; 
+		V = nil_vars,
+		L = []
+	;
+		unexpected($module, $pred)
+	).
+	
+list_to_vars(L, V) :-
+	require_complete_switch [L]
+	( L = [] ->
+		V = nil_vars
+	; nil_list(L) ->
+		V = nil_vars
+	; 
+		L =  [U | Us],
+		V = cons(U, Vs),
+		list_to_vars(Us, Vs)
+	; 
+		unexpected($module, $pred)
+	).
+		
+:- pred nil_list(list(univ)::in) is semidet.
+
+nil_list([]).
+nil_list([univ(nil) | X]) :- nil_list(X).
+
+
+univ_list(L::in) = (V::out) :- list_to_vars(L, V).
+univ_list(L::out) = (V::in) :- vars_to_list(V, L).
+	 
+:- pragma promise_pure(univ_list/1).
 
