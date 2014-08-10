@@ -58,9 +58,16 @@
 :- interface.
 
 :- include_module state.
+:- include_module vars.
 
 :- import_module io.
+:- import_module float.
+:- import_module int.
+:- import_module bool.
+:- import_module string.
+:- import_module list.
 :- import_module univ.
+:- import_module require.
 
 %-----------------------------------------------------------------------------%
 %
@@ -76,6 +83,7 @@
 :- type lua_state.
 
 :- type lua == lua_state.
+
 
 	% Retreive the value of a global variable.
 	%
@@ -95,47 +103,107 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Lua stack.
-%
-
-
-
-
-
-
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua Types
+% Lua Values and Types
 %
 
 	
 % In Lua, variables are not typed, values are.  Lua recognizes eight types.
 
-:- type lua_type
-	--->	none			% rarely used, represents invalid type
+	% Values that can be natively passed to and from Lua.
+	%
+:- type value
+	--->	nil(nil)		% the abscence of value
 	
 	% Value types
-	;	nil_type		% the abscence of value
-	;	number_type		% double prescision, casts to float
-	;	boolean_type		% boolean truth value, casts to bool
-	;	string_type		% string value, casts to string
-	;	lightuserdata_type	% A C pointer
+	;	number(float)		% double prescision, casts to float
+	;	boolean(bool)		% boolean truth value, casts to bool
+	;	string(string)		% string value, casts to string
+	;	lightuserdata(c_pointer)	% naked C pointer
 	
 	% Refrence types
-	;	function_type		% A Lua function
-	;	table_type		% A Lua table
-	;	thread_type		% A Lua coroutine
-	;	userdata_type.		% Full userdata 
-	
+	;	function(function)	% A Lua function
+	;	table(table)		% A Lua table
+	;	thread(lua_state)	% A Lua coroutine
+	;	userdata(userdata).	% Full userdata 
+
+:- implementation.
+
+true = boolean(yes).
+false = boolean(no).
+
+
+value(T) = (V) :-
+	require_complete_switch [V]
+	{T, V} = 
+	(T:nil -> 
+		{T, nil(nil)}
+	; T:int = int(F) ->
+		{T, number(F)}
+	; T:float ->
+		{T, number(T)}
+	; T:bool ->
+		{T, boolean(T)}
+	; T:string ->
+		{T, string(T)}
+	; sorry($module, $pred, "Value type conversions")
+	).
+		
 	
 
+
+:- func int(float) = int.
+:- mode int(in) = out is semidet.
+:- mode int(out) = in is det. 
+
+int(F::in) = (I::out) :- 
+	I = truncate_to_int(F),
+	F = float(I).
+	
+int(F::out) = (I::in) :-
+	F = float(I).
+
+:- pragma promise_equivalent_clauses(int/1).
+	 
+:- interface.
+
+
+	% Boolean constructors.
+	%
+:- func true = value.
+:- func false = value.
+
+
+
+	% Passes mercury types to Lua values and back. Note that refrence types
+	% will be passed to their respective Mercury representations and will
+	% retain the semantics of refrence types.
+	%
+:- func value(T) = value.
+:- mode value(in) = out is det.
+:- mode value(out) = in is semidet.
+
+
+	
+
+:- type lua_type
+	--->	none			% rarely used, represents invalid type
+	;	nil_type		
+	;	number_type		
+	;	boolean_type		
+	;	string_type		
+	;	lightuserdata_type	
+	;	function_type		
+	;	table_type		
+	;	thread_type		
+	;	userdata_type.		
+	
 	% Look up the Lua type of a given variable. 
 	% 
 :- func lua_type(T) = lua_type.
 
+
+	
+	
 %-----------------------------------------------------------------------------%
 %
 % The nil type.
@@ -172,11 +240,24 @@
 
 
 
-:- implementation.
+
 
 
 
 %-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+%
+%  Lua Variables
+%
+
+	% Represents a refrence a value instantiated in Lua. Due to the fact
+	% the Lua state is mutable, these also are, mutable, subject to change
+	% if the Lua state that produced them changes.
+	%
+:- type var.
+	
+:- func value(var) = T is semidet.
+
 %-----------------------------------------------------------------------------%
 %
 % Lua objects/refrence types
@@ -200,7 +281,9 @@
 
 :- type ref.
 
-:- func value(ref) = T is semidet.
+:- func ref(T) = ref.
+:- mode ref(in) = out is det.
+:- mode ref(out) = in is semidet.
 
 %-----------------------------------------------------------------------------%
 %
