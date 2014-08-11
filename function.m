@@ -15,5 +15,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- type ipred == impure pred(lua).
-:- inst ipred == impure pred(in).
+:- type cpcall(T1, T2) == impure func(T1, lua) = T2.
+:- type pfunc == impure func(lua) = int.
+
+:- impure pred cpcall(cpcall::in(cpcall)
