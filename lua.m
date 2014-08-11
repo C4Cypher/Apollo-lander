@@ -240,24 +240,7 @@ int(F::out) = (I::in) :-
 
 
 
-
-
-
-
 %-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-%
-%  Lua Variables
-%
-
-	% Represents a refrence a value instantiated in Lua. Due to the fact
-	% the Lua state is mutable, these also are, mutable, subject to change
-	% if the Lua state that produced them changes.
-	%
-:- type var.
-	
-:- func value(var) = T is semidet.
-
 %-----------------------------------------------------------------------------%
 %
 % Lua objects/refrence types
@@ -281,9 +264,9 @@ int(F::out) = (I::in) :-
 
 :- type ref.
 
-:- func ref(T) = ref.
-:- mode ref(in) = out is det.
-:- mode ref(out) = in is semidet.
+:- func ref(ref) = T is semidet.
+
+:- func ref_type(ref) = lua_type.
 
 %-----------------------------------------------------------------------------%
 %
@@ -419,7 +402,23 @@ int(F::out) = (I::in) :-
 % Lua defines a closure as a foreign function with a number of associated
 % upvalues.
 
-:- type function.
+:- type function
+	
+	% Instantiated in Lua
+	---> 	function_ref(ref)
+	
+	% C function pointer of typedef lua_CFunction
+	;	c_function(c_function)
+	
+	% impure higher order call, returns the number of values to pull off
+	% the stack for the return value.
+	;	m_function(impure func(lua) = int)
+	
+	% A Lua chunk, either as Lua source code or as a compiled chunk.
+	;	chunk(string).	
+
+
+:- type c_function.
 	
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
