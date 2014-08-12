@@ -103,6 +103,13 @@
 
 %-----------------------------------------------------------------------------%
 %
+% Lua expressions
+%
+
+% In Lua, an expression is a part of Lua's syntax that is parsed via strict evaluation
+
+%-----------------------------------------------------------------------------%
+%
 % Lua Values and Types
 %
 
