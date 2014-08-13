@@ -80,10 +80,10 @@
 
 :- type lua == lua_state.
 
-	% A refrence to a local value on the Lua stack.
-	%
-:- type index.
 
+
+
+%-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 %
 % Lua expressions
@@ -133,15 +133,8 @@
 	% under a 'raw' context, if yes, it will avoid calling metamethods.
 	% 
 :- type expression == (func(int, int, bool, lua_state) = int).
-:- inst expression 
-	---> 	det_expr
-	;	semi_expr.
-	
-:- inst det_expr ==  (func(in, in, in, in) = out is det).
-:- inst semi_expr == (func(in, in, in, in) = out is semidet).
 
 :- type expr == expression.
-:- inst expr == expression.
 
 
 	% variadic expressions encompass sequential sets of values
@@ -151,16 +144,8 @@
 :- type variadic_expression == (func(int) `with_type` expression).
 
 :- inst variadic_expression
-	--->	det_var
-	;	semi_var.
-
-:- inst det_var 
-	--->	(func(in, in, in, in, in) = out is det) % out of range = nil
+	--->	(func(in, in, in, in, in) = out is det) 
 	;	(func(out, in, in, in, in) = out is multi).
-	
-:- inst semi_var 
-	--->	(func(in, in, in, in, in) = out is semidet)
-	;	(func(out, in, in, in, in) = out is nondet).
 	
 :- type var_expr == variadic_expression.
 :- inst var_expr == variadic_expression.
@@ -170,21 +155,24 @@
 	%
 :- func eval(expression, lua) = T is semidet.
 
-:- some [T] func eval_some(expression, lua) = T.
-:- mode static_eval(in(det_expr), in) = out is det.
-:- mode static_eval(in(semi_expr), in = out is semidet.
-
+	% Evaluate without cast
+	%
 :- some [T] func det_eval(expression, lua) = T.
-:- mode det_eval(in(det_expr), in) = out is det.
 
-:- pred eval(int, var_expr, lua, T).
-:- mode eval(in, in, in, out) is semidet.
-:- mode eval(out, in, in, out) is nondet.
+	% Evaluate variadic expressions
+	%
+:- func eval(int, var_expr, lua) = T.
+:- mode eval(in, in, in) = out is semidet.
+:- mode eval(out, in, in) = out is nondet.
 
-:- func eval(int, var_expr, lua) = T is semidet.
+:- some [T] func det_eval(int, var_expr, lua) = T.
+:- mode det_eval(in, in, in) = out is det.
+:- mode det_eval(out, in, in) = out is multi.
 
-:- some [T] func det_var_eval(int, var_expr, lua) = T.
 
+
+
+%-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 %
 % Lua  statements
