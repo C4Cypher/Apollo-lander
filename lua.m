@@ -84,30 +84,62 @@
 
 :- type lua == lua_state.
 
-
-	% Retreive the value of a global variable.
+	% A refrence to a local value on the Lua stack.
 	%
-:- func global(string, lua) = T is semidet.
-
-
-	% Thrown when Lua experiences an error.
-	%
-:- type lua_error
-	---> 	lua_error(error_type, string).
-
-:- type error_type
-	--->	runtime_error
-	;	syntax_error
-	;	memory_error
-	;	unhandled_error.
+:- type index.
 
 %-----------------------------------------------------------------------------%
 %
-% Lua expressions
+% Lua expressions and statements.
 %
 
-% In Lua, an expression is a part of Lua's syntax that is parsed via strict evaluation
+% In Lua, an expression is a part of Lua's syntax that is parsed via strict 
+% evaluation. It can be assigned to a variable, passed as function arguments,
+% return values, in table constructors and indexes, or just about anywhere a
+% variable term could be placed.
+%
+% Unlike Lua function calls, expressions are functionally pure (so long as they
+% do not invoke metamethods).  In order to treat the Lua state as an immutable
+% object, but at the same time allow queries of the Lua state that
+% require impure operations on the Lua stack, expressions are operations in
+% Mercury that promise to leave the Lua state in the same condition that it
+% started with.
 
+
+	% An expression performs an evaluation based upon the values availible
+	% to a Lua state, returning the stack index containing the value of the
+	% evaluated expression.
+	%
+	% Note: an expression that removes values from the stack that it did
+	% not add should be expected to produce undefined behavior.
+	%
+:- type expression == (func(index, index, lua_state) = index).
+
+:- func eval(expression, lua) = T is semidet.
+
+:- some [T] func det_eval(expression, lua) = T.
+
+%-----------------------------------------------------------------------------%
+%
+% Lua expressions and statements.
+%  
+
+% In Lua, a statement performs an impure change upon the Lua state. Given the
+% imperative nature of Lua, a Lua program consists of a series of statements to
+% be executed in sequential order.
+
+:- type statement == (impure func(lua_state) = lua_result).
+
+:- type block == list(statement).
+
+:- pred do(block::in, lua::in, lua_result::out, io::di, io::uo) is det.
+
+
+:- type lua_result
+	---> 	ok
+	;	error(lua_error)
+	;	return(list(expression)).
+	
 %-----------------------------------------------------------------------------%
 %
 % Lua Values and Types
@@ -449,7 +481,20 @@ int(F::out) = (I::in) :-
 
 
 
+%-----------------------------------------------------------------------------%
+%
+% Lua errors
+%
+	% Thrown when Lua experiences an error.
+	%
+:- type lua_error
+	---> 	lua_error(error_type, string).
 
+:- type error_type
+	--->	runtime_error
+	;	syntax_error
+	;	memory_error
+	;	unhandled_error.
 
 
 
