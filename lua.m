@@ -139,7 +139,7 @@
 
 	% variadic expressions encompass sequential sets of values
 	% Values are indexed starting at one, incrementing until
-	% the call fails.
+	% the call fails.  If an invalid index is given, nil is returned.
 	%
 :- type variadic_expression == (func(int) `with_type` expression).
 
@@ -147,8 +147,8 @@
 	--->	(func(in, in, in, in, in) = out is det) 
 	;	(func(out, in, in, in, in) = out is multi).
 	
-:- type var_expr == variadic_expression.
-:- inst var_expr == variadic_expression.
+:- type expr_list == variadic_expression.
+:- inst expr_list == variadic_expression.
 
 
 	% Evaluate an expression with dynamic type cast
@@ -161,13 +161,52 @@
 
 	% Evaluate variadic expressions
 	%
-:- func eval(int, var_expr, lua) = T.
+:- func eval(int, expr_list, lua) = T.
 :- mode eval(in, in, in) = out is semidet.
 :- mode eval(out, in, in) = out is nondet.
 
-:- some [T] func det_eval(int, var_expr, lua) = T.
+:- some [T] func det_eval(int, expr_list, lua) = T.
 :- mode det_eval(in, in, in) = out is det.
 :- mode det_eval(out, in, in) = out is multi.
+
+%-----------------------------------------------------------------------------%
+%
+% expression operators
+%  
+
+:- type unop == func(expr) = expr.
+:- type binop == func(expr, expr) = expr.
+
+% Math operators.
+:- func expr + expr = expr.
+:- func expr - expr = expr.
+:- func expr * expr = expr.
+:- func expr / expr = expr.
+:- func expr mod expr = expr.
+:- func pow(expr, expr) = expr.
+:- func - expr = expr.
+
+% comparison operators.
+:- func expr == expr = expr.
+:- func expr ~= expr = expr.
+:- func expr 
+
+	% The length operator returns the number of chars in a string, the 
+	% number of values in the array portion of a table (from index 1 up 
+	% until the first nil value), the size allocated for a userdata in 
+	% bytes, or 0 for any other value.
+	%
+:- func length(expr) = expr.
+
+	% Casts a value to a string.
+	%
+:- func to_string(expr) = expr.
+
+	% Concatenates string values (implicitly using to_string on non-string
+	% values.
+	%
+:- func expr .. expr = expr.
+
 
 
 
