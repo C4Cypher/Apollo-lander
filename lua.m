@@ -74,10 +74,6 @@
 % The Lua State
 %
 
-% The Lua State is a mutable structure, given Lua's imperative nature, as a
-% result, direct interaction with the Lua state with Mercury's semantics offers
-% little advantage over writing code for Lua in C or Lua.
-
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
 :- type lua_state.
@@ -90,7 +86,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Lua expressions and statements.
+% Lua expressions
 %
 
 % In Lua, an expression is a part of Lua's syntax that is parsed via strict 
@@ -99,13 +95,24 @@
 % variable term could be placed.
 %
 % Unlike Lua function calls, expressions are functionally pure (so long as they
-% do not invoke metamethods).  In order to treat the Lua state as an immutable
-% object, but at the same time allow queries of the Lua state that
-% require impure operations on the Lua stack, expressions are operations in
-% Mercury that promise to leave the Lua state in the same condition that it
-% started with.
+% do not invoke metamethods).  In order to treat the Lua state in purely
+% declarative terms, we need to redefine some of the semantics and enforce
+% some rules when it comes to interacting with the stack.
+% 
+% When Lua calls a function implemented with foreign code, the arguments
+% passed to the function are pushed onto the stack.  Changing those values on
+% the stack would modify the original context of the call. As a result,
+% these values should be treated as if they are immutable.
+%
+% Within the context of this library, while the lua_state type is literally
+% bound to a C pointer refrencing a lua_State struct, conceptually Lua stack is 
+% never considered to be fully ground.  Any values pushed onto the stack past
+% the initial arguments are considered part of the local scope, and as such, they
+% may be added and removed from the stack in a manner that is consistent with
+% variable scope and backtracking.
 
-
+	% func(First, Last, Raw, L) = Index.
+	%
 	% An expression performs an evaluation based upon the values availible
 	% to a Lua state, returning the stack index containing the value of the
 	% evaluated expression.
@@ -113,15 +120,74 @@
 	% Note: an expression that removes values from the stack that it did
 	% not add should be expected to produce undefined behavior.
 	%
-:- type expression == (func(index, index, lua_state) = index).
+	% First is the first stack index considered to be a part of the local
+	% scope. Values at or past this index will be removed when the scope
+	% closes.
+	%
+	% Last is the last stack index Mercury will be free to use without
+	% first checking to see if Lua has allocated space for it.
+	%
+	% Index is the stack index of the evaluated expression.
+	%
+	% Raw determines whether or not the expression is being evaluated
+	% under a 'raw' context, if yes, it will avoid calling metamethods.
+	% 
+:- type expression == (func(int, int, bool, lua_state) = int).
+:- inst expression 
+	---> 	det_expr
+	;	semi_expr.
+	
+:- inst det_expr ==  (func(in, in, in, in) = out is det).
+:- inst semi_expr == (func(in, in, in, in) = out is semidet).
 
+:- type expr == expression.
+:- inst expr == expression.
+
+
+	% variadic expressions encompass sequential sets of values
+	% Values are indexed starting at one, incrementing until
+	% the call fails.
+	%
+:- type variadic_expression == (func(int) `with_type` expression).
+
+:- inst variadic_expression
+	--->	det_var
+	;	semi_var.
+
+:- inst det_var 
+	--->	(func(in, in, in, in, in) = out is det) % out of range = nil
+	;	(func(out, in, in, in, in) = out is multi).
+	
+:- inst semi_var 
+	--->	(func(in, in, in, in, in) = out is semidet)
+	;	(func(out, in, in, in, in) = out is nondet).
+	
+:- type var_expr == variadic_expression.
+:- inst var_expr == variadic_expression.
+
+
+	% Evaluate an expression with dynamic type cast
+	%
 :- func eval(expression, lua) = T is semidet.
 
+:- some [T] func eval_some(expression, lua) = T.
+:- mode static_eval(in(det_expr), in) = out is det.
+:- mode static_eval(in(semi_expr), in = out is semidet.
+
 :- some [T] func det_eval(expression, lua) = T.
+:- mode det_eval(in(det_expr), in) = out is det.
+
+:- pred eval(int, var_expr, lua, T).
+:- mode eval(in, in, in, out) is semidet.
+:- mode eval(out, in, in, out) is nondet.
+
+:- func eval(int, var_expr, lua) = T is semidet.
+
+:- some [T] func det_var_eval(int, var_expr, lua) = T.
 
 %-----------------------------------------------------------------------------%
 %
-% Lua expressions and statements.
+% Lua  statements
 %  
 
 % In Lua, a statement performs an impure change upon the Lua state. Given the
