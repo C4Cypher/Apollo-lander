@@ -189,14 +189,40 @@
 % comparison operators.
 :- func expr == expr = expr.
 :- func expr ~= expr = expr.
-:- func expr 
+:- func expr < expr = expr.
+:- func expr =< expr = expr.
+:- func expr > expr = expr. 	% := not expr =< expr.
+:- func expr >= expr = expr. 	% := not expr < expr.
+
+
+
+% logical operators
+
+% Logical evaluations in Lua have a slightly different meaning than the commonly
+% accepted interpretation in strictly typed languages, due to it's dynamically
+% typed nature.  Any value can be passed as a logical comparison, and any value
+% other than nil or false will evaluate to true.  Further more, the and/or
+% operators will evaluate to one the value of one of their operands, not a 
+% boolean value, allowing for some syntactic sugar tricks reminicent of using
+% Mercury's conditional (if/then or->/;) operators to evaluate expressions.
+%
+% Most notable are the and/or operators. 'and' will return the second operand
+% if the evaluation succeeds, and the first operand if it fails.  Conversely,
+% the 'or' operator will return the first operand if the evaluation succeeds,
+% or the second operand if it fails.
+
+:- func not expr = expr. 	% Always evalutates to boolean true or false
+:- func expr and expr = expr.	% A and B = C :- C = if (A , B) then B else A.  
+:- func expr or expr = expr.	% A or B = C :- C = if A then A else B.  
 
 	% The length operator returns the number of chars in a string, the 
 	% number of values in the array portion of a table (from index 1 up 
 	% until the first nil value), the size allocated for a userdata in 
 	% bytes, or 0 for any other value.
 	%
-:- func length(expr) = expr.
+:- func len(expr) = expr.
+
+:- func length(expr) = expr.	% length(Expr) = len(Expr).
 
 	% Casts a value to a string.
 	%
@@ -207,7 +233,10 @@
 	%
 :- func expr .. expr = expr.
 
-
+	% Table lookup
+	% expr[expr] = expr
+	%
+:- func index(expr, expr) = expr.
 
 
 
