@@ -81,6 +81,104 @@
 
 %-----------------------------------------------------------------------------%
 %
+% Lua values and variables
+%
+
+	% A union of all of the types that can be natively passed to and from
+	% Lua.
+	%
+:- type value
+	--->	nil(nil)	% the abscence of value
+	;	number(float)	% double prescision, casts to float
+	;	integer(int)	% int cast to Lua number
+	;	boolean(bool)	% boolean truth values, casts to bool
+	;	string(string)	% string value, casts to string
+	;	lightuserdata(c_pointer)	% naked C pointer
+	;	userdata(userdata)	% fully allocated userdata
+	;	thread(lua_state).	% A co_routine
+	;	var(var)	% A refrence to a value in Lua.
+	
+
+% A Lua variable can be used to store any value that can be stored as a 
+% C type.  Furthermore, because variables are instantiated and stored within
+% the Lua state, Mercury cannot construct, deconstruct, equality test or 
+% refrence Lua variables directly like it can C types. These operations are
+% handled by the C API.
+
+:- type var
+	--->	local(index)	% An index on the the local stack
+	;	global(string)	
+	;	ref(ref)	% A strong refrence (like a pointer)
+	;	up(upvalue).	% An upvalue pushed onto a C closure
+
+% The ref type represents a strong refrence to a Lua variable instantiated in
+% Lua, as a result, a refrenced variable will not be garbage collected by Lua
+% until said refrence is unregistered or re-assigned.
+%
+% Note that these refrences discussed here are NOT normal C pointers, but values 
+% internal to Lua's register-based VM.  
+
+	
+	% The ref type represents an indirect refrence to a variable 
+	% instantiated in Lua. So long as Mercury does not garbage collect 
+	% the var, Lua will not garbage collect the refrenced variable.
+	%
+:- type ref.
+
+:- func ref(ref) = T is semidet.
+
+:- func ref_type(ref) = lua_type.
+
+
+:- implementation.
+
+%-----------------------------------------------------------------------------%
+%
+% Refrences
+%
+
+
+
+
+
+:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
+
+:- pragma foreign_code("C",
+"
+typedef int * luaMR_Ref;
+
+
+/* Creates a new refrence from the stack */
+luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
+	lua_pushvalue(L, index);
+	luaMR_Ref new_ref = MR_GC_NEW(int);
+	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
+	return new_ref;
+}
+
+
+/* Push a refrence onto the provided stack */
+void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
+	if (*ref == LUA_REFNIL) {
+		lua_pushnil(L);
+	}
+	else {
+		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
+	}
+}
+
+/* Remove Lua's refrence to the var in the registry */
+void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
+	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
+}
+
+"). 
+
+:- interface.
+
+%-----------------------------------------------------------------------------%
+%
 % function call arguments
 %
 	% Retreive the number of arguments passed to a Lua state.
@@ -314,6 +412,41 @@
 	%
 :- func function(block) = expr.
 
+
+	
+%-----------------------------------------------------------------------------%
+%
+% Lua Value expressions.
+%
+
+	
+% In Lua, variables are not typed, values are.  Lua recognizes eight types.
+
+:- func nil = expr.		% the abscence of value
+	
+% numeric values
+:- func number(float) = expr.		% double prescision, casts to float
+:- func integer(int) = expr.		% int cast to Lua number
+
+% boolean truth values, casts to bool
+:- func	boolean(bool) = expr.
+:- func	true = expr.
+:- func false = expr.	
+
+:- func string(string) = expr.		% string value, casts to string
+:- func	lightuserdata(c_pointer)	% naked C pointer
+	
+	% Refrence types
+	;	function(function)	% A Lua function
+	;	table(table)		% A Lua table
+	;	thread(lua_state)	% A Lua coroutine
+	;	userdata(userdata).	% Full userdata 
+
+
+
+
+
+
 %-----------------------------------------------------------------------------%
 %
 % variadic expressions
@@ -396,90 +529,11 @@
 	---> 	ok
 	;	error(lua_error)
 	;	return(list(expression)).
-	
+
 %-----------------------------------------------------------------------------%
 %
-% Lua Values and Types
-%
-
-	
-% In Lua, variables are not typed, values are.  Lua recognizes eight types.
-
-	% Values that can be natively passed to and from Lua.
-	%
-:- type value
-	--->	nil(nil)		% the abscence of value
-	
-	% Value types
-	;	number(float)		% double prescision, casts to float
-	;	boolean(bool)		% boolean truth value, casts to bool
-	;	string(string)		% string value, casts to string
-	;	lightuserdata(c_pointer)	% naked C pointer
-	
-	% Refrence types
-	;	function(function)	% A Lua function
-	;	table(table)		% A Lua table
-	;	thread(lua_state)	% A Lua coroutine
-	;	userdata(userdata).	% Full userdata 
-
-:- implementation.
-
-true = boolean(yes).
-false = boolean(no).
-
-
-value(T) = (V) :-
-	require_complete_switch [V]
-	{T, V} = 
-	(T:nil -> 
-		{T, nil(nil)}
-	; T:int = int(F) ->
-		{T, number(F)}
-	; T:float ->
-		{T, number(T)}
-	; T:bool ->
-		{T, boolean(T)}
-	; T:string ->
-		{T, string(T)}
-	; sorry($module, $pred, "Value type conversions")
-	).
-		
-	
-
-
-:- func int(float) = int.
-:- mode int(in) = out is semidet.
-:- mode int(out) = in is det. 
-
-int(F::in) = (I::out) :- 
-	I = truncate_to_int(F),
-	F = float(I).
-	
-int(F::out) = (I::in) :-
-	F = float(I).
-
-:- pragma promise_equivalent_clauses(int/1).
-	 
-:- interface.
-
-
-	% Boolean constructors.
-	%
-:- func true = value.
-:- func false = value.
-
-
-
-	% Passes mercury types to Lua values and back. Note that refrence types
-	% will be passed to their respective Mercury representations and will
-	% retain the semantics of refrence types.
-	%
-:- func value(T) = value.
-:- mode value(in) = out is det.
-:- mode value(out) = in is semidet.
-
-
-	
+% Lua types
+%	
 
 :- type lua_type
 	--->	none			% rarely used, represents invalid type
@@ -502,8 +556,9 @@ int(F::out) = (I::in) :-
 	
 %-----------------------------------------------------------------------------%
 %
-% The nil type.
+% The nil value
 %
+
 % In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
 % that is not assigned a value with produce a nil result.
 %
@@ -535,206 +590,6 @@ int(F::out) = (I::in) :-
 :- pred is_nil(T::in, lua_state::in) is semidet.
 
 
-
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-%
-% Lua objects/refrence types
-%
-
-% These types represent Lua values that cannot easily be passed by value as a 
-% C or Mercury primitive type. In terms of Lua semantics, these variables are
-% passed by refrence, not by value. 
-% 
-% This is important to keep in mind when performing equality tests.  
-% An equality test on two of these variables created seperately will fail, 
-% even if they both have the same literal value. Equality will succeed when
-% two refrence type variables refrence the same memory adress. 
-%
-% Note that the refrences discussed here are NOT normal C pointers, but values 
-% internal to Lua's register-based VM.  As a result, (with the exception of 
-% userdata) these values cannot be instantiated outside of Lua, only refrenced.
-%
-% Lua variables with assigned refrence types may be assigned metatables, 
-% Lua tables that store metadata about how Lua may interact with said variables.
-
-:- type ref.
-
-:- func ref(ref) = T is semidet.
-
-:- func ref_type(ref) = lua_type.
-
-%-----------------------------------------------------------------------------%
-%
-% Lua tables
-%
-
-
-% For the purposes of this library, values may only be assigned to unique 
-% tables created in Mercury.  Any tables that have been exposed to Lua
-% execution must be considered immutable to preserve Mercury's
-% pure declarative semantics.
-
-
-	% In Lua, the only native data-structure is the table. The Lua table
-	% is implemented with a hybrid array/hash table data structure,
-	% allowing tables to be efficiently used in the place of arrays, lists
-	% maps and sets. 
-	%
-	% Tables may be assigned metatables, which can store metadata about
-	% 
-:- type table.
-
-:- implementation. % TODO: Merge with main implementation
-
-:- type table
-	---> table(lua, ref).
-	
-:- interface.
-
-% Note that the nondeterministic calls for table lookups have a notably higher
-% performance cost than the semidet ones.
-
-	% Lookup a value in a table by a given key.  Key's that have not been
-	% assigned a value, (or usage of the nil value as a key) will produce
-	% a nil result.  The semantics of this library reserves failure for
-	% type incompatability.  That said, in Mercury, a table will NEVER 
-	% produce a non-nil value from usage of nil as a table's key (attempting
-	% to do so in Lua will result in an error).
-	%
-	% This library does not provide a way to perform lookups on unique 
-	% tables that preserve a table's uniqueness, given that unique tables
-	% represent new tables created and assigned values by Mercury.    
-	%
-:- pred get(K, V, table).
-:- mode get(in, out, in) is semidet.
-:- mode get(out, in, in) is nondet.
-:- mode get(out, out, in) is nondet.
-
-:- func table ^ index(K) = V is semidet.
-
-:- implementation. % TODO: Merge with main implementation
-
-
-
-
-% Tables may not be modified unless they are unique, garunteeing that Mercury
-% holds the only refrence to a table, and as a result avoids causing any 
-% unintended side effects in Lua.
-
-	% Create an empty table.
-	%
-:- pred new_table(table::uo) is det.
-
-:- func new_table = table.
-:- mode new_table = uo is det.
-
-	% Create an empty table and assign a metatable to it.
-	%
-:- pred table_meta(table::uo, table::in) is det.
-:- func table_meta(table) = table.
-:- mode table_meta(in) = uo is det.
-
-% Metatables can define 'weakness' in tables, stating that keys and/or values in
-% tables are weak refrences that do not prevent Lua from garbage collecting
-% them.
-
-:- type weakness
-	---> 	none
-	;	keys
-	;	values
-	;	any.
-
-	% Determine the weakness of a table.
-	%
-:- pred weakness(weakness::out, table::in) is det.
-:- func weakness(table) = weakness.
-
-	% The following is shorthand for table_meta, assigning a metatable to a
-	% new table that only defines the table's weakness.
-	%
-:- pred new_weak_table(weakness::in, table::uo) is det.
-
-:- func new_weak_table(weakness) = table.
-:- mode new_weak_table(in) = uo is det.
-
-	% Assign a value to a unique table.
-	%
-	% Assigning multiple values to the same key will overwrite any existing
-	% value assigned to that key.
-	%
-	% WARNING: attempting to assign a value to a nil key will produce an
-	% error.
-	%
-:- pred set(K::in, V::in, table::di, table::uo) is det.
-
-:- func (table ^ elem(K) := V) = table.
-:- mode (di ^ elem(in) := in) = uo is det.
-
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-%
-% Lua functions
-%
-
-	
-% Lua functions are either compiled chunks of Lua source code, or are C
-% function pointers as defined by the C type "lua_CFunction". Lua functions 
-% are varadic, accepting variable numbers of arguments and
-% return values.
-% 
-% Lua handles functions as first-class variables, they can be assigned
-% to variables and passed as function arguments or return values in
-% the same manner as any other value in Lua.
-% 
-% Lua functions are inherently impure.  Not only can they cause
-% side effects to variables passed as arguments, but they are lexically 
-% scoped, allowing side effects on any local variable declared in a scope
-% outside of the function's scope.
-%
-% This fact effectively removes any way of garunteeing the purity a compiled 
-% Lua function.
-%
-% Lua defines a closure as a foreign function with a number of associated
-% upvalues.
-
-:- type function
-	
-	% Instantiated in Lua
-	---> 	function_ref(ref)
-	
-	% C function pointer of typedef lua_CFunction
-	;	c_function(c_function)
-	
-	% impure higher order call, returns the number of values to pull off
-	% the stack for the return value.
-	;	m_function(impure func(lua) = int)
-	
-	% A Lua chunk, either as Lua source code or as a compiled chunk.
-	;	chunk(string).	
-
-
-:- type c_function.
-	
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-%
-% Lua userdata
-%
-	% Lua handles all foreign values with the userdata value type.
-	% Under normal circumstances, Lua can't actually do anything with
-	% userdata. Attempts to use indexing, arithmetic or other operators
-	% will result in a lua error.  However, as with tables and functions,
-	% it is possible to assign metatables to userdata, allowing one to
-	% extend the valid syntax with which Lua can interact with a given
-	% userdata.
-	% 
-	% Note that userdata that contains a Mecury type will be passed to 
-	% Mercury as that type.  Userdata may contain foreign types that are
-	% not compatable with Mercury, although such types can still be 
-	% refrenced by c_pointer.
-	
-% TODO: Metamethods for userdata
 
 
 
@@ -938,67 +793,6 @@ int luaMR_loader(lua_State * L) {
 
 
 
-
-%-----------------------------------------------------------------------------%
-%
-% Refrences
-%
-
-% A Lua variable can be used to store any value that can be stored as a 
-% C type.  Furthermore, because variables are instantiated and stored within
-% the Lua state, Mercury cannot construct, deconstruct, equality test or 
-% refrence Lua variables directly like it can C types. These operations are
-% handled by the C API.
-%
-% Another thing to note is the fact that the lifetimes of Lua variables are
-% manged by the Lua garbage collector, a mark and sweep collector not unlike
-% the Bohem GC. 
-%
-% The current implementation of this library places reservations on and
-% registers finalizer callbacks with variables passed by refrence between
-% Mercury and Lua in such a manner that a Variable passed to it's non-native 
-% environment will not be collected by it's own garbage collector until the
-% non-native garbage collector calls the finalizer associated with it.
-
-	% The ref type represents an indirect refrence to a variable 
-	% instantiated in Lua. So long as Mercury does not garbage collect 
-	% the var, Lua will not garbage collect the refrenced variable.
-	%
-:- type ref.
-
-:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
-
-:- pragma foreign_code("C",
-"
-typedef int * luaMR_Ref;
-
-
-/* Creates a new refrence from the stack */
-luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
-	lua_pushvalue(L, index);
-	luaMR_Ref new_ref = MR_GC_NEW(int);
-	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
-	return new_ref;
-}
-
-
-/* Push a refrence onto the provided stack */
-void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
-	if (*ref == LUA_REFNIL) {
-		lua_pushnil(L);
-	}
-	else {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
-	}
-}
-
-/* Remove Lua's refrence to the var in the registry */
-void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
-	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
-}
-
-"). 
 
 
 
