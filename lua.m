@@ -58,7 +58,6 @@
 :- interface.
 
 :- include_module state.
-:- include_module vars.
 
 :- import_module io.
 :- import_module float.
