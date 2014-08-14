@@ -99,8 +99,8 @@
 	% single nil value was passed.
 	%
 :- some [T] pred det_args(int, T, lua_state).
-:- mode args(in, out, in) is det.
-:- mode args(out, out, in) is multi.
+:- mode det_args(in, out, in) is det.
+:- mode det_args(out, out, in) is multi.
 
 	% Dynamic cast a specific argument.
 	%
@@ -108,8 +108,43 @@
 
 	% Static cast a specific argument.
 	%
-:- some [T] det_arg(int, lua_state) = T.
+:- some [T] func det_arg(int, lua_state) = T.
 
+%-----------------------------------------------------------------------------%
+%
+% function call upvalues
+%
+
+
+% The scope of upvalues is restricted to the C call which created the Lua state.
+
+	% Retreive the number of upvalues passed to a Lua closure.
+	%
+:- func upvalue_count(lua_state) = int.
+
+	% Declaratively access the upvalues passed to a Lua state with dynamic
+	% casting.
+	%
+:- pred upvalues(int, T, lua_state).
+:- mode upvalues(in, out, in) is semidet.
+:- mode upvalues(out, out, in) is nondet.
+
+	% Declaratively access the upvalues passed to a Lua state with static
+	% casting. If no upvalues are exist, the call will abort.
+	%
+:- some [T] pred det_upvalues(int, T, lua_state).
+:- mode det_upvalues(in, out, in) is det.
+:- mode det_upvalues(out, out, in) is multi.
+
+	% Dynamic cast a specific upvalue.
+	%
+:- func upvalue(int, lua_state) = T is semidet.
+
+	% Static cast a specific argument. Abort if not a valid upvalue.
+	%
+:- some [T] func det_upvalue(int, lua_state) = T.
+
+% TODO: Globals?
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -205,13 +240,9 @@
 	%
 :- func arg(int) = expr.
 
-	% Access an upvalue
+	% Access a function upvalue.
 	%
-	% The scope of upvalues is restricted to the C call which created the
-	% Lua state.
-	%
-	%
-:- func upvalue
+:- func upvalue(int) = expr.
 
 :- 
 
