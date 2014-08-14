@@ -80,7 +80,36 @@
 
 :- type lua == lua_state.
 
+%-----------------------------------------------------------------------------%
+%
+% function call arguments
+%
+	% Retreive the number of arguments passed to a Lua state.
+	%
+:- func arg_count(lua_state) = int.
 
+	% Declaratively access the arugments passed to a Lua state with dynamic
+	% casting.
+	%
+:- pred args(int, T, lua_state).
+:- mode args(in, out, in) is semidet.
+:- mode args(out, out, in) is nondet.
+
+	% Declaratively access the arugments passed to a Lua state with static
+	% casting. If no arguments are passed, det_args will behave as if a
+	% single nil value was passed.
+	%
+:- some [T] pred det_args(int, T, lua_state).
+:- mode args(in, out, in) is det.
+:- mode args(out, out, in) is multi.
+
+	% Dynamic cast a specific argument.
+	%
+:- func arg(int, lua_state) = T is semidet.
+
+	% Static cast a specific argument.
+	%
+:- some [T] det_arg(int, lua_state) = T.
 
 
 %-----------------------------------------------------------------------------%
@@ -111,14 +140,16 @@
 % may be added and removed from the stack in a manner that is consistent with
 % variable scope and backtracking.
 
-	% func(First, Last, Raw, L) = Index.
+%%% Important! %%%
+% an expression that removes or modifies values on the stack that it did not 
+% add should be expected to produce undefined behavior as this is considered 
+% impure behavior in the context of Mercury's pure functional semantics.
+
+	% func(First, Last, Raw, Strict, L) = Index.
 	%
 	% An expression performs an evaluation based upon the values availible
 	% to a Lua state, returning the stack index containing the value of the
 	% evaluated expression.
-	%
-	% Note: an expression that removes values from the stack that it did
-	% not add should be expected to produce undefined behavior.
 	%
 	% First is the first stack index considered to be a part of the local
 	% scope. Values at or past this index will be removed when the scope
@@ -127,47 +158,41 @@
 	% Last is the last stack index Mercury will be free to use without
 	% first checking to see if Lua has allocated space for it.
 	%
-	% Index is the stack index of the evaluated expression.
-	%
 	% Raw determines whether or not the expression is being evaluated
 	% under a 'raw' context, if yes, it will avoid calling metamethods.
 	% 
-:- type expression == (func(int, int, bool, lua_state) = int).
+	% Strict determines whether or not the expression should return nil
+	% when faced with invalid Lua syntax, or throw an exception if Strict
+	% is yes.
+	%
+	% Index is the stack index of the evaluated expression.
+	% 
+:- type expression == (func(int, int, bool, bool, lua_state) = int).
 
 :- type expr == expression.
 
 
-	% variadic expressions encompass sequential sets of values
-	% Values are indexed starting at one, incrementing until
-	% the call fails.  If an invalid index is given, nil is returned.
+% Note: calls to eval should never invoke metatables, as they should be pure.
+% If metatable invocation is desired, do so within a statement.
+
+% eval and det_eval return nil on an invalid expression, wheras strict_eval will
+% throw an exception where Lua normally would.
+
+	% Evaluate an expression with dynamic type cast.
 	%
-:- type variadic_expression == (func(int) `with_type` expression).
+:- func eval(expression, lua_state) = T is semidet.
 
-:- inst variadic_expression
-	--->	(func(in, in, in, in, in) = out is det) 
-	;	(func(out, in, in, in, in) = out is multi).
-	
-:- type expr_list == variadic_expression.
-:- inst expr_list == variadic_expression.
-
-
-	% Evaluate an expression with dynamic type cast
+	% Throws a lua_error if an invalid expression is evaluated.
 	%
-:- func eval(expression, lua) = T is semidet.
+:- func strict_eval(expression, lua_state) = T is semidet.
 
-	% Evaluate without cast
+	% Evaluate without type cast
 	%
 :- some [T] func det_eval(expression, lua) = T.
 
-	% Evaluate variadic expressions
+	% Value to be passed if an expression is invalid
 	%
-:- func eval(int, expr_list, lua) = T.
-:- mode eval(in, in, in) = out is semidet.
-:- mode eval(out, in, in) = out is nondet.
-
-:- some [T] func det_eval(int, expr_list, lua) = T.
-:- mode det_eval(in, in, in) = out is det.
-:- mode det_eval(out, in, in) = out is multi.
+:- type invalid_expression ---> invalid_expression(string).
 
 %-----------------------------------------------------------------------------%
 %
@@ -176,6 +201,20 @@
 
 :- type unop == func(expr) = expr.
 :- type binop == func(expr, expr) = expr.
+
+	% Access values passed as function arguments.
+	%
+:- func arg(int) = expr.
+
+	% Access an upvalue
+	%
+	% The scope of upvalues is restricted to the C call which created the
+	% Lua state.
+	%
+	%
+:- func upvalue
+
+:- 
 
 % Math operators.
 :- func expr + expr = expr.
@@ -194,7 +233,7 @@
 :- func expr > expr = expr. 	% := not expr =< expr.
 :- func expr >= expr = expr. 	% := not expr < expr.
 
-
+% Note: In lua syntax >= and =< are expressed as >= and <=
 
 % logical operators
 
@@ -228,22 +267,88 @@
 	%
 :- func to_string(expr) = expr.
 
-	% Concatenates string values (implicitly using to_string on non-string
-	% values.
+	% Concatenates string values. This implicitly uses to_string on 
+	% non-string values.
 	%
 :- func expr .. expr = expr.
 
 	% Table lookup
-	% expr[expr] = expr
+	% Mercury: 	expr ^ index(expr) = expr.
+	% Lua:		expr[expr] = expr
 	%
 :- func index(expr, expr) = expr.
 
+	% function constructor.
+	%
+	% Functions constructed this way 
+	%
+:- func function(block) = expr.
 
+%-----------------------------------------------------------------------------%
+%
+% variadic expressions
+%  
+
+% Certain operations in Lua may utilize variadic expressions.
+% The syntax for such expressions use the ',' infix operator.
+%
+% Such cases include variable assignments:
+%
+% local x, y, z = 1, 2 3
+%
+% function calls:
+%
+% local x, y, z = some_function(1, 2, 3)
+% 
+% and table constructors, assigning values to the array portion of a table,  
+% indexed by number, starting with 1:
+%
+% local t = { a, b, c } := local t = { [1] = a, [2] = b, [3] = c }
+%
+% Function calls can be used to populate the array portion of a table in the
+% same manner:
+%
+% local t = { some_function(1, 2, 3) }
+%
+% Any unneeded values in a variadic expression are ignored, and any missing
+% values in a variadic expression are populated by nil:
+%
+% local a, b = 1, 2, 3 --The third value in the right hand side is ignored
+%
+% local a, b, c = 1 := a, b, c = 1, nil, nil
+
+	% variadic expressions encompass sequential sets of values
+	% Values are indexed starting at one, incrementing until
+	% the call fails.  If an invalid index is given, nil is returned.
+	%
+:- type variadic_expression == (func(int) `with_type` expression).
+
+:- inst variadic_expression
+	--->	(func(in, in, in, in, in) = out is det) 
+	;	(func(out, in, in, in, in) = out is multi).
+	
+:- type expr_list == variadic_expression.
+:- inst expr_list == variadic_expression.
+
+% The semantics of eval/3 and det_eval/3 are the same as those for
+% eval/2 and det_eval/2.
+
+	% Evaluate variadic expressions dynamically
+	%
+:- func eval(int, expr_list, lua) = T.
+:- mode eval(in, in, in) = out is semidet.
+:- mode eval(out, in, in) = out is nondet.
+
+	% Static evaluation of variadic expressions.
+	%
+:- some [T] func det_eval(int, expr_list, lua) = T.
+:- mode det_eval(in, in, in) = out is det.
+:- mode det_eval(out, in, in) = out is multi.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 %
-% Lua  statements
+% Lua statements
 %  
 
 % In Lua, a statement performs an impure change upon the Lua state. Given the
