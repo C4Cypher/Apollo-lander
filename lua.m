@@ -89,23 +89,43 @@
 	% Lua.
 	%
 :- type value
+	--->	literal(literal_value)
+	;	refrence(refrence)
+	;	error(lua_error). 
+	
+:- type values == list(value).
+
+:- func value(T) = value.
+:- func value_of(value) = T is semidet.
+:- some [T] det_value_of(value) = T is det.
+	
+:- type literal_value.
 	--->	nil(nil)	% the abscence of value
 	;	number(float)	% double prescision, casts to float
 	;	integer(int)	% int cast to Lua number
 	;	boolean(bool)	% boolean truth values, casts to bool
 	;	string(string)	% string value, casts to string
+	;	char(char)	% Passed as string.
+	;	chunk(string).	% A chunk of Lua code
+	
+:- type literals == list(literal_value).
+	
+:- type refrence
+	--->	variable(var)		% A Lua variable
 	;	lightuserdata(c_pointer)	% naked C pointer
 	;	userdata(userdata)	% fully allocated userdata
 	;	thread(lua_state)	% A co_routine
-	;	function(string)	% A function chunk
-	;	c_function(c_function)  % A Lua callable function pointer
-	;	var(var)		% A refrence to a value in Lua
-	;	error(lua_error). 	% Non fatal error
-	
-:- type values == list(value).
+	;	c_function(c_function). % A Lua callable function pointer
 
 :- type c_function.	% A Lua callable function defined in C
 
+
+:- implementation.
+
+
+
+
+:- interface.
 
 
 % The nil value
@@ -227,16 +247,24 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 %-----------------------------------------------------------------------------%
 %
-% Lua scope
+% Lua environment
 %
 
 	% The scope type is meant ensure the safety and purity of Mercury calls
 	% to the Lua state, while at the same time, representing and behaving
-	% like a concept that should be familiar to Lua programmers.
+	% in a way that should be familiar to Lua programmers.
 	%
 :- type scope.
 
-	% VarName ^ Scope
+:- type global_environment
+	--->	unscoped(lua_state)
+	;	scoped(
+		lua::lua_state,
+		global::map(string,nil),
+		registry::map(string,nil),
+		args::int,
+		
+		
 
 
 
