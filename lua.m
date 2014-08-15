@@ -79,9 +79,10 @@
 
 :- type lua == lua_state.
 
+
 %-----------------------------------------------------------------------------%
 %
-% Lua values and variables
+% Lua values
 %
 
 	% A union of all of the types that can be natively passed to and from
@@ -95,9 +96,49 @@
 	;	string(string)	% string value, casts to string
 	;	lightuserdata(c_pointer)	% naked C pointer
 	;	userdata(userdata)	% fully allocated userdata
-	;	thread(lua_state).	% A co_routine
-	;	var(var)	% A refrence to a value in Lua.
+	;	thread(lua_state)	% A co_routine
+	;	function(string)	% A function chunk
+	;	c_function(c_function)  % A Lua callable function pointer
+	;	var(var)		% A refrence to a value in Lua
+	;	error(lua_error). 	% Non fatal error
 	
+:- type values == list(value).
+
+:- type c_function.	% A Lua callable function defined in C
+
+
+
+% The nil value
+%
+% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
+% that is not assigned a value with produce a nil result.
+%
+% Furthermore, assigning a key value to nil will unassign that value. Note that 
+% this does not neccicarily delete the value, if Lua holds a refrence to that
+% value elsewhere, it will not be garbage collected.
+%
+% In normal Lua semantics, using nil as a key value produces an error, however
+% due to the Mercury semantics used in this library, doing so will either fail
+% or return another nil value.  This is both for the sake of safer runtime
+% integration of Mercury's strict type system with Lua's dynamic type system,
+% and also as a practical consideration of Mercury's potentially
+% nondeterministic nature, as testing for a paticular type wil result in a
+% backtracking failure.
+%
+% It is to be noted that Lua's nil value is not to be confused with C's NULL
+% value.  While used in similar ways, Lua will interpret C's NULL as the number
+% zero, wheras C has no direct representation for Lua's nil value.
+%
+% As a result of this, Lua's semantics on conditional tests are slightly
+% different than C's.   C interprets any numeric value other than 0 as true.
+% In contrast, Lua interprets ANY value other than boolean false or nil as true.
+
+:- type nil ---> nil.
+
+%-----------------------------------------------------------------------------%
+%
+% Lua variables
+%
 
 % A Lua variable can be used to store any value that can be stored as a 
 % C type.  Furthermore, because variables are instantiated and stored within
@@ -107,9 +148,16 @@
 
 :- type var
 	--->	local(index)	% An index on the the local stack
-	;	global(string)	
+	;	global(string)	% A global variable
+	;	registry(string) % A registry entry
 	;	ref(ref)	% A strong refrence (like a pointer)
 	;	up(upvalue).	% An upvalue pushed onto a C closure
+
+
+:- type vars == list(var).
+
+:- type index. 		% stack index
+:- type upvalue. 	% upvalue index
 
 % The ref type represents a strong refrence to a Lua variable instantiated in
 % Lua, as a result, a refrenced variable will not be garbage collected by Lua
@@ -132,14 +180,14 @@
 
 :- implementation.
 
+
+:- type index ---> index(int).
+:- type upvalue ---> upvalue(int).
+
 %-----------------------------------------------------------------------------%
 %
 % Refrences
 %
-
-
-
-
 
 :- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
 
@@ -179,8 +227,20 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 %-----------------------------------------------------------------------------%
 %
-% function call arguments
+% Lua scope
 %
+
+	% The scope type is meant ensure the safety and purity of Mercury calls
+	% to the Lua state, while at the same time, representing and behaving
+	% like a concept that should be familiar to Lua programmers.
+	%
+:- type scope.
+
+	% VarName ^ Scope
+
+
+
+
 	% Retreive the number of arguments passed to a Lua state.
 	%
 :- func arg_count(lua_state) = int.
@@ -208,41 +268,7 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	%
 :- some [T] func det_arg(int, lua_state) = T.
 
-%-----------------------------------------------------------------------------%
-%
-% function call upvalues
-%
 
-
-% The scope of upvalues is restricted to the C call which created the Lua state.
-
-	% Retreive the number of upvalues passed to a Lua closure.
-	%
-:- func upvalue_count(lua_state) = int.
-
-	% Declaratively access the upvalues passed to a Lua state with dynamic
-	% casting.
-	%
-:- pred upvalues(int, T, lua_state).
-:- mode upvalues(in, out, in) is semidet.
-:- mode upvalues(out, out, in) is nondet.
-
-	% Declaratively access the upvalues passed to a Lua state with static
-	% casting. If no upvalues are exist, the call will abort.
-	%
-:- some [T] pred det_upvalues(int, T, lua_state).
-:- mode det_upvalues(in, out, in) is det.
-:- mode det_upvalues(out, out, in) is multi.
-
-	% Dynamic cast a specific upvalue.
-	%
-:- func upvalue(int, lua_state) = T is semidet.
-
-	% Static cast a specific argument. Abort if not a valid upvalue.
-	%
-:- some [T] func det_upvalue(int, lua_state) = T.
-
-% TODO: Globals?
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -299,7 +325,7 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	%
 	% Index is the stack index of the evaluated expression.
 	% 
-:- type expression == (func(int, int, bool, bool, lua_state) = int).
+:- type expression == (func(scope) = value).
 
 :- type expr == expression.
 
@@ -552,44 +578,28 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 :- func lua_type(T) = lua_type.
 
 
-	
-	
+
+:- implementation.
+
 %-----------------------------------------------------------------------------%
 %
-% The nil value
+% Lua Types
 %
+:- pragma foreign_enum("C", lua_type/0, 
+[
+	none 		- 	"LUA_TNONE",
+	nil_type 	- 	"LUA_TNIL",
+	boolean_type 	- 	"LUA_TBOOLEAN",
+	lightuserdata_type - 	"LUA_TLIGHTUSERDATA",
+	number_type 	- 	"LUA_TNUMBER",
+	string_type 	- 	"LUA_TSTRING",
+	table_type 	- 	"LUA_TTABLE",
+	function_type 	- 	"LUA_TFUNCTION",
+	userdata_type 	- 	"LUA_TUSERDATA",
+	thread_type 	- 	"LUA_TTHREAD"
+]).
 
-% In Lua, nil represents the abscence of value.  Looking up a key in a Lua table 
-% that is not assigned a value with produce a nil result.
-%
-% Furthermore, assigning a key value to nil will unassign that value. Note that 
-% this does not neccicarily delete the value, if Lua holds a refrence to that
-% value elsewhere, it will not be garbage collected.
-%
-% In normal Lua semantics, using nil as a key value produces an error, however
-% due to the Mercury semantics used in this library, doing so will either fail
-% or return another nil value.  This is both for the sake of safer runtime
-% integration of Mercury's strict type system with Lua's dynamic type system,
-% and also as a practical consideration of Mercury's potentially
-% nondeterministic nature, as testing for a paticular type wil result in a
-% backtracking failure.
-%
-% It is to be noted that Lua's nil value is not to be confused with C's NULL
-% value.  While used in similar ways, Lua will interpret C's NULL as the number
-% zero, wheras C has no direct representation for Lua's nil value.
-%
-% As a result of this, Lua's semantics on conditional tests are slightly
-% different than C's.   C interprets any numeric value other than 0 as true.
-% In contrast, Lua interprets ANY value other than boolean false or nil as true.
-
-:- type nil ---> nil.
-
-	% Utility pred for evaluating whether or not an existential value is 
-	% nil.
-	%
-:- pred is_nil(T::in, lua_state::in) is semidet.
-
-
+:- interface.
 
 
 
@@ -608,7 +618,17 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	;	memory_error
 	;	unhandled_error.
 
+:- implementation.
 
+:- pragma foreign_enum("C", error_type,
+[
+	runtime_error 	-	"LUA_ERRRUN",
+	syntax_error 	-	"LUA_ERRSYNTAX",
+	memory_error	-	"LUA_ERRMEM",
+	unhandled_error	-	"LUA_ERRERR"
+]). 
+
+:- interface.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -792,66 +812,6 @@ int luaMR_loader(lua_State * L) {
 ").
 
 
-
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua Types
-%
-:- pragma foreign_enum("C", lua_type/0, 
-[
-	none - "LUA_TNONE",
-	nil_type - "LUA_TNIL",
-	boolean_type - "LUA_TBOOLEAN",
-	lightuserdata_type - "LUA_TLIGHTUSERDATA",
-	number_type - "LUA_TNUMBER",
-	string_type - "LUA_TSTRING",
-	table_type - "LUA_TTABLE",
-	function_type - "LUA_TFUNCTION",
-	userdata_type - "LUA_TUSERDATA",
-	thread_type - "LUA_TTHREAD"
-]).
-
-
-is_nil(T) :- dynamic_cast(T, nil:nil).
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua tables
-%
-
-
-
-:- type table ---> table(ref).
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua functions
-%
-
-:- type function 
-	---> function(ref).
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua userdata
-%
-
-:- type userdata ---> userdata(ref).
-
-
-%-----------------------------------------------------------------------------%
-%
-% Lua thread
-%
-
-:- type thread == lua_state.
 
 
 
