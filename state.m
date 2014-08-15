@@ -43,8 +43,52 @@
 
 :- interface.
 
-:- import_module lua.
+%-----------------------------------------------------------------------------%
+%
+% The lua typeclass.
+%
 
+% Note: These methods are unsafe without a clear understanding of the workings
+% of the Lua C api, and even then, they're still pretty unsafe.
+
+	
+	% The index at the top of the stack.
+:- semipure func get_top(lua) = int.
+:- impure pred 	set_top(int::in, lua::in) is det.
+	
+	% Allocate free space on the stack if needed, fail if it cannot
+:- semipure pred check_stack(int::in, L::in) is semidet.
+	
+	% Lua type
+:- semipure func get_type(value, L) = lua_type.
+	
+	% Directly manipulate the stack 
+:- impure pred 	push_value(value::in, L::in) is det.
+:- impure pred 	pop(int::in, L::in) is det.
+	
+	% Access Lua variables
+:- semipure func get_var(var::in, L::in) = value.
+:- impure pred set_var(var::in, value::in, L::in) is det.
+
+	% get_table(Table, Key, Raw, L) = Value
+	% set_table(Table, Key, Value, Raw)
+	%
+	% Access Lua tables, if Raw is yes, metamethod invocations are avoided,
+	% but an error is thrown if Table is not actually a table.
+	%
+:- semipure func get_table(var, value, bool, L) = value.
+:- impure pred set_table(var::in, value::in, value::in, bool::in, L::in) is det.
+	
+	% Access metatables, may cause undefined behavior if used on types
+	% that do not have metatables.
+	%
+	
+
+
+%-----------------------------------------------------------------------------%
+%
+% Utilites for the concrete Lua state.
+%
 	% Create a fresh, new , initialized lua_state.
 	%
 :- pred new_state(lua_state::out).
@@ -62,6 +106,15 @@
 	;	syntax_error
 	;	memory_error
 	;	unhandled_error.
+
+%-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+
+:- implementation.
+
+:- import_module require.	
+	
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -207,9 +260,7 @@
 %-----------------------------------------------------------------------------%
 
 
-:- implementation.
 
-:- import_module require.
 
 :- func return_nil = nil.
 
