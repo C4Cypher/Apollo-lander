@@ -43,14 +43,15 @@
 
 :- interface.
 
-%-----------------------------------------------------------------------------%
-%
-% The lua typeclass.
-%
+:- import_module stream.
 
 % Note: These methods are unsafe without a clear understanding of the workings
 % of the Lua C api, and even then, they're still pretty unsafe.
 
+%-----------------------------------------------------------------------------%
+%
+% Stack Manipulation
+%
 	
 	% The index at the top of the stack.
 :- semipure func get_top(lua) = int.
@@ -58,15 +59,28 @@
 	
 	% Allocate free space on the stack if needed, fail if it cannot
 :- semipure pred check_stack(int::in, lua::in) is semidet.
-	
-	% Lua type
-:- semipure func get_type(value, lua) = lua_type.
-	
-	% Directly manipulate the stack 
+
+	% Directly push values onto and off of the stack 
 :- impure pred 	push_value(value::in, lua::in) is det.
 :- impure pred 	pop(int::in, lua::in) is det.
+
+% Note: Use of lua_remove and lua_insert is highly discouraged when used with 
+% this library, given that said operations impurely re-arrange the Lua stack
+% in a manner that ignores restrictions that Mercury needs to interact with
+% it purely.
+
+%-----------------------------------------------------------------------------%
+%
+% Accessing and manipulating variables 
+%
+
+	
+	% The Lua type of a value
+	%
+:- semipure func get_type(value, lua) = lua_type.
 	
 	% Access Lua variables, note: uses rawget and rawset
+	%
 :- semipure func get_var(var::in, lua::in) = value.
 :- impure pred set_var(var::in, value::in, lua::in) is det.
 
@@ -85,6 +99,32 @@
 :- semipure func get_metatable(var, lua) = var.
 :- impure pred set_metatable(var::in, var::in, lua::in) is det.
 
+%-----------------------------------------------------------------------------%
+%
+% Function constructors, deconstructors, and calls 
+%
+
+	% Load a function from a string reader.
+	%
+:- pred load_chunk(Stream::in, var::out, lua::in, State::di, State::uo) is det
+	<= stream.reader(Stream, string, State).
+	
+:- pred load_chunk(Stream::in, var::out, lua::in) is det 
+	<= stream.reader(Stream, string, io.state).
+
+:- func load_chunk(string, lua) = var.
+
+
+	% Dump a function as a compiled chunk to a string writer.
+	%	
+:- pred dump(var::in, string::out, lua::in, State::di, State::uo) is det
+	<= stream.writer(Stream, string, State).
+	
+:- pred dump(var::in, string::out, lua::in) is det
+	<= string.writer(Stream, string, io.state).
+
+:- func dump(var, lua) = string.
+
 	% fcall(Function, Args, L) = Return_values
 	%
 	% call a function
@@ -97,12 +137,21 @@
 	%
 :- impure func pcall(var, values, var, lua) = values.
 
-
+	% cpcall(CFunc, LUdataIn, L) = LUdataOut
+	%
+	% Protected C call in Lua, passing a pointer (or MR_Word)
+	% as the only argument.  
+	% 
+:- impure func cpcall(c_function, c_pointer, lua) = c_pointer.
 
 	% c_clousure(CFunc, Upvalues, L) = Function
 	%
-	% Create a Lua function, associating
+	% Create a Lua function, associating upvalues with it
+	% upvalues may be omitted to just push the C function.
+	%
 :- func c_closure(c_function, vars, L) = var.
+:- func c_closure(c_function, L) = var.	% :- F = c_closure(CFunc, [], L).
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -112,10 +161,16 @@
 	%
 :- pred new_state(lua_state::out).
 
+	% Destroy a Lua_state
+	%
+:- impure pred close_state(lua_state).	
+:- pred close_state(lua_state::in, io::di, io::uo).
+
 
 	% Return the Lua state's current status.
 	%
 :- semipure pred get_status(lua_state::in, status::out). 
+:- pred get_status(lua_state::in, status::out, io::di, io::uo).
 
 
 :- type status
