@@ -57,14 +57,16 @@
 
 :- interface.
 
-:- include_module state.
+%:- include_module state.
 
 :- import_module io.
 :- import_module float.
 :- import_module int.
 :- import_module bool.
 :- import_module string.
+:- import_module char.
 :- import_module list.
+:- import_module map.
 :- import_module univ.
 :- import_module require.
 
@@ -77,7 +79,48 @@
 	%
 :- type lua_state.
 
-:- type lua == lua_state.
+:- type lua 
+	--->	lua_state(lua_state)
+	; 	some [L] (lua(L) => lua(L)).
+
+	% Typeclass defining all of the values retreivable from a Lua state.
+	%
+:- typeclass lua(L) where [
+	pred rawget(var, value, L),		
+	mode rawget(in, out, in) is semidet, 	 	
+	mode rawget(out, out, in) is nondet,
+	
+	func top(L) = int,			
+	
+	func version(L) = string
+].
+
+:- typeclass pure_lua(L) <= lua(L) where [
+	pred get(var, value, L, L),
+	mode get(in, out, in, out) is semidet, 	 	
+	mode get(out, out, in, out) is nondet
+	
+	pred set(var::in, value::in, L::in, L::out) is det,
+	pred push(value::in, L::in, L::out) is det,
+	pred pop(int::in, L::in, L::out) is det
+].
+
+:- typeclass imperative_lua(L).
+:- instance  imperative_lua(lua_state).
+
+:- implementation.
+
+:- typeclass imperative_lua(L) <= lua(L) where [
+	impure pred get(var, value, L),	
+	mode get(in, out, in) is semidet, 	 	
+	mode get(out, out, in) is nondet
+	
+	impure pred set(var::in, value::in, L::in) is det,
+	impure pred push(value::in, L::in) is det,
+	impure pred pop(int::in, L::in) is det
+].
+
+:- interface.
 
 
 %-----------------------------------------------------------------------------%
@@ -89,19 +132,21 @@
 	% Lua.
 	%
 :- type value
-	--->	literal(literal_value)
-	;	refrence(refrence)
+	--->	nil(nil)	% the abscence of value
+	;	literal(literal_value)
+	;	var(var)	% Instantiated in the Lua state
+	;	c_var(c_var)	% Represented by a C type
+	;	m_var(m_var)	% Represented by a Mercury type
 	;	error(lua_error). 
 	
 :- type values == list(value).
 
 :- func value(T) = value.
-:- func value_of(value) = T is semidet.
-:- some [T] det_value_of(value) = T is det.
+:- func value_of(value, L) = T is semidet <= lua(L).
+:- some [T] det_value_of(value, L) = T is det <= lua(L).
 	
 :- type literal_value.
-	--->	nil(nil)	% the abscence of value
-	;	number(float)	% double prescision, casts to float
+	--->	number(float)	% double prescision, casts to float
 	;	integer(int)	% int cast to Lua number
 	;	boolean(bool)	% boolean truth values, casts to bool
 	;	string(string)	% string value, casts to string
@@ -110,22 +155,20 @@
 	
 :- type literals == list(literal_value).
 	
-:- type refrence
-	--->	variable(var)		% A Lua variable
-	;	lightuserdata(c_pointer)	% naked C pointer
+:- type c_var
+	--->	lightuserdata(c_pointer)	% naked C pointer
 	;	userdata(userdata)	% fully allocated userdata
 	;	thread(lua_state)	% A co_routine
 	;	c_function(c_function). % A Lua callable function pointer
 
 :- type c_function.	% A Lua callable function defined in C
 
-
-:- implementation.
-
-
-
-
-:- interface.
+:- type m_var
+	--->	ground(univ).
+	;	m_func(func(values) = values)
+	;	m_function(func(lua_state) = int)
+	;	free.	% Unbound variable, think promiscuous nil
+		
 
 
 % The nil value
@@ -166,13 +209,23 @@
 % refrence Lua variables directly like it can C types. These operations are
 % handled by the C API.
 
+:- type var.
+
+:- implementation.
 :- type var
 	--->	local(index)	% An index on the the local stack
-	;	global(string)	% A global variable
-	;	registry(string) % A registry entry
 	;	ref(ref)	% A strong refrence (like a pointer)
-	;	up(upvalue).	% An upvalue pushed onto a C closure
-
+	;	up(upvalue)	% An upvalue pushed onto a C closure
+	;	index(var, value)	% Value stored in a table or metamethod
+	;	metatable(var)	% A variable's metatable
+	;	env(var)	% a variable's environment
+	;	global(string)	% A global variable
+	;	global		% The global environment
+	;	registry(string) % A registry entry
+	;	registry	% The registry
+	;	invalid(string).
+	
+:- interface.
 
 :- type vars == list(var).
 
@@ -192,10 +245,6 @@
 	% the var, Lua will not garbage collect the refrenced variable.
 	%
 :- type ref.
-
-:- func ref(ref) = T is semidet.
-
-:- func ref_type(ref) = lua_type.
 
 
 :- implementation.
@@ -250,19 +299,12 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 % Lua environment
 %
 
-	% The scope type is meant ensure the safety and purity of Mercury calls
-	% to the Lua state, while at the same time, representing and behaving
-	% in a way that should be familiar to Lua programmers.
-	%
-:- type scope.
-
-:- type global_environment
-	--->	unscoped(lua_state)
-	;	scoped(
-		lua::lua_state,
-		global::map(string,nil),
-		registry::map(string,nil),
-		args::int,
+:- type scope
+	---> global(lua::lua_state, % The state that this scope represents
+		args::int	% The number of arguments passed to this call
+		
+		open::index,	% The first 
+		
 		
 		
 
@@ -271,12 +313,12 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 	% Retreive the number of arguments passed to a Lua state.
 	%
-:- func arg_count(lua_state) = int.
+:- func arg_count(L) = int <= lua(L).
 
 	% Declaratively access the arugments passed to a Lua state with dynamic
 	% casting.
 	%
-:- pred args(int, T, lua_state).
+:- pred args(int, T, L) <= lua(L).
 :- mode args(in, out, in) is semidet.
 :- mode args(out, out, in) is nondet.
 
@@ -284,305 +326,21 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	% casting. If no arguments are passed, det_args will behave as if a
 	% single nil value was passed.
 	%
-:- some [T] pred det_args(int, T, lua_state).
+:- some [T] pred det_args(int, T, L) <= lua(L).
 :- mode det_args(in, out, in) is det.
 :- mode det_args(out, out, in) is multi.
 
 	% Dynamic cast a specific argument.
 	%
-:- func arg(int, lua_state) = T is semidet.
+:- func arg(int, lua_state) = T is semidet <= lua(L).
 
 	% Static cast a specific argument.
 	%
-:- some [T] func det_arg(int, lua_state) = T.
-
-
-
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-%
-% Lua expressions
-%
-
-% In Lua, an expression is a part of Lua's syntax that is parsed via strict 
-% evaluation. It can be assigned to a variable, passed as function arguments,
-% return values, in table constructors and indexes, or just about anywhere a
-% variable term could be placed.
-%
-% Unlike Lua function calls, expressions are functionally pure (so long as they
-% do not invoke metamethods).  In order to treat the Lua state in purely
-% declarative terms, we need to redefine some of the semantics and enforce
-% some rules when it comes to interacting with the stack.
-% 
-% When Lua calls a function implemented with foreign code, the arguments
-% passed to the function are pushed onto the stack.  Changing those values on
-% the stack would modify the original context of the call. As a result,
-% these values should be treated as if they are immutable.
-%
-% Within the context of this library, while the lua_state type is literally
-% bound to a C pointer refrencing a lua_State struct, conceptually Lua stack is 
-% never considered to be fully ground.  Any values pushed onto the stack past
-% the initial arguments are considered part of the local scope, and as such, they
-% may be added and removed from the stack in a manner that is consistent with
-% variable scope and backtracking.
-
-%%% Important! %%%
-% an expression that removes or modifies values on the stack that it did not 
-% add should be expected to produce undefined behavior as this is considered 
-% impure behavior in the context of Mercury's pure functional semantics.
-
-	% func(First, Last, Raw, Strict, L) = Index.
-	%
-	% An expression performs an evaluation based upon the values availible
-	% to a Lua state, returning the stack index containing the value of the
-	% evaluated expression.
-	%
-	% First is the first stack index considered to be a part of the local
-	% scope. Values at or past this index will be removed when the scope
-	% closes.
-	%
-	% Last is the last stack index Mercury will be free to use without
-	% first checking to see if Lua has allocated space for it.
-	%
-	% Raw determines whether or not the expression is being evaluated
-	% under a 'raw' context, if yes, it will avoid calling metamethods.
-	% 
-	% Strict determines whether or not the expression should return nil
-	% when faced with invalid Lua syntax, or throw an exception if Strict
-	% is yes.
-	%
-	% Index is the stack index of the evaluated expression.
-	% 
-:- type expression == (func(scope) = value).
-
-:- type expr == expression.
-
-
-% Note: calls to eval should never invoke metatables, as they should be pure.
-% If metatable invocation is desired, do so within a statement.
-
-% eval and det_eval return nil on an invalid expression, wheras strict_eval will
-% throw an exception where Lua normally would.
-
-	% Evaluate an expression with dynamic type cast.
-	%
-:- func eval(expression, lua_state) = T is semidet.
-
-	% Throws a lua_error if an invalid expression is evaluated.
-	%
-:- func strict_eval(expression, lua_state) = T is semidet.
-
-	% Evaluate without type cast
-	%
-:- some [T] func det_eval(expression, lua) = T.
-
-	% Value to be passed if an expression is invalid
-	%
-:- type invalid_expression ---> invalid_expression(string).
-
-%-----------------------------------------------------------------------------%
-%
-% expression operators
-%  
-
-:- type unop == func(expr) = expr.
-:- type binop == func(expr, expr) = expr.
-
-	% Access values passed as function arguments.
-	%
-:- func arg(int) = expr.
-
-	% Access a function upvalue.
-	%
-:- func upvalue(int) = expr.
-
-:- 
-
-% Math operators.
-:- func expr + expr = expr.
-:- func expr - expr = expr.
-:- func expr * expr = expr.
-:- func expr / expr = expr.
-:- func expr mod expr = expr.
-:- func pow(expr, expr) = expr.
-:- func - expr = expr.
-
-% comparison operators.
-:- func expr == expr = expr.
-:- func expr ~= expr = expr.
-:- func expr < expr = expr.
-:- func expr =< expr = expr.
-:- func expr > expr = expr. 	% := not expr =< expr.
-:- func expr >= expr = expr. 	% := not expr < expr.
-
-% Note: In lua syntax >= and =< are expressed as >= and <=
-
-% logical operators
-
-% Logical evaluations in Lua have a slightly different meaning than the commonly
-% accepted interpretation in strictly typed languages, due to it's dynamically
-% typed nature.  Any value can be passed as a logical comparison, and any value
-% other than nil or false will evaluate to true.  Further more, the and/or
-% operators will evaluate to one the value of one of their operands, not a 
-% boolean value, allowing for some syntactic sugar tricks reminicent of using
-% Mercury's conditional (if/then or->/;) operators to evaluate expressions.
-%
-% Most notable are the and/or operators. 'and' will return the second operand
-% if the evaluation succeeds, and the first operand if it fails.  Conversely,
-% the 'or' operator will return the first operand if the evaluation succeeds,
-% or the second operand if it fails.
-
-:- func not expr = expr. 	% Always evalutates to boolean true or false
-:- func expr and expr = expr.	% A and B = C :- C = if (A , B) then B else A.  
-:- func expr or expr = expr.	% A or B = C :- C = if A then A else B.  
-
-	% The length operator returns the number of chars in a string, the 
-	% number of values in the array portion of a table (from index 1 up 
-	% until the first nil value), the size allocated for a userdata in 
-	% bytes, or 0 for any other value.
-	%
-:- func len(expr) = expr.
-
-:- func length(expr) = expr.	% length(Expr) = len(Expr).
-
-	% Casts a value to a string.
-	%
-:- func to_string(expr) = expr.
-
-	% Concatenates string values. This implicitly uses to_string on 
-	% non-string values.
-	%
-:- func expr .. expr = expr.
-
-	% Table lookup
-	% Mercury: 	expr ^ index(expr) = expr.
-	% Lua:		expr[expr] = expr
-	%
-:- func index(expr, expr) = expr.
-
-	% function constructor.
-	%
-	% Functions constructed this way 
-	%
-:- func function(block) = expr.
-
-
-	
-%-----------------------------------------------------------------------------%
-%
-% Lua Value expressions.
-%
-
-	
-% In Lua, variables are not typed, values are.  Lua recognizes eight types.
-
-:- func nil = expr.		% the abscence of value
-	
-% numeric values
-:- func number(float) = expr.		% double prescision, casts to float
-:- func integer(int) = expr.		% int cast to Lua number
-
-% boolean truth values, casts to bool
-:- func	boolean(bool) = expr.
-:- func	true = expr.
-:- func false = expr.	
-
-:- func string(string) = expr.		% string value, casts to string
-:- func	lightuserdata(c_pointer)	% naked C pointer
-	
-	% Refrence types
-	;	function(function)	% A Lua function
-	;	table(table)		% A Lua table
-	;	thread(lua_state)	% A Lua coroutine
-	;	userdata(userdata).	% Full userdata 
+:- some [T] func det_arg(int, L) = T <= lua(L).
 
 
 
 
-
-
-%-----------------------------------------------------------------------------%
-%
-% variadic expressions
-%  
-
-% Certain operations in Lua may utilize variadic expressions.
-% The syntax for such expressions use the ',' infix operator.
-%
-% Such cases include variable assignments:
-%
-% local x, y, z = 1, 2 3
-%
-% function calls:
-%
-% local x, y, z = some_function(1, 2, 3)
-% 
-% and table constructors, assigning values to the array portion of a table,  
-% indexed by number, starting with 1:
-%
-% local t = { a, b, c } := local t = { [1] = a, [2] = b, [3] = c }
-%
-% Function calls can be used to populate the array portion of a table in the
-% same manner:
-%
-% local t = { some_function(1, 2, 3) }
-%
-% Any unneeded values in a variadic expression are ignored, and any missing
-% values in a variadic expression are populated by nil:
-%
-% local a, b = 1, 2, 3 --The third value in the right hand side is ignored
-%
-% local a, b, c = 1 := a, b, c = 1, nil, nil
-
-	% variadic expressions encompass sequential sets of values
-	% Values are indexed starting at one, incrementing until
-	% the call fails.  If an invalid index is given, nil is returned.
-	%
-:- type variadic_expression == (func(int) `with_type` expression).
-
-:- inst variadic_expression
-	--->	(func(in, in, in, in, in) = out is det) 
-	;	(func(out, in, in, in, in) = out is multi).
-	
-:- type expr_list == variadic_expression.
-:- inst expr_list == variadic_expression.
-
-% The semantics of eval/3 and det_eval/3 are the same as those for
-% eval/2 and det_eval/2.
-
-	% Evaluate variadic expressions dynamically
-	%
-:- func eval(int, expr_list, lua) = T.
-:- mode eval(in, in, in) = out is semidet.
-:- mode eval(out, in, in) = out is nondet.
-
-	% Static evaluation of variadic expressions.
-	%
-:- some [T] func det_eval(int, expr_list, lua) = T.
-:- mode det_eval(in, in, in) = out is det.
-:- mode det_eval(out, in, in) = out is multi.
-
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-%
-% Lua statements
-%  
-
-% In Lua, a statement performs an impure change upon the Lua state. Given the
-% imperative nature of Lua, a Lua program consists of a series of statements to
-% be executed in sequential order.
-
-:- type statement == (impure func(lua_state) = lua_result).
-
-:- type block == list(statement).
-
-:- pred do(block::in, lua::in, lua_result::out, io::di, io::uo) is det.
-
-
-:- type lua_result
-	---> 	ok
-	;	error(lua_error)
-	;	return(list(expression)).
 
 %-----------------------------------------------------------------------------%
 %
