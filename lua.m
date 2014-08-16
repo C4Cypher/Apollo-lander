@@ -109,7 +109,6 @@
 :- typeclass imperative_lua(L).
 :- instance  imperative_lua(lua_state).
 
-:- implementation.
 
 :- typeclass imperative_lua(L) <= lua(L) where [
 	impure pred get(var, value, L),	
@@ -123,7 +122,6 @@
 
 % TODO: Abstract representation implementing imperative_lua in pure Mercury
 
-:- interface.
 
 
 %-----------------------------------------------------------------------------%
@@ -214,22 +212,6 @@
 
 :- type var.
 
-:- implementation.
-:- type var
-	--->	local(index)	% An index on the the local stack
-	;	ref(ref)	% A strong refrence (like a pointer)
-	;	up(upvalue)	% An upvalue pushed onto a C closure
-	;	index(var, value)	% Value stored in a table or metamethod
-	;	metatable(var)	% A variable's metatable
-	;	env(var)	% a variable's environment
-	;	global(string)	% A global variable
-	;	global		% The global environment
-	;	registry(string) % A registry entry
-	;	registry	% The registry
-	;	invalid(string).
-	
-:- interface.
-
 :- type vars == list(var).
 
 :- type index. 		% stack index
@@ -250,53 +232,6 @@
 :- type ref.
 
 
-:- implementation.
-
-
-:- type index ---> index(int).
-:- type upvalue ---> upvalue(int).
-
-%-----------------------------------------------------------------------------%
-%
-% Refrences
-%
-
-:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
-
-:- pragma foreign_code("C",
-"
-typedef int * luaMR_Ref;
-
-
-/* Creates a new refrence from the stack */
-luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
-	lua_pushvalue(L, index);
-	luaMR_Ref new_ref = MR_GC_NEW(int);
-	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
-	return new_ref;
-}
-
-
-/* Push a refrence onto the provided stack */
-void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
-	if (*ref == LUA_REFNIL) {
-		lua_pushnil(L);
-	}
-	else {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
-	}
-}
-
-/* Remove Lua's refrence to the var in the registry */
-void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
-	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
-}
-
-"). 
-
-:- interface.
-
 %-----------------------------------------------------------------------------%
 %
 % Lua environment
@@ -307,11 +242,6 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 		args::int	% The number of arguments passed to this call
 		
 		open::index,	% The first 
-		
-		
-		
-
-
 
 
 	% Retreive the number of arguments passed to a Lua state.
@@ -368,30 +298,6 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 
 
-:- implementation.
-
-%-----------------------------------------------------------------------------%
-%
-% Lua Types
-%
-:- pragma foreign_enum("C", lua_type/0, 
-[
-	none 		- 	"LUA_TNONE",
-	nil_type 	- 	"LUA_TNIL",
-	boolean_type 	- 	"LUA_TBOOLEAN",
-	lightuserdata_type - 	"LUA_TLIGHTUSERDATA",
-	number_type 	- 	"LUA_TNUMBER",
-	string_type 	- 	"LUA_TSTRING",
-	table_type 	- 	"LUA_TTABLE",
-	function_type 	- 	"LUA_TFUNCTION",
-	userdata_type 	- 	"LUA_TUSERDATA",
-	thread_type 	- 	"LUA_TTHREAD"
-]).
-
-:- interface.
-
-
-
 %-----------------------------------------------------------------------------%
 %
 % Lua errors
@@ -407,17 +313,7 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	;	memory_error
 	;	unhandled_error.
 
-:- implementation.
 
-:- pragma foreign_enum("C", error_type,
-[
-	runtime_error 	-	"LUA_ERRRUN",
-	syntax_error 	-	"LUA_ERRSYNTAX",
-	memory_error	-	"LUA_ERRMEM",
-	unhandled_error	-	"LUA_ERRERR"
-]). 
-
-:- interface.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -600,10 +496,95 @@ int luaMR_loader(lua_State * L) {
 
 ").
 
+%-----------------------------------------------------------------------------%
+%
+% Variables
+%
+
+:- type var
+	--->	local(index)	% An index on the the local stack
+	;	ref(ref)	% A strong refrence (like a pointer)
+	;	up(upvalue)	% An upvalue pushed onto a C closure
+	;	index(var, value)	% Value stored in a table or metamethod
+	;	metatable(var)	% A variable's metatable
+	;	env(var)	% a variable's environment
+	;	global(string)	% A global variable
+	;	global		% The global environment
+	;	registry(string) % A registry entry
+	;	registry	% The registry
+	;	invalid(string).
+
+:- type index ---> index(int).
+:- type upvalue ---> upvalue(int).
+
+%-----------------------------------------------------------------------------%
+%
+% Refrences
+%
+
+:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
+
+:- pragma foreign_code("C",
+"
+typedef int * luaMR_Ref;
 
 
+/* Creates a new refrence from the stack */
+luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
+	lua_pushvalue(L, index);
+	luaMR_Ref new_ref = MR_GC_NEW(int);
+	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
+	return new_ref;
+}
 
 
+/* Push a refrence onto the provided stack */
+void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
+	if (*ref == LUA_REFNIL) {
+		lua_pushnil(L);
+	}
+	else {
+		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
+	}
+}
 
+/* Remove Lua's refrence to the var in the registry */
+void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
+	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
+}
+
+"). 
+
+%-----------------------------------------------------------------------------%
+%
+% Lua Types
+%
+:- pragma foreign_enum("C", lua_type/0, 
+[
+	none 		- 	"LUA_TNONE",
+	nil_type 	- 	"LUA_TNIL",
+	boolean_type 	- 	"LUA_TBOOLEAN",
+	lightuserdata_type - 	"LUA_TLIGHTUSERDATA",
+	number_type 	- 	"LUA_TNUMBER",
+	string_type 	- 	"LUA_TSTRING",
+	table_type 	- 	"LUA_TTABLE",
+	function_type 	- 	"LUA_TFUNCTION",
+	userdata_type 	- 	"LUA_TUSERDATA",
+	thread_type 	- 	"LUA_TTHREAD"
+]).
+
+%-----------------------------------------------------------------------------%
+%
+% Lua errors
+%
+
+:- pragma foreign_enum("C", error_type,
+[
+	runtime_error 	-	"LUA_ERRRUN",
+	syntax_error 	-	"LUA_ERRSYNTAX",
+	memory_error	-	"LUA_ERRMEM",
+	unhandled_error	-	"LUA_ERRERR"
+]). 
 
 
