@@ -57,7 +57,7 @@
 
 :- interface.
 
-%:- include_module state.
+:- include_module state.
 
 :- import_module io.
 :- import_module float.
@@ -97,9 +97,21 @@
 	% Minimum allocated stack size
 	func minstack(L) = int,
 	
+	% Dump a function as a compiled chunk, 
+	% fails if not a Lua function			
+	func dump(var, L) = string is semidet,
+	
+	
+	% Compile a chunk as a function, optionally name the chunk
+	func load(string, L) = var is det,
+	func load(string, string, L) = var is det,
+	
+	% Dynamic cast a value
+	func value_of(value, L) = T is semidet,
+	
 	% Retreive the version number of the Lua runtime.
 	% 
-	func version(L) = string
+	func version(L) = int
 ].
 
 :- typeclass pure_lua(L) <= lua(L) where [
@@ -113,38 +125,40 @@
 	% Pop a number of values off the stack
 	pred pop(int::in, L::in, L::out) is det
 	
-	% Dump a function as a compiled chunk, 
-	% fails if not a Lua function			
-	func dump(var, L) = string is semidet,
 	
-	% Call the first value in the list with the rest as arguments fail if 
-	% the function tries to do something impure.	
-	func pure_call(values, L) = values.
-	
-	% Compile a chunk as a function, optionally name the chunk
-	func load(string, L) = var is det,
-	func load(string, string, L) = var is det,
-	
-	% Dynamic cast a value
-	func value_of(value, L) = T is semidet,
 ].
 
 
 
 
-%%% WARNING %%%
-% be very careful when invoking these typeclass methods, doing so in a safe
+
+% Note: These methods are unsafe without a clear understanding of the workings
+% of the Lua C api, and even then, they're still pretty unsafe.
 :- typeclass imperative_lua(L) <= lua(L) where [
+
+	% Retreive the value stored by a variable, may invoke metamethods
 	impure pred get(var, value, L),	
 	mode get(in, out, in) is semidet, 	 	
 	mode get(out, out, in) is nondet
 	
+	% Modify variables in Lua, will not invoke metamethods
+	pred rawset(var::in, value::in, L::in) is det,
+	
+	% Set the value of a variable, may invoke metamethods
 	impure pred set(var::in, value::in, L::in) is det,
+	
+	% Push a value onto the stack
 	impure pred push(value::in, L::in) is det,
+	
+	% Pop a number of values off the stack
 	impure pred pop(int::in, L::in) is det
 ].
 
 % TODO: Abstract representation implementing imperative_lua in pure Mercury
+
+:- instance lua(lua_state).
+:- instance imperative_lua(lua_state).
+
 
 
 
@@ -418,6 +432,11 @@
 % lua_states. The only exception to this is lua_states created as threads.
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
+
+:- instance lua(lua_state) where [
+
+	rawget(Var, Val, L) :-
+		require_complete_switch [Var]
 
 
 %-----------------------------------------------------------------------------%
