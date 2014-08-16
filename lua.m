@@ -81,21 +81,23 @@
 
 :- type lua == lua_state.
 
+:- func getvar(var, L) = value is det <= 
+
 	% Typeclass defining all of the values retreivable from a Lua state.
 	%
 :- typeclass lua(L) where [
 
 	% Retreive a value from Lua without invoking metamethods
-	pred rawget(var, value, L),		
-	mode rawget(in, out, in) is det, 	 	
-	mode rawget(out, out, in) is multi,
+	semipure func rawget(var, L) = value,		
+	mode rawget(in, in) = out is det, 	 	
+	mode rawget(out, in) = out is multi,
 	
 	
 	% Index at the top of the stack
-	func top(L) = int,
+	semipure func top(L) = int,
 	
 	% Minimum allocated stack size
-	func minstack(L) = int,
+	semipure func minstack(L) = int,
 	
 	% Dump a function as a compiled chunk, 
 	% fails if not a Lua function			
@@ -114,22 +116,6 @@
 	func version(L) = int
 ].
 
-:- typeclass pure_lua(L) <= lua(L) where [
-
-	% Modify variables in Lua, will not invoke metamethods
-	pred rawset(var::in, value::in, L::in, L::out) is det,
-	
-	% Push a value onto the stack
-	pred push(value::in, L::in, L::out) is det,
-	
-	% Pop a number of values off the stack
-	pred pop(int::in, L::in, L::out) is det
-	
-	
-].
-
-
-
 
 
 % Note: These methods are unsafe without a clear understanding of the workings
@@ -142,7 +128,7 @@
 	mode get(out, out, in) is nondet
 	
 	% Modify variables in Lua, will not invoke metamethods
-	pred rawset(var::in, value::in, L::in) is det,
+	impure pred rawset(var::in, value::in, L::in) is det,
 	
 	% Set the value of a variable, may invoke metamethods
 	impure pred set(var::in, value::in, L::in) is det,
@@ -290,8 +276,6 @@
 :- type scope == scope(lua_state).
 	
 :- instance lua(scope(L)) <= lua(L).
-:- instance pure_lua(scope(L)) <= pure_lua(L).
-:- instance pure_lua(scope(L)) <= imperative_lua(L). 
 
 	% Retreive the number of arguments passed to a Lua state.
 	%
