@@ -91,7 +91,8 @@
 	mode rawget(out, out, in) is nondet,
 	
 	func top(L) = int,			
-	
+	func dump(var) = string is semidet,
+	func load(string) = var is det,
 	func version(L) = string
 ].
 
@@ -119,6 +120,8 @@
 	impure pred push(value::in, L::in) is det,
 	impure pred pop(int::in, L::in) is det
 ].
+
+% TODO: Abstract representation implementing imperative_lua in pure Mercury
 
 :- interface.
 
@@ -158,7 +161,7 @@
 :- type c_var
 	--->	lightuserdata(c_pointer)	% naked C pointer
 	;	userdata(userdata)	% fully allocated userdata
-	;	thread(lua_state)	% A co_routine
+	;	thread(lua_state)	% A coroutine
 	;	c_function(c_function). % A Lua callable function pointer
 
 :- type c_function.	% A Lua callable function defined in C
