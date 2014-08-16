@@ -48,26 +48,67 @@
 % Note: These methods are unsafe without a clear understanding of the workings
 % of the Lua C api, and even then, they're still pretty unsafe.
 
+
+
+% TODO: Abstract representation implementing imperative_lua in pure Mercury
+
+
 %-----------------------------------------------------------------------------%
 %
 % Stack Manipulation
 %
 	
 	% The index at the top of the stack.
-:- semipure func get_top(lua) = int.
-:- impure pred 	set_top(int::in, lua::in) is det.
+:- semipure func lua_gettop(lua) = int.
+:- impure pred 	lua_settop(int::in, lua::in) is det.
+
+	% Valid indexes on the stack
+:- semipure indexes(int::out, lua::in) is nondet.
+
+:- interface.
+
+:- pragma foreign_proc("C", lua_gettop(lua::in, Index::out),
+	[promise_semipure, will_not_call_mercury],
+	"Index = lua_gettop(L); ").
+	
+:- pragma foreign_proc("C",  set_top(Index::in, L::in),
+	[will_not_call_mercury],
+	"lua_settop(L, Index);").
+
+indexes(I, L) :-
+		semipure lua_gettop(L, I)
+	;
+		get_indexes(L, I0),
+		I = I0 - 1,
+		I > 0.
+:- interface.
 	
 	% Allocate free space on the stack if needed, fail if it cannot
-:- semipure pred check_stack(int::in, lua::in) is semidet.
+:- semipure pred lua_checkstack(int::in, lua::in) is semidet.
 
-	% Directly push values onto and off of the stack 
-:- impure pred 	push_value(value::in, lua::in) is det.
-:- impure pred 	pop(int::in, lua::in) is det.
+	% Directly push values from a different stack index
+:- impure pred 	lua_pushvalue(int::in, lua::in) is det.
+
+	% Pop 
+:- impure pred 	lua_pop(int::in, lua::in) is det.
 
 % Note: Use of lua_remove and lua_insert is highly discouraged when used with 
 % this library, given that said operations impurely re-arrange the Lua stack
 % in a manner that ignores restrictions that Mercury needs to interact with
 % it purely.
+
+:- implementation.
+
+:- pragma foreign_proc("C",  lua_checkstack(lua::in, Free::in),
+	[will_not_call_mercury, promise_semipure], "lua_checkstack(L, Free);").
+
+- pragma foreign_proc("C",  lua_pushvalue(I::in, L::in),
+	[will_not_call_mercury], "lua_pushvalue(L, I);").
+
+:- pragma foreign_proc("C",  pop(lua::in, Num::in),
+	[will_not_call_mercury], "lua_pop(L, Num);").
+:- interface.
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -75,64 +116,68 @@
 %
 
 	
-	% The Lua type of a value
+	% The Lua type of a value on the stack
 	%
-:- semipure func get_type(value, lua) = lua_type.
+:- semipure func lua_gettype(value, lua) = lua_type.
 	
-	% Access Lua variables, note: uses rawget and rawset
+	% Access Lua tables without invoking metamethods
 	%
-:- semipure func get_var(var::in, lua::in) = value.
-:- impure pred set_var(var::in, value::in, lua::in) is det.
+:- impure pred lua_rawget(index::in, lua::in) is det.
+:- impure pred lua_rawset(index::in, lua::in) is det.
 
-	% get_table(Table, Key, Raw, lua) = Value
-	% set_table(Table, Key, Value, Raw, lua)
-	%
 	% Access Lua tables, if Raw is yes, metamethod invocations are avoided,
 	% but an error is thrown if Table is not actually a table.
 	%
-:- semipure func get_table(var, value, bool, lua) = value.
-:- impure pred set_table(var::in, value::in, value::in, boolua::in, lua::in) is det.
+:- impure pred lua_gettable(index::in, lua::in) is det.
+:- impure pred lua_settable(index::in, lua::in) is det.
 	
 	% Access metatables, may cause undefined behavior if used on types
 	% that do not have metatables.
 	%
-:- semipure func get_metatable(var, lua) = var.
-:- impure pred set_metatable(var::in, var::in, lua::in) is det.
+:- impure pred lua_getmetatable(index::in, lua::in) is det.
+:- impure pred lua_setmetatable(index::in, lua::in) is det.
+
+:- implementation.
+
+:- pragma foreign_proc("C",  get_type(Index::in, L::in) = (Type::out)), 
+	[promise_semipure, will_not_call_mercury],
+	"Type = lua_type(L, Index);").
+
+:- pragma foreign_proc("C", lua_rawget(I::in, L::in), 
+	[will_not_call_mercury], "lua_rawget(L, I);").
+	 
+:- pragma foreign_proc("C", lua_rawset(I::in, L::in), 
+	[will_not_call_mercury], "lua_rawset(L, I);"). 
+
+:- pragma foreign_proc("C", lua_gettable(I::in, L::in), 
+	[will_not_call_mercury], "lua_gettable(L, I);"). 
+:- pragma foreign_proc("C", lua_settable(I::in, L::in), 
+	[will_not_call_mercury], "lua_settable(L, I);"). 
+	
+:- pragma foreign_proc("C", lua_getmetatable(I::in, L::in), 
+	[will_not_call_mercury], "lua_getmetatable(L, I);"). 
+
+:- pragma foreign_proc("C", lua_setmetatable(I::in, L::in), 
+	[will_not_call_mercury], "lua_setmetatable(L, I);"). 
+
+:- interface.
 
 %-----------------------------------------------------------------------------%
 %
 % Function constructors, deconstructors, and calls 
 %
 
-	% Load a function from a string reader.
-	%
-:- pred load_chunk(Stream::in, var::out, lua::in, State::di, State::uo) is det
-	<= stream.reader(Stream, string, State).
-	
-:- pred load_chunk(Stream::in, var::out, lua::in) is det 
-	<= stream.reader(Stream, string, io.state).
-
-:- func load_chunk(string, lua) = var.
-
+/*
+	% Load a function from a string.
+:- impure pred lua_loadstring(string::in, lua::in) is det.
 
 	% Dump a function as a compiled chunk to a string writer.
-	%	
-:- pred dump(var::in, string::out, lua::in, State::di, State::uo) is det
-	<= stream.writer(Stream, string, State).
-	
-:- pred dump(var::in, string::out, lua::in) is det
-	<= string.writer(Stream, string, io.state).
+:- impure pred func lua_dump(var, lua) = string.
 
-:- func dump(var, lua) = string.
-
-	% fcall(Function, Args, L) = Return_values
-	%
 	% call a function
-	%
-:- impure func fcall(var, values, lua) = values.
+:- impure func lua_call(int, int, lua) = values.
 
-	% pcall(Function, Args, ErrHandler, L) = Return_or_err
-	%
+	
 	% call a function with an error handler.
 	%
 :- impure func pcall(var, values, var, lua) = values.
@@ -149,9 +194,10 @@
 	% Create a Lua function, associating upvalues with it
 	% upvalues may be omitted to just push the C function.
 	%
-:- func c_closure(c_function, vars, L) = var.
-:- func c_closure(c_function, L) = var.	% :- F = c_closure(CFunc, [], L).
+:- func lua_pushcclosure(c_function, vars, L) = var.
+:- func lua_cclosure(c_function, L) = var. % :- F = c_closure(CFunc, [], L).
 
+*/
 
 %-----------------------------------------------------------------------------%
 %
@@ -159,18 +205,16 @@
 %
 	% Create a fresh, new , initialized lua_state.
 	%
-:- pred new_state(lua_state::out).
+:- pred lua_newstate(lua_state::out).
 
 	% Destroy a Lua_state
 	%
-:- impure pred close_state(lua_state).	
-:- pred close_state(lua_state::in, io::di, io::uo).
+:- impure pred lua_close(lua_state::in).	
 
 
 	% Return the Lua state's current status.
 	%
-:- semipure pred get_status(lua_state::in, status::out). 
-:- pred get_status(lua_state::in, status::out, io::di, io::uo).
+:- semipure pred lua_status(lua_state::in, status::out). 
 
 
 :- type status
@@ -188,154 +232,6 @@
 
 :- import_module require.	
 	
-
-
-%-----------------------------------------------------------------------------%
-%
-% Stack operations.
-%
-
-:- type index == int.
-
-
-	% Retreive the index for the top value on the stack.
-	% Also represents the number of values on the stack.
-	%
-:- semipure pred get_top(lua_state::in, index::out) is det.
-
-	% Retreive all of the valid literal positive stack indexes.
-	%
-:- semipure pred get_indexes(lua_state::in, index::out) is nondet.
-
-	% Set the size of the stack. Any values indexed above the new stack
-	% size will be removed from the stack, and any unassigned values at
-	% or below the new stack size will be assigned nil values. Aborts
-	% if the new size is less than zero. 
-	%
-:- impure pred set_top(lua_state::in, index::in) is det.
-
-
-	% Ensure that there is space allocated to allow pushing the specified
-	% number of variables onto the stack.
-	%
-:- impure pred check_stack(lua_state::in, int::in) is det.
-	
-	
-	% Look up the type of a value indexed on the stack.
-	%
-:- semipure pred get_type(lua_state::in, index::in, lua_type::out) is det.
- 
-
-
-	% Pop the specified number of values off of the stack.
-	%
-:- impure pred pop(lua_state::in, int::in) is det.
-
-
-	% Call a function, specifying the number of arguments pushed onto the 
-	% stack above it. The function and argumetns are removed from the stack.
-	% If an error is encountered, the provided pred is called with the
-	% string error message. The function's return values will be pushed onto
-	% the stack if no error is encountered.
-	%
-:- impure pred pcall(lua_state, int, pred(string)).
-:- mode pcall(in, in, pred(in) is det) is det.
-:- mode pcall(in, in, pred(in) is erroneous) is det. 
-
-%-----------------------------------------------------------------------------%
-%
-% Value Passing.
-%
-
-	% Push any value onto the Lua stack.
-	%
-:- impure pred push(lua_state::in, T::in) is det.
-
-	% Retreive the value at the given index, fail if the value cannot be
-	% cast to the desired type. Nondet modes can be used to look up the 
-	% indexes where a specific value may be found, or retreive all of
-	% the values on the stack.
-	%
-:- semipure pred pull(lua_state, index, T).
-:- mode pull(in, in, out) is semidet.
-:- mode pull(in, out, in) is nondet.
-:- mode pull(in, out, out) is nondet.
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Global variables.
-%
-
-	% Push a global variable onto the stack.
-	%
-:- semipure pred push_global(lua_state::in, string::in) is det.
-
-	% Retreive a global variable.
-	%
-:- some [T] semipure pred get_global(lua_state::in, string::in, T::out) is det.
-
-	% Set a global variable from the top of the stack.
-	%
-:- impure pred pop_global(lua_state::in, string::in) is det.
-
-	% Set a global variable.
-	%
-:- impure pred set_global(lua_state::in, string::in, T::in) is det.
-
-%-----------------------------------------------------------------------------%
-%
-% Registry Values.
-%
-
-	% Push a registry value onto the stack.
-	%
-:- semipure pred push_registry(lua_state::in, string::in, T::out) is det.
-
-	% Retreive a registry value.
-	%
-:- some [T] semipure pred get_registry(lua_state::in, string::in, T::out) is det.
-
-
-	% Set a registry valua from the top of the stack.
-	%
-:- impure pred pop_registry(lua_state::in, string::in) is det.
-
-	% Set a registry value.
-	% 
-:- impure pred set_registry(lua_state::in, string::in) is det.
-
-%-----------------------------------------------------------------------------%
-%
-% Upvalues.
-%
-
-	% Push a function upvalue onto the stack. 
-	%
-:- semipure pred push_upvalue(lua_state::in, int::in) is det.
-
-	% Retreive a function upvalue.
-	%
-:- some [T] semipure pred get_upvalue(lua_state::in, int::in, T::out) is det.
-
-
-	% Set a function upvalue from the top of the stack. 
-	%
-:- impure pred pop_upvalue(lua_state::in, int::in) is det.
-
-	% Set a function upvalue. 
-	%
-:- impure pred set_upvalue(lua_state::in, int::in, T::in) is det.
-
-
-
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-
-
-
-
 :- func return_nil = nil.
 
 return_nil = nil.
@@ -343,20 +239,16 @@ return_nil = nil.
 :- pragma foreign_export("C", return_nil = out, "luaMR_nil").
 
 
-:- pragma foreign_proc("C", new_state = (lua::out), 
-	[promise_pure, will_not_call_mercury],
-"
-	L = luaL_newstate();
-").
+:- pragma foreign_proc("C", lua_newstate = (L::out), 
+	[promise_pure, will_not_call_mercury], 	"L = luaL_newstate();").
+	
+:- pragma foreign_proc("C", lua_close(L::in), 
+	[promise_pure, will_not_call_mercury], "lua_close(L);").
 
-:- pragma foreign_proc("C", get_status(lua::in, Status::out), 
-	[promise_semipure, will_not_call_mercury],
-"
-	Status = lua_status(L);
-").
+:- pragma foreign_proc("C", lua_status(lua::in, Status::out), 
+	[promise_semipure, will_not_call_mercury], "Status = lua_status(L);").
 
-:- pragma foreign_enum("C", status/0, 
-	[
+:- pragma foreign_enum("C", status/0, [
 	ready - "0",
 	yield - "LUA_YIELD",
 	runtime_error - "LUA_ERRRUN",
@@ -365,142 +257,7 @@ return_nil = nil.
 	unhandled_error - "LUA_ERRERR"
 ] ).
 
-%-----------------------------------------------------------------------------%
-
-
-:- pragma foreign_proc("C", get_top(lua::in, Index::out),
-	[promise_semipure, will_not_call_mercury],
-"
-	Index = lua_gettop(L);
-").
-
-get_indexes(L, I) :-
-		semipure get_top(L, I)
-	;
-		get_indexes(L, I0),
-		I = I0 - 1,
-		I > 0.
-	
-:- pragma foreign_proc("C",  set_top(lua::in, Index::in),
-	[will_not_call_mercury],
-"
-	lua_settop(L, Index);
-").
-
-:- pragma foreign_proc("C",  check_stack(lua::in, Free::in),
-	[will_not_call_mercury],
-"
-	lua_checkstack(L, Free);
-").
-
-:- pragma foreign_proc("C",  get_type(lua::in, Index::in, Type::out),
-	[promise_semipure, will_not_call_mercury],
-"
-	Type = lua_type(L, Index);
-").
-
-
-:- pragma foreign_proc("C",  pop(lua::in, Num::in),
-	[will_not_call_mercury],
-"
-	lua_pop(L, Num);
-").
-
-
-
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Global
-%
-
-
-:- pragma foreign_proc("C",  push_global(lua::in, Name::in),
-	[promise_semipure, will_not_call_mercury],
-"
-	lua_getglobal(L, Name);	
-").
-
-get_global(L, Name, T) :- 
-	promise_semipure (
-		impure push_global(L, Name),
-		semipure get_stack(L, -1),
-		impure pop(L, 1)
-	).
-	
-
-:- pragma foreign_proc("C",  pop_global(lua::in, Name::in),
-	[will_not_call_mercury],
-"
-	lua_setglobal(L, Name)
-").
-
-set_global(L, Name, T) :-
-	impure push(L, T),
-	impure pop_global(L, Name).
-	
-%-----------------------------------------------------------------------------%
-%
-% Registry
-%
-
-
-:- pragma foreign_proc("C",  push_registry(lua::in, Key::in),
-	[promise_semipure, will_not_call_mercury],
-"
-	luaMR_getregistry(L, Key);
-").
-
-get_registry(L, Key, T) :-
-	promise_semipure (
-		impure push_registry(L, Name),
-		semipure get_stack(L, -1),
-		impure pop(L, 1)
-	).
-
-
-:- pragma foreign_proc("C",  pop_registry(lua::in, Key::in),
-	[will_not_call_mercury],
-"
-	luaMR_setregistry(L, Key);
-").
-
-set_registry(L, Name, T) :-
-	impure push(L, T),
-	impure pop_registry(L, Name).
-	
-%-----------------------------------------------------------------------------%
-%
-% Upvalues
-%
-	
-
-:- pragma foreign_proc("C",  push_upvalue(lua::in, Id::in),
-	[promise_semipure, will_not_call_mercury],
-"
-		luaMR_getupvalue(L, Id);
-").
-
-get_upvalue(L, Id, T) :-
-	promise_semipure (
-		impure push_upvalue(L, Id),
-		semipure get_stack(L, -1),
-		impure pop(L, 1)
-	).
-
-
-:- pragma foreign_proc("C",  pop_upvalue(lua::in, Key::in),
-	[will_not_call_mercury],
-"
-	luaMR_setupvalue(L, Id);
-").
-
-set_upvalue(L, Name, T) :-
-	impure push(L, T),
-	impure pop_upvalue(L, Name).
-
+:- interface.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -508,118 +265,51 @@ set_upvalue(L, Name, T) :-
 % Value passing 
 %
 
+:- semipure pred lua_isnumber(index::in, L::in) is semidet.
+:- semipure pred lua_isnil(index::in, L::in) is semidet.
+:- semipure pred lua_isuserdata(index::in, L::in) is semidet.
+:- semipure pred lua_isinteger(index::in, L::in) is semidet.
+:- semipure pred lua_islightuserdata(c_pointer::in, L::in) is semidet.
+:- semipure pred lua_isstring(index::in, L::in) is semidet.
+:- semipure pred lua_isboolean(index::in, L::in) is semidet.
+:- semipure pred lua_isthread(index::in, L::in) is semidet.
+:- semipure pred lua_isfunction(index::in, L::in) is semidet.
+:- semipure pred lua_iscfunction(index::in, L::in) is semidet.
 
-pull(L, Index, T) :- 
-	semipure get_indexes(L, Index),
-	
-	dynamic_cast(T,V),
-	
-	( (T:nil, semipure is_nil(L, Index)) -> 
-		V = nil
-	; (T:int, semipure is_integer(L, Index)) ->
-		semipure pull_integer(L, Index, V)
-		
-	; (T:float, semipure is_number(L, Index)) ->
-		semipure pull_number(L, Index, V)
-		
-	; (T:bool, semipure is_boolean(L, Index)) ->
-		semipure pull_boolean(L, Index, V)
-		
-	; (T:string, semipure is_string(L, Index)) ->
-		semipure pull_string(L, Index, V)
-		
-	; (T:c_pointer, semipure is_lightuserdata(L, Index)) ->
-		semipure pull_lightuserdata(L, Index, V)
-		
-	; (T:lua_state_pointer, semipure is_thread(L, Index)) ->
-		semipure pull_thread(L, Index, V)
-		
-	; pull_userdata(L, Index, V)
-	
-	).
-	
-	
-	
+:- semipure pred lua_tonumber(index::in, float::out, L::in) is det.
+%:- semipure pred lua_touserdata(index::in, univ::out, L::in) is det.
+:- semipure pred lua_tointeger(index::in, int::out, L::in) is det.
+:- semipure pred lua_tolightuserdata(index::in, c_pointer::out, L::in) is det.
+:- semipure pred lua_tostring(index::in, string::out, L::in) is det.
+:- semipure pred lua_toboolean(index::in, boolua::out, L::in) is det.
+:- semipure pred lua_tothread(index::in, index::out, L::in) is det.
+:- semipure pred lua_tocfunction(index::in, c_function::out, L::in) is det.
 
-push(L, T) :- 
-	( T:nil ->
-		impure push_nil(L)
-	; T:int ->
-		impure push_integer(L, int)
-	; T:float ->
-		impure push_number(L, float)
-	; T:bool ->
-		impure push_boolean(L, bool)
-	; T:string ->
-		impure push_string(L, string)
-	; T:char ->
-		impure push_string(L, char)
-	; T:c_pointer ->
-		impure push_lightuserdata(L, T)
-	; T:c_function ->
-		sorry($module, $pred)
-	; T:lua_state_ptr ->
-		impure push_thread(L, T)
-	; 
-		impure push_userdata(L, T)
-	).
+:- impure pred lua_pushnumber(float::in, L::in) is det.
+:- impure pred lua_pushnil(L::in) is det.
+%:- impure pred lua_pushuserdata(univ::in, L::in) is det.
+:- impure pred lua_pushinteger(int::in, L::in) is det.
+:- impure pred lua_pushlightuserdata(c_pointer::in) is det.
+:- impure pred lua_pushstring(string::in, L::in) is det.
+:- impure pred lua_pushboolean(bool::in, , L::in) is det.
+:- impure pred lua_isfunction(index::in, L::in) is det.
+:- impure pred lua_iscfunction(index::in, L::in) is det.
+
 
 %-----------------------------------------------------------------------------%
 
-:- semipure pred is_number(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_nil(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_userdata(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_integer(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_lightuserdata(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_string(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_boolean(lua_state_ptr::in, int::in) is semidet.
-:- semipure pred is_thread(lua_state_ptr::in, int::in) is semidet.
+:- implementation.
 
 
-:- semipure pred pull_number(lua_state_ptr::in, float::out) is det.
-:- semipure pred pull_userdata(lua_state_ptr::in, T::out) is det.
-:- semipure pred pull_integer(lua_state_ptr::in, int::out) is det.
-:- semipure pred pull_lightuserdata(lua_state_ptr::in, c_pointer::out) is det.
-:- semipure pred pull_string(lua_state_ptr::in, string::out) is det.
-:- semipure pred pull_boolean(lua_state_ptr::in, boolua::out) is det.
-:- semipure pred pull_thread(lua_state_ptr::in, lua_state_ptr::out) is det.
-
-
-:- impure pred push_number(lua_state_ptr::in, float::in) is det.
-:- impure pred push_nil(lua_state_ptr::in) is det.
-:- impure pred push_userdata(lua_state_ptr::in, T::in) is det.
-:- impure pred push_integer(lua_state_ptr::in, int::in) is det.
-:- impure pred push_lightuserdata(lua_state_ptr::in, c_pointer::in) is det.
-:- impure pred push_string(lua_state_ptr::in, string::in) is det.
-:- impure pred push_boolean(lua_state_ptr::in, boolua::in) is det.
-
-%-----------------------------------------------------------------------------%
-
-	% Value is number.
-	%
-:- semipure pred is_number(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_number(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isnumber(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isnumber(L, Index);
-").
+	" SUCCESS_INDICATOR = lua_isnumber(L, Index);").
 
-	% Value is string.
-	%
-:- semipure pred is_string(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_string(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isstring(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isstring(L, Index);
-").
+	" SUCCESS_INDICATOR = lua_isstring(L, Index);").
 
-	% Value is integer.
-	%
-:- semipure pred is_integer(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_integer(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isinteger(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
 "
 	if(lua_isnumber(L, Index));
@@ -627,116 +317,55 @@ push(L, T) :-
 	 	!(lua_tonumber(L, Index) - lua_tointeger(L, Index));
 ").
 
-	% Value is thread.
-	%
-:- semipure pred is_thread(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_thread(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isthread(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isthread(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_isthread(L, Index);").
 
-	% Value is function.
-	%
-:- semipure pred is_function(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_function(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isfunction(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isfunction(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_isfunction(L, Index);").
 
-	% Value is nil.
-	%
-:- semipure pred is_nil(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_nil(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isnil(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isnil(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_isnil(L, Index);").
 
-	% Value is userdata.
-	%
-:- semipure pred is_userdata(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_userdata(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isuserdata(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isuserdata(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_isuserdata(L, Index);").
 
-	% Value is table.
-	%
-:- semipure pred is_table(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_table(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_istable(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_istable(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_istable(L, Index);").
 
-
-	% Value is lightuserdata.
-	%
-:- semipure pred is_lightuserdata(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_lightuserdata(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_islightuserdata(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_islightuserdata(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_islightuserdata(L, Index);").
 
-	% Value is boolean.
-	%
-:- semipure pred is_boolean(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_boolean(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_isboolean(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_isboolean(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_isboolean(L, Index);").
 
-	% Value is cfunction.
-	%
-:- semipure pred is_cfunction(lua_state::in, int::in) is semidet. 
-
-:- pragma foreign_proc("C", is_cfunction(lua::in, Index::in),
+:- pragma foreign_proc("C", lua_iscfunction(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
-"
-	 SUCCESS_INDICATOR = lua_iscfunction(L, Index);
-").
+	"SUCCESS_INDICATOR = lua_iscfunction(L, Index);").
 
 %-----------------------------------------------------------------------------%
 
 %-----------------------------------------------------------------------------%
 
-	% Pull number value.
-	%
-:- semipure pred pull_number(lua_state::in, index::in, float::out) is det.
-
-:- pragma foreign_proc("C", pull_number(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tonumber(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tonumber(L, Index);
 ").
 
-	% Pull string value.
-	%
-:- semipure pred pull_string(lua_state::in, index::in, string::out) is det.
-
-:- pragma foreign_proc("C", pull_string(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tostring(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tostring(L, Index);
 ").
 
-	% Pull integer value.
-	%
-:- semipure pred pull_integer(lua_state::in, index::in, int::out) is det.
-
-:- pragma foreign_proc("C", pull_integer(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tointeger(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tointeger(L, Index);
@@ -744,9 +373,9 @@ push(L, T) :-
 
 	% Pull thread value.
 	%
-:- semipure pred pull_thread(lua_state::in, index::in, lua_state::out) is det.
+:- semipure pred lua_tothread(lua_state::in, index::in, lua_state::out) is det.
 
-:- pragma foreign_proc("C", pull_thread(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tothread(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tothread(L, Index);
@@ -754,9 +383,9 @@ push(L, T) :-
 
 	% Pull function value.
 	%
-:- semipure pred pull_function(lua_state::in, index::in, function::out) is det.
+:- semipure pred lua_tofunction(lua_state::in, index::in, function::out) is det.
 
-:- pragma foreign_proc("C", pull_function(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tofunction(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tofunction(L, Index);
@@ -765,9 +394,9 @@ push(L, T) :-
 	
 	% Pull userdata value.
 	%
-:- semipure pred pull_userdata(lua_state::in, index::in, T::out) is det.
+:- semipure pred lua_touserdata(lua_state::in, index::in, T::out) is det.
 
-:- pragma foreign_proc("C", pull_userdata(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_touserdata(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_touserdata(L, Index);
@@ -775,16 +404,16 @@ push(L, T) :-
 
 	% Pull table value.
 	%
-:- semipure pred pull_table(lua_state::in, index::in, table::out) is det.
+:- semipure pred lua_totable(lua_state::in, index::in, table::out) is det.
 
-pull_table(L, I, table(L, Ref)) :-
-	semipure pull_ref(L, I, R).
+lua_totable(L, I, table(L, Ref)) :-
+	semipure lua_toref(L, I, R).
 
 	% Pull lightuserdata value.
 	%
-:- semipure pred pull_lightuserdata(lua_state::in, c_pointer::out) is det.
+:- semipure pred lua_tolightuserdata(lua_state::in, c_pointer::out) is det.
 
-:- pragma foreign_proc("C", pull_lightuserdata(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tolightuserdata(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tolightuserdata(L, Index);
@@ -792,9 +421,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Pull boolean value.
 	%
-:- semipure pred pull_boolean(lua_state::in, boolua::out) is det.
+:- semipure pred lua_toboolean(lua_state::in, boolua::out) is det.
 
-:- pragma foreign_proc("C", pull_boolean(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_toboolean(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 if(lua_toboolean(L, Index))
@@ -805,9 +434,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Pull cfunction value.
 	%
-:- semipure pred pull_cfunction(lua_state::in, c_function::out) is det.
+:- semipure pred lua_tocfunction(lua_state::in, c_function::out) is det.
 
-:- pragma foreign_proc("C", pull_cfunction(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_tocfunction(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = lua_tocfunction(L, Index);
@@ -816,9 +445,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Pull ref value.
 	%
-:- semipure pred pull_ref(lua_state::in, ref::out) is det.
+:- semipure pred lua_toref(lua_state::in, ref::out) is det.
 
-:- pragma foreign_proc("C", pull_ref(lua::in, Index::in, V::out),
+:- pragma foreign_proc("C", lua_toref(Index::in, L::in, V::out),
 	[promise_semipure, will_not_call_mercury],
 "
 	 V = luaMR_new_ref(L, Index);
@@ -829,9 +458,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push number value.
 	%
-:- impure pred push_number(lua_state::in, float::in) is det.
+:- impure pred lua_pushnumber(lua_state::in, float::in) is det.
 
-:- pragma foreign_proc("C", push_number(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushnumber(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushnumber(L, V);
@@ -839,9 +468,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push string value.
 	%
-:- impure pred push_string(lua_state::in, string::in) is det.
+:- impure pred lua_pushstring(lua_state::in, string::in) is det.
 
-:- pragma foreign_proc("C", push_string(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushstring(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushstring(L, V);
@@ -849,9 +478,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push integer value.
 	%
-:- impure pred push_integer(lua_state::in, int::in) is det.
+:- impure pred lua_pushinteger(lua_state::in, int::in) is det.
 
-:- pragma foreign_proc("C", push_integer(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushinteger(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushinteger(L, V);
@@ -859,9 +488,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push thread value.
 	%
-:- impure pred push_thread(lua_state::in, lua_state::in) is det.
+:- impure pred lua_pushthread(lua_state::in, lua_state::in) is det.
 
-:- pragma foreign_proc("C", push_thread(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushthread(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushthread(L, V);
@@ -869,9 +498,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push function value.
 	%
-:- impure pred push_function(lua_state::in, function::in) is det.
+:- impure pred lua_pushfunction(lua_state::in, function::in) is det.
 
-:- pragma foreign_proc("C", push_function(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushfunction(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushfunction(L, V);
@@ -879,9 +508,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push nil value.
 	%
-:- impure pred push_nil(lua_state::in, nilua::in) is det.
+:- impure pred lua_pushnil(lua_state::in, nilua::in) is det.
 
-:- pragma foreign_proc("C", push_nil(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushnil(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushnil(L, V);
@@ -889,9 +518,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push userdata value.
 	%
-:- impure pred push_userdata(lua_state::in, T::in) is det.
+:- impure pred lua_pushuserdata(lua_state::in, T::in) is det.
 
-:- pragma foreign_proc("C", push_userdata(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushuserdata(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushuserdata(L, V);
@@ -899,9 +528,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push table value.
 	%
-:- impure pred push_table(lua_state::in, table::in) is det.
+:- impure pred lua_pushtable(lua_state::in, table::in) is det.
 
-:- pragma foreign_proc("C", push_table(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushtable(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushtable(L, V);
@@ -909,9 +538,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push lightuserdata value.
 	%
-:- impure pred push_lightuserdata(lua_state::in, c_pointer::in) is det.
+:- impure pred lua_pushlightuserdata(lua_state::in, c_pointer::in) is det.
 
-:- pragma foreign_proc("C", push_lightuserdata(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushlightuserdata(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushlightuserdata(L, V);
@@ -919,9 +548,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push boolean value.
 	%
-:- impure pred push_boolean(lua_state::in, boolua::in) is det.
+:- impure pred lua_pushboolean(lua_state::in, boolua::in) is det.
 
-:- pragma foreign_proc("C", push_boolean(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushboolean(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 if(V == MR_YES)
@@ -932,9 +561,9 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push cfunction value.
 	%
-:- impure pred push_cfunction(lua_state::in, c_function::in) is det.
+:- impure pred lua_pushcfunction(lua_state::in, c_function::in) is det.
 
-:- pragma foreign_proc("C", push_cfunction(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushcfunction(lua::in, V::in),
 	[will_not_call_mercury],
 "
 	 lua_pushcfunction(L, V);
@@ -943,12 +572,12 @@ pull_table(L, I, table(L, Ref)) :-
 
 	% Push ref value.
 	%
-:- impure pred push_ref(lua_state::in, ref::in) is det.
+:- impure pred lua_pushref(lua_state::in, ref::in) is det.
 
-:- pragma foreign_proc("C", push_ref(lua::in, V::in),
+:- pragma foreign_proc("C", lua_pushref(lua::in, V::in),
 	[will_not_call_mercury],
 "
-	 luaMR_push_ref(L, V);
+	 luaMR_lua_pushref(L, V);
 ").
 
 
