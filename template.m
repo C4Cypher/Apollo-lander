@@ -17,4 +17,6 @@
 
 :- module template.
 
+:- interface.
+
 
