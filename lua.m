@@ -79,37 +79,61 @@
 	%
 :- type lua_state.
 
-:- type lua 
-	--->	lua_state(lua_state)
-	; 	some [L] (lua(L) => lua(L)).
+:- type lua == lua_state.
 
 	% Typeclass defining all of the values retreivable from a Lua state.
 	%
 :- typeclass lua(L) where [
+
+	% Retreive a value from Lua without invoking metamethods
 	pred rawget(var, value, L),		
-	mode rawget(in, out, in) is semidet, 	 	
-	mode rawget(out, out, in) is nondet,
+	mode rawget(in, out, in) is det, 	 	
+	mode rawget(out, out, in) is multi,
 	
-	func top(L) = int,			
-	func dump(var) = string is semidet,
-	func load(string) = var is det,
+	
+	% Index at the top of the stack
+	func top(L) = int,
+	
+	% Minimum allocated stack size
+	func minstack(L) = int,
+	
+	% Retreive the version number of the Lua runtime.
+	% 
 	func version(L) = string
 ].
 
 :- typeclass pure_lua(L) <= lua(L) where [
-	pred get(var, value, L, L),
-	mode get(in, out, in, out) is semidet, 	 	
-	mode get(out, out, in, out) is nondet
+
+	% Modify variables in Lua, will not invoke metamethods
+	pred rawset(var::in, value::in, L::in, L::out) is det,
 	
-	pred set(var::in, value::in, L::in, L::out) is det,
+	% Push a value onto the stack
 	pred push(value::in, L::in, L::out) is det,
+	
+	% Pop a number of values off the stack
 	pred pop(int::in, L::in, L::out) is det
+	
+	% Dump a function as a compiled chunk, 
+	% fails if not a Lua function			
+	func dump(var, L) = string is semidet,
+	
+	% Call the first value in the list with the rest as arguments fail if 
+	% the function tries to do something impure.	
+	func pure_call(values, L) = values.
+	
+	% Compile a chunk as a function, optionally name the chunk
+	func load(string, L) = var is det,
+	func load(string, string, L) = var is det,
+	
+	% Dynamic cast a value
+	func value_of(value, L) = T is semidet,
 ].
 
-:- typeclass imperative_lua(L).
-:- instance  imperative_lua(lua_state).
 
 
+
+%%% WARNING %%%
+% be very careful when invoking these typeclass methods, doing so in a safe
 :- typeclass imperative_lua(L) <= lua(L) where [
 	impure pred get(var, value, L),	
 	mode get(in, out, in) is semidet, 	 	
@@ -237,12 +261,23 @@
 % Lua environment
 %
 
-:- type scope
-	---> global(lua::lua_state, % The state that this scope represents
-		args::int	% The number of arguments passed to this call
-		
-		open::index,	% The first 
-
+:- type scope(L)
+	---> 	global(
+			L, 	% The state that this scope represents
+			int,	% Count of arguments on bottom of stack
+		),
+	;	local(
+			scope,	% parent scope
+			int	% number of values allocated for this scope
+		),
+	;	top(index).	% index to start triggering automatic use of
+				% lua_checkstack. 
+	
+:- type scope == scope(lua_state).
+	
+:- instance lua(scope(L)) <= lua(L).
+:- instance pure_lua(scope(L)) <= pure_lua(L).
+:- instance pure_lua(scope(L)) <= imperative_lua(L). 
 
 	% Retreive the number of arguments passed to a Lua state.
 	%
@@ -340,6 +375,7 @@
 #define MR_LUA_MODULE ""MR_LUA_MODULE""
 #define MR_LUA_UDATA ""MR_LUA_UDATA_METATABLE""
 #define MR_LUA_READY ""MR_LUA_IS_READY""
+#define MR_LUA_STATE ""MR_LUA_STATE_ID""
 
 #define MR_LUA_TYPE ""__mercury_type""
 
@@ -514,7 +550,7 @@ int luaMR_loader(lua_State * L) {
 	;	registry	% The registry
 	;	invalid(string).
 
-:- type index ---> index(int).
+:- type index == int.
 :- type upvalue ---> upvalue(int).
 
 %-----------------------------------------------------------------------------%
