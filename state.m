@@ -175,17 +175,24 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 % Accessing and manipulating variables 
 %
 
-
-%
-%
-%
-% get :: [_, _, _, ... , t, ..., k  
-%         1  2  3        n      
-
 	
 	% The Lua type of a value on the stack
 	%
-:- semipure func lua_gettype(lua, value) = lua_type.
+:- semipure func lua_gettype(lua, int) = lua_type.
+
+% Get calls will remove the key from the top of the table and replace it
+% with the value.
+% 
+% Lua: v = t[k]
+% get(L, N) :: [... t, ... k] -> [... t, ... v] 
+%                   N     -1          N     -1
+%
+% Set calls will remove both the key and the value from the top of the stack.
+%
+% Lua: t[k] = v
+% set(L, N) :: [... t, ... _, k, v] -> [... t, ... _] 
+%                   N      X  Y  Z          N      X
+
 	
 	% Access Lua tables without invoking metamethods
 	%
@@ -203,31 +210,6 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	%
 :- impure pred lua_getmetatable(lua::in, index::in) is det.
 :- impure pred lua_setmetatable(lua::in, index::in) is det.
-
-:- implementation.
-
-:- pragma foreign_proc("C",  get_type(L::in, Index::in) = (Type::out)), 
-	[promise_semipure, will_not_call_mercury],
-	"Type = lua_type(L, Index);").
-
-:- pragma foreign_proc("C", lua_rawget(L::in, I::in), 
-	[will_not_call_mercury], "lua_rawget(L, I);").
-	 
-:- pragma foreign_proc("C", lua_rawset(L::in, I::in), 
-	[will_not_call_mercury], "lua_rawset(L, I);"). 
-
-:- pragma foreign_proc("C", lua_gettable(L::in, I::in), 
-	[will_not_call_mercury], "lua_gettable(L, I);"). 
-:- pragma foreign_proc("C", lua_settable(L::in, I::in), 
-	[will_not_call_mercury], "lua_settable(L, I);"). 
-	
-:- pragma foreign_proc("C", lua_getmetatable(L::in, I::in), 
-	[will_not_call_mercury], "lua_getmetatable(L, I);"). 
-
-:- pragma foreign_proc("C", lua_setmetatable(L::in, I::in), 
-	[will_not_call_mercury], "lua_setmetatable(L, I);"). 
-
-:- interface.
 
 %-----------------------------------------------------------------------------%
 %
@@ -263,6 +245,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 %
 % Utilites for the concrete Lua state.
 %
+
 	% Create a fresh, new , initialized lua_state.
 	%
 :- func lua_newstate = lua_state.
@@ -284,40 +267,6 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	;	syntax_error
 	;	memory_error
 	;	unhandled_error.
-
-%-----------------------------------------------------------------------------%
-%-----------------------------------------------------------------------------%
-
-:- implementation.
-
-:- import_module require.	
-	
-:- func return_nil = nil.
-
-return_nil = nil.
-
-:- pragma foreign_export("C", return_nil = out, "luaMR_nil").
-
-
-:- pragma foreign_proc("C", lua_newstate = (L::out), 
-	[promise_pure, will_not_call_mercury], 	"L = luaL_newstate();").
-	
-:- pragma foreign_proc("C", lua_close(L::in), 
-	[promise_pure, will_not_call_mercury], "lua_close(L);").
-
-:- pragma foreign_proc("C", lua_status(L::in, Status::out), 
-	[promise_semipure, will_not_call_mercury], "Status = lua_status(L);").
-
-:- pragma foreign_enum("C", status/0, [
-	ready - "0",
-	yield - "LUA_YIELD",
-	runtime_error - "LUA_ERRRUN",
-	syntax_error - "LUA_ERRSYNTAX",
-	memory_error - "LUA_ERRMEM",
-	unhandled_error - "LUA_ERRERR"
-] ).
-
-:- interface.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -360,7 +309,161 @@ return_nil = nil.
 
 %-----------------------------------------------------------------------------%
 
+
 :- implementation.
+
+:- import_module require.
+
+%-----------------------------------------------------------------------------%
+%
+% init and ready
+%
+
+:- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
+
+
+:- pragma foreign_proc("C", init(L::in), 
+	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
+
+
+:- pragma foreign_proc("C", ready(L::in), 
+	[promise_pure, will_not_call_mercury], "
+	SUCCESS_INDICATOR = luaMR_ready(L);
+").
+
+
+:- pragma foreign_proc("C", ready(L::in, Answer::out, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "
+	if(luaMR_ready(L))
+		Answer = MR_YES;
+	else
+		Answer = MR_NO;
+").
+
+:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
+
+:- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
+
+
+:- pragma foreign_code("C", "
+void luaMR_init(lua_State * L) {
+	
+#ifdef BEFORE_502
+
+	/* Set the Main thread in the registry */
+	lua_pushthread(L, L);
+	luaMR_setregistry(L, LUA_RIDX_MAINTHREAD);
+	
+	lua_pushvalue(L, LUA_GLOBALSINDEX);
+	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
+	
+	/* Add tables to the registry. */
+	
+	lua_newtable(L);
+	luaMR_setregistry(L, MR_LUA_MODULE);
+
+	/* TODO: Define and export luaMR_userdata_metatable. */
+	luaMR_userdata_metatable(L);
+	luaMR_setregistry(L, MR_LUA_UDATA);
+	
+	
+
+	/* Add loader to package.loaders */
+	lua_getglobal(L, ""package"");
+	lua_getfield(L, 1, ""loaders"");
+	const lua_Integer length = (lua_Integer)lua_objlen(L, 1);
+	lua_pushinteger(L, length + 1);
+	lua_pushcfunction(L, luaMR_loader);
+	lua_settable(L, 2);
+	lua_pop(L, 2);
+	
+	/* Mark Lua as ready */
+	lua_pushboolean(L, 1);
+	luaMR_setregistry(L, MR_LUA_READY);
+} 
+
+").
+
+
+
+:- pragma foreign_code("C", "
+	/* Check to see if Lua has already been initialized. */
+	int luaMR_ready(lua_State * L) {
+		lua_checkstack(L, 1);
+		luaMR_getregistry(L, MR_LUA_READY);
+		int ready = lua_toboolean(L, 1);
+		lua_remove(L, 1);
+		return ready;
+	}
+").
+
+
+%-----------------------------------------------------------------------------%
+%
+% Accessing and manipulating variables 
+%
+
+:- pragma foreign_proc("C",  get_type(L::in, Index::in) = (Type::out)), 
+	[promise_semipure, will_not_call_mercury],
+	"Type = lua_type(L, Index);").
+
+:- pragma foreign_proc("C", lua_rawget(L::in, I::in), 
+	[will_not_call_mercury], "lua_rawget(L, I);").
+	 
+:- pragma foreign_proc("C", lua_rawset(L::in, I::in), 
+	[will_not_call_mercury], "lua_rawset(L, I);"). 
+
+:- pragma foreign_proc("C", lua_gettable(L::in, I::in), 
+	[will_not_call_mercury], "lua_gettable(L, I);"). 
+:- pragma foreign_proc("C", lua_settable(L::in, I::in), 
+	[will_not_call_mercury], "lua_settable(L, I);"). 
+	
+:- pragma foreign_proc("C", lua_getmetatable(L::in, I::in), 
+	[will_not_call_mercury], "lua_getmetatable(L, I);"). 
+
+:- pragma foreign_proc("C", lua_setmetatable(L::in, I::in), 
+	[will_not_call_mercury], "lua_setmetatable(L, I);"). 
+
+%-----------------------------------------------------------------------------%
+%
+% Function constructors, deconstructors, and calls 
+%
+
+% TODO
+
+%-----------------------------------------------------------------------------%
+%
+% Utilites for the concrete Lua state.
+%
+
+	
+	
+:- func return_nil = nil.
+
+return_nil = nil.
+
+:- pragma foreign_export("C", return_nil = out, "luaMR_nil").
+
+
+:- pragma foreign_proc("C", lua_newstate = (L::out), 
+	[promise_pure, will_not_call_mercury], 	"L = luaL_newstate();").
+	
+:- pragma foreign_proc("C", lua_close(L::in), 
+	[promise_pure, will_not_call_mercury], "lua_close(L);").
+
+:- pragma foreign_proc("C", lua_status(L::in, Status::out), 
+	[promise_semipure, will_not_call_mercury], "Status = lua_status(L);").
+
+:- pragma foreign_enum("C", status/0, [
+	ready - "0",
+	yield - "LUA_YIELD",
+	runtime_error - "LUA_ERRRUN",
+	syntax_error - "LUA_ERRSYNTAX",
+	memory_error - "LUA_ERRMEM",
+	unhandled_error - "LUA_ERRERR"
+] ).
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -524,94 +627,6 @@ return_nil = nil.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
-
-:- implementation.
-
-
-%-----------------------------------------------------------------------------%
-%
-% init and ready
-%
-
-:- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
-
-
-:- pragma foreign_proc("C", init(L::in), 
-	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
-
-
-:- pragma foreign_proc("C", ready(L::in), 
-	[promise_pure, will_not_call_mercury], "
-	SUCCESS_INDICATOR = luaMR_ready(L);
-").
-
-
-:- pragma foreign_proc("C", ready(L::in, Answer::out, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "
-	if(luaMR_ready(L))
-		Answer = MR_YES;
-	else
-		Answer = MR_NO;
-").
-
-:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
-
-:- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
-
-
-:- pragma foreign_code("C", "
-void luaMR_init(lua_State * L) {
-	
-#ifdef BEFORE_502
-
-	/* Set the Main thread in the registry */
-	lua_pushthread(L, L);
-	luaMR_setregistry(L, LUA_RIDX_MAINTHREAD);
-	
-	lua_pushvalue(L, LUA_GLOBALSINDEX);
-	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
-	
-	/* Add tables to the registry. */
-	
-	lua_newtable(L);
-	luaMR_setregistry(L, MR_LUA_MODULE);
-
-	/* TODO: Define and export luaMR_userdata_metatable. */
-	luaMR_userdata_metatable(L);
-	luaMR_setregistry(L, MR_LUA_UDATA);
-	
-	
-
-	/* Add loader to package.loaders */
-	lua_getglobal(L, ""package"");
-	lua_getfield(L, 1, ""loaders"");
-	const lua_Integer length = (lua_Integer)lua_objlen(L, 1);
-	lua_pushinteger(L, length + 1);
-	lua_pushcfunction(L, luaMR_loader);
-	lua_settable(L, 2);
-	lua_pop(L, 2);
-	
-	/* Mark Lua as ready */
-	lua_pushboolean(L, 1);
-	luaMR_setregistry(L, MR_LUA_READY);
-} 
-
-").
-
-
-
-:- pragma foreign_code("C", "
-	/* Check to see if Lua has already been initialized. */
-	int luaMR_ready(lua_State * L) {
-		lua_checkstack(L, 1);
-		luaMR_getregistry(L, MR_LUA_READY);
-		int ready = lua_toboolean(L, 1);
-		lua_remove(L, 1);
-		return ready;
-	}
-").
-
 
 
 
