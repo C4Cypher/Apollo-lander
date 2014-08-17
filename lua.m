@@ -81,73 +81,59 @@
 
 :- type lua == lua_state.
 
+
+%-----------------------------------------------------------------------------%
+%
+% Interacting with Lua
+%
 	
-:- semipure func getvar(var, L) = value is det <= lua(L).
+
 
 	% Typeclass defining all of the values retreivable from a Lua state.
 	%
 :- typeclass lua(L) where [
 
 	% Retreive a value from Lua without invoking metamethods
-	semipure func rawget(var, L) = value,		
+	func rawget(var, L) = value,		
 	mode rawget(in, in) = out is det, 	 	
 	mode rawget(out, in) = out is multi,
 	
+	% Set the value of a variable without invoking metamethods
+	func rawset(var, value, L) = L,
+	
+	% Get/set the value of a variable, possibly invoking metamethods
+	pred index(var, value, L, L)
+	mode index(in, out, in, out) is det, 	% get
+	mode index(in, in, in, out) is det,
 	
 	% Index at the top of the stack
-	semipure func top(L) = int,
+	top(L) = int,
 	
 	% Minimum allocated stack size
-	semipure func minstack(L) = int,
-	
-	% Dump a function as a compiled chunk, 
-	% fails if not a Lua function			
-	func dump(var, L) = string is semidet,
-	
-	
-	% Compile a chunk as a function, optionally name the chunk
-	func load(string, L) = var is det,
-	func load(string, string, L) = var is det,
-	
+	func minstack(L) = int,
+
 	% Dynamic cast a value
 	func value_of(value, L) = T is semidet,
+	
+	% Retreive the unique id of this Lua state.
+	%
+	func uid(L) = uid.
 	
 	% Retreive the version number of the Lua runtime.
 	% 
 	func version(L) = int
 ].
 
+	% get|set(Var, Val, !L) :- index(Var, Val, !L).
+	%
+:- pred get(var::in, value::out, L::in, L::out) is det <= lua(L).
+:- pred set(var::in, value::in,  L::in, L::out) is det <= lua(L).
 
-
-% Note: These methods are unsafe without a clear understanding of the workings
-% of the Lua C api, and even then, they're still pretty unsafe.
-:- typeclass imperative_lua(L) <= lua(L) where [
-
-	% Retreive the value stored by a variable, may invoke metamethods
-	impure pred get(var, value, L),	
-	mode get(in, out, in) is semidet, 	 	
-	mode get(out, out, in) is nondet
-	
-	% Modify variables in Lua, will not invoke metamethods
-	impure pred rawset(var::in, value::in, L::in) is det,
-	
-	% Set the value of a variable, may invoke metamethods
-	impure pred set(var::in, value::in, L::in) is det,
-	
-	% Push a value onto the stack
-	impure pred push(value::in, L::in) is det,
-	
-	% Pop a number of values off the stack
-	impure pred pop(int::in, L::in) is det
-].
-
-% TODO: Abstract representation implementing imperative_lua in pure Mercury
-
-:- instance lua(lua_state).
-:- instance imperative_lua(lua_state).
-
-
-
+	% This type is used to ensure the purity of calls made to the Lua
+	% state, if an impure change is made to the Lua state, it's UID should
+	% change.
+	%
+:- type uid.
 
 %-----------------------------------------------------------------------------%
 %
@@ -271,8 +257,10 @@
 			scope(L), % parent scope
 			int	% number of values allocated for this scope
 		),
-	;	top(index).	% index to start triggering automatic use of
-				% lua_checkstack. 
+	;	top(index, scope).	
+	
+% top/2 carries the index that triggers automatic use of lua_checkstack for
+% additional values on the stack. 
 	
 :- type scope == scope(lua_state).
 	
@@ -368,12 +356,36 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
-#define MR_LUA_MODULE ""MR_LUA_MODULE""
-#define MR_LUA_UDATA ""MR_LUA_UDATA_METATABLE""
-#define MR_LUA_READY ""MR_LUA_IS_READY""
-#define MR_LUA_STATE ""MR_LUA_STATE_ID""
+/* Checking for Lua language features introduced with 5.2 */
+#if LUA_VERSION_NUM >= 502
 
-#define MR_LUA_TYPE ""__mercury_type""
+#define AFTER_502
+
+#else /*  LUA_VERSION_NUM < 502 */ 
+
+#define BEFORE_502
+
+#endif /* LUA_VERSION_NUM < 502 */ 
+
+/* Registry values */
+#define LUA_RIDX_MR_MODULE ""MR_MODULE""
+#define LUA_RIDX_MR_UDATA ""MR_UDATA""
+#define LUA_RIDX_MR_READY ""MR_LUA_IS_READY""
+#define LUA_RIDX_MR_UID ""MR_LUA_UNIQUE_STATE_IDENTIFIER""
+
+#ifdef BEFORE_502
+#define LUA_RIDX_MAINTHREAD     1
+#define LUA_RIDX_GLOBALS        2
+#define LUA_RIDX_LAST           LUA_RIDX_GLOBALS
+#endif /* BEFORE_502 */
+
+/* metatable values*/
+#define LUA_META_MR_TYPE ""__mercury_type""
+
+
+
+
+
 
 ").
 
@@ -415,18 +427,29 @@
 % lua_threads may freely pass variables to or from their parent state and
 % sibling threads.
 
-:- instance lua(lua_state) where [
+:- type uid ---> uid(int).
 
-	rawget(Var, Val, L) :-
-		require_complete_switch [Var]
+:- pragma foreign_code("C", "
+	lua_ ").
 
 
 %-----------------------------------------------------------------------------%
+%
+% init and ready
+%
 
-:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
 
-:- pragma foreign_code("C", 
-"
+
+
+
+
+%-----------------------------------------------------------------------------%
+%
+% The registry, and upvalues.
+%
+ 
+
+:- pragma foreign_code("C", "
 void luaMR_getregistry(lua_State * L, const char * k) {
 	lua_getfield(L, LUA_REGISTRYINDEX, k);
 }
@@ -443,77 +466,7 @@ void luaMR_setupvalue(lua_State * L, const int id) {
 	lua_replace(L, lua_upvalueindex(id));
 }
 
-void luaMR_init(lua_State * L) {
-	
-	/* set the given Lua state as the current Lua state */
-	
-	luaMR_current_lua_state = L;
-	
-	/* Add tables to the registry. */
-	
-	lua_newtable(L);
-	luaMR_setregistry(L, MR_LUA_MODULE);
-
-	/* TODO: Define and export luaMR_userdata_metatable. */
-	luaMR_userdata_metatable(L);
-	luaMR_setregistry(L, MR_LUA_UDATA);
-	
-	
-
-	/* Add loader to package.loaders */
-	lua_getglobal(L, ""package"");
-	lua_getfield(L, 1, ""loaders"");
-	const lua_Integer length = (lua_Integer)lua_objlen(L, 1);
-	lua_pushinteger(L, length + 1);
-	lua_pushcfunction(L, luaMR_loader);
-	lua_settable(L, 2);
-	lua_pop(L, 2);
-	
-	/* Mark Lua as ready */
-	lua_pushboolean(L, 1);
-	luaMR_setregistry(L, MR_LUA_READY);
-} 
-
 ").
-
-:- pred init(lua_state::in, io::di, io::uo) is det.
-
-:- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
-
-:- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
-
-:- pragma foreign_code("C", 
-"
-	/* Check to see if Lua has already been initialized. */
-	int luaMR_ready(lua_State * L) {
-		lua_checkstack(L, 1);
-		luaMR_getregistry(L, MR_LUA_READY);
-		int ready = lua_toboolean(L, 1);
-		lua_remove(L, 1);
-		return ready;
-	}
-
-").
-
-:- pred ready(lua_state::in) is semidet.
-
-:- pragma foreign_proc("C", ready(L::in), 
-	[promise_pure, will_not_call_mercury], "
-	SUCCESS_INDICATOR = luaMR_ready(L);
-").
-
-:- pred ready(lua_state::in, bool::out, io::di, io::uo) is det.
-
-:- pragma foreign_proc("C", ready(L::in, Answer::out, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "
-	if(luaMR_ready(L))
-		Answer = MR_YES;
-	else
-		Answer = MR_NO;
-
-").
-
 
 
 :- pragma foreign_code("C", 
@@ -539,7 +492,8 @@ int luaMR_loader(lua_State * L) {
 %
 
 :- type var
-	--->	local(index)	% An index on the the local stack
+	--->	some [L] (unique(L, uid, var))
+	;	local(index)	% An index on the the local stack
 	;	ref(ref)	% A strong refrence (like a pointer)
 	;	up(upvalue)	% An upvalue pushed onto a C closure
 	;	index(var, value)	% Value stored in a table or metamethod

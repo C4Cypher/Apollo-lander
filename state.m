@@ -48,41 +48,93 @@
 % Note: These methods are unsafe without a clear understanding of the workings
 % of the Lua C api, and even then, they're still pretty unsafe.
 
+%-----------------------------------------------------------------------------%
+%
+% init and ready
+%
+
+	% Set up the Lua state so that it has all of the assigned values
+	% Mercury needs to interact with it.
+	%
+:- pred lua_init(lua_state::in, io::di, io::uo) is det.
+:- impure pred lua_init(lua_state::in) is det.
+
+	% Check to see if lua_init has been called on a Lua state.
+	%
+:- semipure pred lua_ready(lua_state::in) is semidet.
+:- pred lua_ready(lua_state::in, bool::out, io::di, io::uo) is det.
 
 
-% TODO: Abstract representation implementing imperative_lua in pure Mercury
+:- interface.
 
+% Visualizing the Lua stack
+%
+% The stack will be illustrated using list syntax, the numbers underneath
+% represent the indexes used to refer to those values in the stack using 
+% Lua api calls.
+% 
+% Example: [A, B, C, ... X, Y, Z]
+%           1  2  3     -3 -2 -1
+%
+% Here a is at the bottom of the stack at index 1, and z is at the top of
+% the stack at index -1.  0 is never a valid index
+%
+% I'll be using haskell style function arrows to illustrate stack operations
+%
+% Example:
+% push(Z, L) :: [... X, Y] -> [... X, Y, Z]
+%                   -2 -1         -3 -2 -1
+
+
+%-----------------------------------------------------------------------------%
+%
+% Stack indexes
+%
+
+	% Positive valid stack indexes
+:- semipure pred lua_posindex(lua::in, int::out) is nondet.
+
+	% Negative valid stack indexes
+:- semipure pred lua_negindex(lua::in, int::out) is nondet.
+
+	% All valid stack indexes (not counting pseudoindex).
+:- semipure pred lua_stackindex(lua::in, int::out) is nondet.
+
+
+
+:- implementation.
+
+
+lua_posindex(L, I) :-
+		semipure lua_gettop(L, I)
+	;
+		lua_posindex(L, I0),
+		I = I0 - 1,
+		I > 0.
+		
+lua_negindex(L, I) :- lua_posindex(L, -I).
+
+lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I). 
+:- interface.
 
 %-----------------------------------------------------------------------------%
 %
 % Stack Manipulation
 %
-	
+
+
+
+
 	% The index at the top of the stack.
 :- semipure func lua_gettop(lua) = int.
+
+	% settop(N, L) :: [... X, Y, Z] -> [... X, Y] 
+	%                         N                N
+	% settop(N + 2, L) :: [... X] -> [... X, nil, nil]
+	%                          N          N  N+1  N+2
+	%
 :- impure pred 	lua_settop(lua::in, int::in) is det.
 
-	% Valid indexes on the stack
-:- semipure indexes(int::out, lua::in) is nondet.
-
-:- interface.
-
-:- pragma foreign_proc("C", lua_gettop(L::in, Index::out),
-	[promise_semipure, will_not_call_mercury],
-	"Index = lua_gettop(L); ").
-	
-:- pragma foreign_proc("C",  set_top(L::in, Index::in),
-	[will_not_call_mercury],
-	"lua_settop(L, Index);").
-
-indexes(L, I) :-
-		semipure lua_gettop(L, I)
-	;
-		indexes(L, I0),
-		I = I0 - 1,
-		I > 0.
-:- interface.
-	
 	% Allocate free space on the stack if needed, fail if it cannot
 :- semipure pred lua_checkstack(lua::in, int::in) is semidet.
 
@@ -99,6 +151,14 @@ indexes(L, I) :-
 
 :- implementation.
 
+:- pragma foreign_proc("C", lua_gettop(L::in, Index::out),
+	[promise_semipure, will_not_call_mercury],
+	"Index = lua_gettop(L); ").
+	
+:- pragma foreign_proc("C",  set_top(L::in, Index::in),
+	[will_not_call_mercury],
+	"lua_settop(L, Index);").
+
 :- pragma foreign_proc("C",  lua_checkstack(L::in, Free::in),
 	[will_not_call_mercury, promise_semipure], "lua_checkstack(L, Free);").
 
@@ -114,6 +174,13 @@ indexes(L, I) :-
 %
 % Accessing and manipulating variables 
 %
+
+
+%
+%
+%
+% get :: [_, _, _, ... , t, ..., k  
+%         1  2  3        n      
 
 	
 	% The Lua type of a value on the stack
@@ -295,6 +362,10 @@ return_nil = nil.
 
 :- implementation.
 
+%-----------------------------------------------------------------------------%
+%
+% Value Passing
+%
 
 :- pragma foreign_proc("C", lua_isnumber(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
@@ -343,7 +414,6 @@ return_nil = nil.
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_iscfunction(L, Index);").
 
-%-----------------------------------------------------------------------------%
 
 %-----------------------------------------------------------------------------%
 
@@ -452,6 +522,97 @@ return_nil = nil.
 	[will_not_call_mercury],
 	"luaMR_lua_pushref(L, V);").
 
+%-----------------------------------------------------------------------------%
+%-----------------------------------------------------------------------------%
+
+:- implementation.
+
 
 %-----------------------------------------------------------------------------%
+%
+% init and ready
+%
+
+:- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
+
+
+:- pragma foreign_proc("C", init(L::in), 
+	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
+
+
+:- pragma foreign_proc("C", ready(L::in), 
+	[promise_pure, will_not_call_mercury], "
+	SUCCESS_INDICATOR = luaMR_ready(L);
+").
+
+
+:- pragma foreign_proc("C", ready(L::in, Answer::out, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "
+	if(luaMR_ready(L))
+		Answer = MR_YES;
+	else
+		Answer = MR_NO;
+").
+
+:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
+
+:- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
+
+
+:- pragma foreign_code("C", "
+void luaMR_init(lua_State * L) {
+	
+#ifdef BEFORE_502
+
+	/* Set the Main thread in the registry */
+	lua_pushthread(L, L);
+	luaMR_setregistry(L, LUA_RIDX_MAINTHREAD);
+	
+	lua_pushvalue(L, LUA_GLOBALSINDEX);
+	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
+	
+	/* Add tables to the registry. */
+	
+	lua_newtable(L);
+	luaMR_setregistry(L, MR_LUA_MODULE);
+
+	/* TODO: Define and export luaMR_userdata_metatable. */
+	luaMR_userdata_metatable(L);
+	luaMR_setregistry(L, MR_LUA_UDATA);
+	
+	
+
+	/* Add loader to package.loaders */
+	lua_getglobal(L, ""package"");
+	lua_getfield(L, 1, ""loaders"");
+	const lua_Integer length = (lua_Integer)lua_objlen(L, 1);
+	lua_pushinteger(L, length + 1);
+	lua_pushcfunction(L, luaMR_loader);
+	lua_settable(L, 2);
+	lua_pop(L, 2);
+	
+	/* Mark Lua as ready */
+	lua_pushboolean(L, 1);
+	luaMR_setregistry(L, MR_LUA_READY);
+} 
+
+").
+
+
+
+:- pragma foreign_code("C", "
+	/* Check to see if Lua has already been initialized. */
+	int luaMR_ready(lua_State * L) {
+		lua_checkstack(L, 1);
+		luaMR_getregistry(L, MR_LUA_READY);
+		int ready = lua_toboolean(L, 1);
+		lua_remove(L, 1);
+		return ready;
+	}
+").
+
+
+
+
 
