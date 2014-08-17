@@ -268,7 +268,7 @@
 			int,	% Count of arguments on bottom of stack
 		),
 	;	local(
-			scope,	% parent scope
+			scope(L), % parent scope
 			int	% number of values allocated for this scope
 		),
 	;	top(index).	% index to start triggering automatic use of
@@ -299,14 +299,11 @@
 
 	% Dynamic cast a specific argument.
 	%
-:- func arg(int, lua_state) = T is semidet <= lua(L).
+:- func arg(int, L) = T is semidet <= lua(L).
 
 	% Static cast a specific argument.
 	%
 :- some [T] func det_arg(int, L) = T <= lua(L).
-
-
-
 
 
 %-----------------------------------------------------------------------------%
