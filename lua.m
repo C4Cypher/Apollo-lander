@@ -81,7 +81,8 @@
 
 :- type lua == lua_state.
 
-:- func getvar(var, L) = value is det <= 
+	
+:- semipure func getvar(var, L) = value is det <= lua(L).
 
 	% Typeclass defining all of the values retreivable from a Lua state.
 	%
