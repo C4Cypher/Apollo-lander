@@ -86,12 +86,21 @@
 :- pred var(var, T, lua).
 :- mode var(in, out, in) is semidet.
 :- mode var(out, out, in) is nondet.
-:- mode var(out, in, in) is det.
+
 
 :- func var(var, lua) = T.
 :- mode var(in, in) = out is semidet.
 :- mode var(out, in) = out is nondet.
-:- mode var(out, in) = in is det.
+
+	% Evaluate a predicate with a locally scoped temporary variable,
+	% 
+:- pred let(T, pred(var, lua), lua).
+:- mode let(in, in(pred(in, in) is det), in) is det.
+:- mode let(in, in(pred(in, in) is semidet), in) is semidet.
+:- mode let(in, in(pred(in, in) is multi), in) is multi.
+:- mode let(in, in(pred(in, in) is nondet), in) is nondet.
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -103,32 +112,49 @@
 	% state be unique and immutable, therefore the Mercury lua_state
 	% type ties a lua_State with an io.state.
 	%
-:- type lua_state == {lua, io.state}.
+:- type lua_state. == {lua, io.state}.
 
 	% Abbriviation for lua_state.
 :- type ls == lua_state.
 
-	% get(Variable, Value, !L)
-	% rawget(Variable, Value, !L)
-	%
 	% Retreive the value of a variable in Lua, 
 	% the raw version will not invoke metamethods
 	% Omitting raw will imply no
 	%
 :- pred get(var::in, value::out, ls::di, ls::uo) is det.
 :- pred rawget(var::in, value::out, ls::di, ls::uo) is det.
+:- func (ls::di, ls::uo) ^ get(var::in) = (value::out) is det.
+:- func (ls::di, ls::uo) ^ rawget(var::in) = (value::out) is det.
 
-	% set(Variable, Value, !L)
-	% rawset(Variable, Value, !L)
-	% 
+
 	% Assign a value to a variable
 	% Raw version will not invoke metamethods
-:- pred set(var, value, ls, ls).
-:- mode set(in,  in, di, uo) is det.
-:- mode set(out, in, di, uo) is det.
-:- pred rawset(var, value, ls, ls).
-:- mode rawset(in,  in, di, uo) is det.
-:- mode rawset(out, in, di, uo) is det.
+:- pred set(var::in, value::in, ls::di, ls::uo) is det.
+:- pred rawset(var::in, value::in, ls::di, ls::uo) is det.
+:- pred (ls::di, ls::uo) ^ set(var::in) := (value::in) is det.
+:- pred (ls::di, ls::uo) ^ rawset(var::in) := (value::in) is det.
+
+	% Evaluate a function with a pure Lua context
+:- pred eval((func(lua) = T), T ls, ls).
+:- mode eval((func(in) = out is det), out, di, uo) is det.
+:- mode eval((func(in) = out is cc_multi), out, di, uo) is det.
+
+	% Take a Lua state in a pure context and prepare it for stateful calls
+	%
+:- pred begin(lua::in, io::di, ls::uo) is det.
+
+	% Perform a call requiring io.state using lua_state
+:- pred do(pred(io::di, io::uo) is det, ls::di, ls::uo) is det.
+
+	% Finalize the Lua state with return values, and allow no further calls
+	% to the Lua state
+	%
+:- pred return(values::in, ls::in, io::out) is det.
+
+	% Finalize the Lua state to return nil
+	%
+:- pred end(ls::in, io::out) is det.
+
 
 %-----------------------------------------------------------------------------%
 %
