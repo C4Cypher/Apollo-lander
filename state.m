@@ -43,7 +43,7 @@
 
 :- interface.
 
-:- import_module stream.
+%:- import_module stream.
 
 % Note: These methods are unsafe without a clear understanding of the workings
 % of the Lua C api, and even then, they're still pretty unsafe.
@@ -166,7 +166,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- pragma foreign_proc("C",  lua_checkstack(L::in, Free::in),
 	[will_not_call_mercury, promise_semipure], "lua_checkstack(L, Free);").
 
-- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
+:- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
 	[will_not_call_mercury], "lua_pushvalue(L, I);").
 
 :- pragma foreign_proc("C",  pop(L::in, Num::in),
@@ -306,7 +306,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 :- semipure func lua_tonumber(L, index) = float.
 :- semipure func lua_touserdata(L, index) = univ.
-:- semipure func lua_tointeger(L, index) = int..
+:- semipure func lua_tointeger(L, index) = int.
 :- semipure func lua_tolightuserdata(L, index) = c_pointer.
 :- semipure func lua_tostring(L, index) = string.
 :- semipure func lua_toboolean(L, index) = bool.
@@ -423,7 +423,7 @@ void luaMR_init(lua_State * L) {
 % Accessing and manipulating variables 
 %
 
-:- pragma foreign_proc("C",  get_type(L::in, Index::in) = (Type::out)), 
+:- pragma foreign_proc("C",  get_type(L::in, Index::in) = (Type::out), 
 	[promise_semipure, will_not_call_mercury],
 	"Type = lua_type(L, Index);").
 

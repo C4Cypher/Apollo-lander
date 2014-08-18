@@ -66,7 +66,7 @@
 :- import_module string.
 :- import_module char.
 :- import_module list.
-:- import_module map.
+:- use_module map.
 :- import_module univ.
 :- import_module require.
 
@@ -96,7 +96,7 @@
 	mode get(out, in) = out is multi,
 	
 	% Index at the top of the stack
-	top(L) = int,
+	func top(L) = int,
 	
 	% Minimum allocated stack size
 	func minstack(L) = int,
@@ -107,9 +107,9 @@
 	
 	% Retreive the version number of the Lua runtime.
 	% 
-	func version(L) = int
+	func version(L) = int,
 	
-	func state(L) = lua_state.
+	func state(L) = lua_state
 
 ].
 	% Typeclass defining the full set of operations one may perform in Lua
@@ -126,20 +126,32 @@
 
 	
 	% Syntax sugar for set/3
-func 'set :='(var, L, value) = L. 
+:- func 'set :='(var, L, value) = L <= lua(L). 
 
-pred return(values::in, ) is det
 
 :- instance lua_state(lua_state). 
 
+:- implementation.
+
+:- import_module require.
+
+L ^ set(Var) := Value = set(Var, Value, L).
+
+:- instance lua_state(lua_state) where [
+	(get(_, _) = nil(nil) :- sorry($module, $pred)),
+	(top(_) = 0 :- sorry($module, $pred)),
+	(minstack(_) = 0 :- sorry($module, $pred)),
+	(value_of(_, _) = T :- 
+		dynamic_cast("bananna", T), sorry($module, $pred)),
+	(version(_) = 0 :- sorry($module, $pred)),
+	(state(L) = L)
+].
 
 %-----------------------------------------------------------------------------%
 %
 % Lua modules
 %	
 
-:- type lua_module.
-	
 	% register_module(Module, L, !IO).
 	%
 	% Register a module in Lua.
@@ -156,10 +168,10 @@ pred return(values::in, ) is det
 	% This is the type signature for predicates that can be cast as
 	% Lua functions
 	%
-:- type lua_func == (some [L] pred(L, values) = values)).
+:- type lua_func == (func(lua_state, values) = values).
 
 
-:- func function(lua_func, L) = var <= lua_state(L).
+:- func function(lua_func, L) = var <= (lua(L), lua(T)).
 
 %-----------------------------------------------------------------------------%
 %
@@ -180,10 +192,10 @@ pred return(values::in, ) is det
 :- type values == list(value).
 
 :- func value(T) = value.
-:- func value_of(value, L) = T is semidet <= lua(L).
-:- some [T] det_value_of(value, L) = T is det <= lua(L).
+
+:- some [T] func det_value_of(value, L) = T is det <= lua(L).
 	
-:- type literal_value.
+:- type literal_value
 	--->	number(float)	% double prescision, casts to float
 	;	integer(int)	% int cast to Lua number
 	;	boolean(bool)	% boolean truth values, casts to bool
@@ -265,29 +277,6 @@ pred return(values::in, ) is det
 
 %-----------------------------------------------------------------------------%
 %
-% Lua environment
-%
-
-
-
-:- type scope(L)
-	---> 	scope(
-			parent::L, % Parent scope
-			size::int,% number of values allocated for this scope 
-			local::map(var, variable), % local variable associations 
-			top::index
-		).
-
-% top/2 carries the index that triggers automatic use of lua_checkstack for
-% additional values on the stack. 
-	
-:- instance lua_state(scope(L)) <= lua_state(L).	
-:- instance lua(scope(L)) <= lua_state(L).
-
-
-
-%-----------------------------------------------------------------------------%
-%
 % Lua types
 %	
 
@@ -307,7 +296,15 @@ pred return(values::in, ) is det
 	% 
 :- func lua_type(T) = lua_type.
 
+%-----------------------------------------------------------------------------%
+%
+% Lua userdata
+%
 
+:- type userdata
+	---> 	univ(univ)
+	;	lua_func(lua_func).
+	
 
 %-----------------------------------------------------------------------------%
 %
@@ -476,9 +473,9 @@ register_module(Name, Pred, L, !IO) :-
 
 	( semipure ready(L) ; impure init(L) ),
 	 
-	semipure (ref(Ref) = function(Pred, L)
+	( ref(Ref) = function(Pred, L)
 		; unexpected($module, $pred, 
-		"function/2 did not return a ref.").
+		"function/2 did not return a ref.")
 	),
 	impure lua_getregistry(L, LUA_RIDX_MR_MODULE), /* table -3 */
 	impure lua_pushstring(L, Name), /* key -2 */
@@ -532,8 +529,7 @@ call_pred(L) = ReturnCount :-
 	then (
 		pushlist(L, Return),
 		ReturnCount = list.length(Return)
-	)
-	catchany Err -> lua_error(Err).
+	) catch_any Err -> lua_error(Err) ).
 	
 :- pragma foreign_export("C", call_pred(in) = out, "luaMR_pred").
 	
@@ -558,8 +554,7 @@ pushlist(L, [V | Vs] ) :-
 %
 
 :- type var
-	--->	some [L] (unique(L, uid, var))
-	;	local(index)	% An index on the the local stack
+	--->	local(index)	% An index on the the local stack
 	;	ref(ref)	% A strong refrence (like a pointer)
 	;	up(upvalue)	% An upvalue pushed onto a C closure
 	;	index(var, value)	% Value stored in a table or metamethod
@@ -642,7 +637,7 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 % Lua errors
 %
 
-:- pragma foreign_enum("C", error_type,
+:- pragma foreign_enum("C", error_type/0,
 [
 	runtime_error 	-	"LUA_ERRRUN",
 	syntax_error 	-	"LUA_ERRSYNTAX",
