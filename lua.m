@@ -86,25 +86,14 @@
 %
 % Interacting with Lua
 %
-	
-
 
 	% Typeclass defining all of the values retreivable from a Lua state.
-	%
-:- typeclass lua(L) where [
-
+:- typeclass lua_state(L) where [
+	
 	% Retreive a value from Lua without invoking metamethods
-	func rawget(var, L) = value,		
-	mode rawget(in, in) = out is det, 	 	
-	mode rawget(out, in) = out is multi,
-	
-	% Set the value of a variable without invoking metamethods
-	func rawset(var, value, L) = L,
-	
-	% Get/set the value of a variable, possibly invoking metamethods
-	pred index(var, value, L, L)
-	mode index(in, out, in, out) is det, 	% get
-	mode index(in, in, in, out) is det,
+	func get(var, L) = value,		
+	mode get(in, in) = out is det, 	 	
+	mode get(out, in) = out is multi,
 	
 	% Index at the top of the stack
 	top(L) = int,
@@ -115,25 +104,62 @@
 	% Dynamic cast a value
 	func value_of(value, L) = T is semidet,
 	
-	% Retreive the unique id of this Lua state.
-	%
-	func uid(L) = uid.
 	
 	% Retreive the version number of the Lua runtime.
 	% 
 	func version(L) = int
+	
+	func state(L) = lua_state.
+
+].
+	% Typeclass defining the full set of operations one may perform in Lua
+	% in a pure manner.
+	%
+:- typeclass lua(L) <= lua_state(L) where [
+	
+	
+	% Set the value of a variable, will not imvoke metamethods
+	func set(var, value, L) = L
+	
+	
 ].
 
-	% get|set(Var, Val, !L) :- index(Var, Val, !L).
-	%
-:- pred get(var::in, value::out, L::in, L::out) is det <= lua(L).
-:- pred set(var::in, value::in,  L::in, L::out) is det <= lua(L).
+	
+	% Syntax sugar for set/3
+func 'set :='(var, L, value) = L. 
 
-	% This type is used to ensure the purity of calls made to the Lua
-	% state, if an impure change is made to the Lua state, it's UID should
-	% change.
+pred return(values::in, ) is det
+
+:- instance lua_state(lua_state). 
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua modules
+%	
+
+:- type lua_module.
+	
+	% register_module(Module, L, !IO).
 	%
-:- type uid.
+	% Register a module in Lua.
+	%
+:- pred register_module(string::in, lua_func::in, lua_state::in,
+	io::di, io::uo) is det.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua functions
+%	
+
+	% This is the type signature for predicates that can be cast as
+	% Lua functions
+	%
+:- type lua_func == (some [L] pred(L, values) = values)).
+
+
+:- func function(lua_func, L) = var <= lua_state(L).
 
 %-----------------------------------------------------------------------------%
 %
@@ -148,7 +174,7 @@
 	;	literal(literal_value)
 	;	var(var)	% Instantiated in the Lua state
 	;	c_var(c_var)	% Represented by a C type
-	;	m_var(m_var)	% Represented by a Mercury type
+	;	univ(univ)	% Represented by a Mercury type
 	;	error(lua_error). 
 	
 :- type values == list(value).
@@ -175,12 +201,6 @@
 
 :- type c_function.	% A Lua callable function defined in C
 
-:- type m_var
-	--->	ground(univ).
-	;	m_func(func(values) = values)
-	;	m_function(func(lua_state) = int)
-	;	free.	% Unbound variable, think promiscuous nil
-		
 
 
 % The nil value
@@ -248,50 +268,22 @@
 % Lua environment
 %
 
+
+
 :- type scope(L)
-	---> 	global(
-			L, 	% The state that this scope represents
-			int,	% Count of arguments on bottom of stack
-		),
-	;	local(
-			scope(L), % parent scope
-			int	% number of values allocated for this scope
-		),
-	;	top(index, scope).	
-	
+	---> 	scope(
+			parent::L, % Parent scope
+			size::int,% number of values allocated for this scope 
+			local::map(var, variable), % local variable associations 
+			top::index
+		).
+
 % top/2 carries the index that triggers automatic use of lua_checkstack for
 % additional values on the stack. 
 	
-:- type scope == scope(lua_state).
-	
-:- instance lua(scope(L)) <= lua(L).
+:- instance lua_state(scope(L)) <= lua_state(L).	
+:- instance lua(scope(L)) <= lua_state(L).
 
-	% Retreive the number of arguments passed to a Lua state.
-	%
-:- func arg_count(L) = int <= lua(L).
-
-	% Declaratively access the arugments passed to a Lua state with dynamic
-	% casting.
-	%
-:- pred args(int, T, L) <= lua(L).
-:- mode args(in, out, in) is semidet.
-:- mode args(out, out, in) is nondet.
-
-	% Declaratively access the arugments passed to a Lua state with static
-	% casting. If no arguments are passed, det_args will behave as if a
-	% single nil value was passed.
-	%
-:- some [T] pred det_args(int, T, L) <= lua(L).
-:- mode det_args(in, out, in) is det.
-:- mode det_args(out, out, in) is multi.
-
-	% Dynamic cast a specific argument.
-	%
-:- func arg(int, L) = T is semidet <= lua(L).
-
-	% Static cast a specific argument.
-	%
-:- some [T] func det_arg(int, L) = T <= lua(L).
 
 
 %-----------------------------------------------------------------------------%
@@ -421,24 +413,24 @@
 	[promise_pure, will_not_call_mercury], 
 	"Null = NULL;").
 
-% WARNING! Refrences to Lua types (tables, functions, userdata) derived
-% from one global lua_state are NOT compatible with other se+perately created
-% lua_states. The only exception to this is lua_states created as threads.
-% lua_threads may freely pass variables to or from their parent state and
-% sibling threads.
-
-:- type uid ---> uid(int).
-
-:- pragma foreign_code("C", "
-	lua_ ").
-
 
 %-----------------------------------------------------------------------------%
 %
-% init and ready
+% Length
 %
 
+:- pragma foreign_code("C", "
 
+size_t luaMR_len(lua_State *L, int index) {
+	
+#ifdef BEFORE_502
+	return lua_objlen(L, index);
+#else 
+	return lua_rawlen(L, index);
+#endif /* END BEFORE_502 */
+}
+
+").
 
 
 
@@ -458,8 +450,14 @@ void luaMR_setregistry(lua_State * L, const char * k) {
 	lua_setfield(L, LUA_REGISTRYINDEX, k);
 }
 
-void luaMR_getupvalue(lua_State * L, const int id) {
+int luaMR_getupvalue(lua_State * L, const int id) {
 	lua_pushvalue(L, lua_upvalueindex(id));
+	if (lua_type(L, -1) == LUA_TNONE) {
+		lua_pop(L, 1);
+		return 0;
+	} else {
+		return 1;
+	}
 }
 
 void luaMR_setupvalue(lua_State * L, const int id) {
@@ -469,15 +467,36 @@ void luaMR_setupvalue(lua_State * L, const int id) {
 ").
 
 
-:- pragma foreign_code("C", 
-"
+%-----------------------------------------------------------------------------%
+%
+% Lua modules
+%
+
+register_module(Name, Pred, L, !IO) :-
+
+	( semipure ready(L) ; impure init(L) ),
+	 
+	semipure (ref(Ref) = function(Pred, L)
+		; unexpected($module, $pred, 
+		"function/2 did not return a ref.").
+	),
+	impure lua_getregistry(L, LUA_RIDX_MR_MODULE), /* table -3 */
+	impure lua_pushstring(L, Name), /* key -2 */
+	impure luaMR_pushref(L, R), /* value -1 */
+	impure lua_settable(L, -3), /* table -1 */
+	impure lua_pop(L, 1). /* empty stack */
+	 
+:- pragma promise_pure(register_module/5).
+
+
+:- pragma foreign_code("C", "
 
 /* take the provided module name and attempt to load an apollo module
 passes any additional arguments. */
 int luaMR_loader(lua_State * L) {
 	if (lua_isstring(L, 1)) {
 		const char * module_name = lua_tostring(L, 1);
-		luaMR_getregistry(L, MR_LUA_MODULE);
+		luaMR_getregistry(L, LUA_RIDX_MR_MODULE);
 		lua_getfield(L, 2, module_name);
 		return 1;
 	}
@@ -486,6 +505,53 @@ int luaMR_loader(lua_State * L) {
 
 ").
 
+
+%-----------------------------------------------------------------------------%
+%
+% Lua functions
+%
+
+
+
+:- impure func call_pred(lua_state) = int.
+
+call_pred(L) = ReturnCount :-
+	semipure Top = lua_gettop(L),
+	
+	semipure Args = stack_to_list(L, 1, Top),
+	
+	impure lua_getupvalue(1),
+	
+	semipure Self = lua_touserdata(L, -1), %TODO
+	
+	Scope = scope(
+		scope(L, Top, 19, map.init), 
+		1, 19, map.singleton(var("self"), Self) ),
+	
+	(try [] Self(Args) = Return 
+	then (
+		pushlist(L, Return),
+		ReturnCount = list.length(Return)
+	)
+	catchany Err -> lua_error(Err).
+	
+:- pragma foreign_export("C", call_pred(in) = out, "luaMR_pred").
+	
+
+:- func stack_to_list(lua_state, int, int) = list(value).
+
+stack_to_list(L, Start, End) = 
+	[ get(local(Start),L) | 
+		( Start > End -> []
+		; stack_to_list(L, Start + 1, End) )
+	].
+			
+:- impure pred pushlist(lua_state::in, values::in) is det.
+
+pushlist(L, [V | Vs] ) :-
+	 impure lua_push(L, V),
+	 impure pushlist(L, Vs).
+	 
 %-----------------------------------------------------------------------------%
 %
 % Variables
@@ -499,7 +565,7 @@ int luaMR_loader(lua_State * L) {
 	;	index(var, value)	% Value stored in a table or metamethod
 	;	metatable(var)	% A variable's metatable
 	;	env(var)	% a variable's environment
-	;	global(string)	% A global variable
+	;	var(string)	% A named variable
 	;	global		% The global environment
 	;	registry(string) % A registry entry
 	;	registry	% The registry
@@ -564,6 +630,12 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 	userdata_type 	- 	"LUA_TUSERDATA",
 	thread_type 	- 	"LUA_TTHREAD"
 ]).
+
+%-----------------------------------------------------------------------------%
+%
+% Mercury userdata
+%
+
 
 %-----------------------------------------------------------------------------%
 %

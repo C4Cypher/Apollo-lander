@@ -56,13 +56,13 @@
 	% Set up the Lua state so that it has all of the assigned values
 	% Mercury needs to interact with it.
 	%
-:- pred lua_init(lua_state::in, io::di, io::uo) is det.
+:- pred init(lua_state::in, io::di, io::uo) is det.
 :- impure pred lua_init(lua_state::in) is det.
 
 	% Check to see if lua_init has been called on a Lua state.
 	%
-:- semipure pred lua_ready(lua_state::in) is semidet.
-:- pred lua_ready(lua_state::in, bool::out, io::di, io::uo) is det.
+:- semipure pred ready(lua_state::in) is semidet.
+:- pred ready(lua_state::in, bool::out, io::di, io::uo) is det.
 
 
 :- interface.
@@ -100,7 +100,8 @@
 	% All valid stack indexes (not counting pseudoindex).
 :- semipure pred lua_stackindex(lua::in, int::out) is nondet.
 
-
+	% The 
+:- func lua_registryindex = int.
 
 :- implementation.
 
@@ -140,6 +141,9 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 	% Directly push values from a different stack index
 :- impure pred 	lua_pushvalue(lua::in, int::in) is det.
+
+	% Push a value onto the Lua stack
+:- impure pred lua_push(lua::in, value::in) is det.
 
 	% Pop 
 :- impure pred 	lua_pop(lua::in, int::in) is det.
@@ -210,6 +214,21 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	%
 :- impure pred lua_getmetatable(lua::in, index::in) is det.
 :- impure pred lua_setmetatable(lua::in, index::in) is det.
+
+%-----------------------------------------------------------------------------%
+%
+% The registry, and upvalues.
+%
+
+	% Access the registry 
+	%
+:- impure pred lua_getregistry(lua::in, string::in) is det.
+:- impure pred lua_setregistry(lua::in, string::in) is det.
+
+	% Access an upvalue
+	%
+:- impure pred lua_getupvalue(lua::in, int::in) is semidet.
+:- impure pred lua_setupvalue(lua::in, int::in) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -372,7 +391,7 @@ void luaMR_init(lua_State * L) {
 	/* Add loader to package.loaders */
 	lua_getglobal(L, ""package"");
 	lua_getfield(L, 1, ""loaders"");
-	const lua_Integer length = (lua_Integer)lua_objlen(L, 1);
+	const int length = luaMR_len(L, 1);
 	lua_pushinteger(L, length + 1);
 	lua_pushcfunction(L, luaMR_loader);
 	lua_settable(L, 2);
@@ -424,6 +443,28 @@ void luaMR_init(lua_State * L) {
 
 :- pragma foreign_proc("C", lua_setmetatable(L::in, I::in), 
 	[will_not_call_mercury], "lua_setmetatable(L, I);"). 
+
+%-----------------------------------------------------------------------------%
+%
+% The registry, and upvalues.
+%
+ 
+
+
+:- pragma foreign_proc("C", lua_getregistry(L::in, I::in), 
+	[will_not_call_mercury], "luaMR_getregistry(L, I);"). 
+
+:- pragma foreign_proc("C", lua_setregistry(L::in, I::in), 
+	[will_not_call_mercury], "luaMR_setregistry(L, I);"). 
+	
+	
+:- pragma foreign_proc("C", lua_getupvalue(L::in, I::in), 
+	[will_not_call_mercury], "
+	SUCCESS_INDICATOR = luaMR_getupvalue(L, I);
+"). 
+
+:- pragma foreign_proc("C", lua_setupvalue(L::in, I::in), 
+	[will_not_call_mercury], "luaMR_setupvalue(L, I);"). 
 
 %-----------------------------------------------------------------------------%
 %
