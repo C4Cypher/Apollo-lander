@@ -6,7 +6,7 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: state.m.
+% File: api.m.
 % Main author: C4Cypher.
 % Stability: low.
 % 
