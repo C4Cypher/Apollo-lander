@@ -72,106 +72,91 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua State
+% The Lua State in a pure context
 %
 
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
-:- type lua_state.
+:- type lua.
 
-:- type lua == lua_state.
+	% Dynamically lookup the value assigned to a variable, will fail
+	% if T is not a compatable type for the assigned value.
+	% Will not invoke metamethods.
+	%
+:- pred var(var, T, lua).
+:- mode var(in, out, in) is semidet.
+:- mode var(out, out, in) is nondet.
+:- mode var(out, in, in) is det.
 
+:- func var(var, lua) = T.
+:- mode var(in, in) = out is semidet.
+:- mode var(out, in) = out is nondet.
+:- mode var(out, in) = in is det.
 
 %-----------------------------------------------------------------------------%
 %
-% Interacting with Lua
+% Imperative Lua via state passing.
 %
 
-	% Typeclass defining all of the values retreivable from a Lua state.
-:- typeclass lua_state(L) where [
-	
-	% Retreive a value from Lua without invoking metamethods
-	func get(var, L) = value,		
-	mode get(in, in) = out is det, 	 	
-	mode get(out, in) = out is multi,
-	
-	% Index at the top of the stack
-	func top(L) = int,
-	
-	% Minimum allocated stack size
-	func minstack(L) = int,
+	% Due to the fact that the state represented by the lua_State type
+	% is mutable, interacting with Lua in a pure context requires that
+	% state be unique and immutable, therefore the Mercury lua_state
+	% type ties a lua_State with an io.state.
+	%
+:- type lua_state == {lua, io.state}.
 
-	% Dynamic cast a value
-	func value_of(value, L) = T is semidet,
-	
-	
-	% Retreive the version number of the Lua runtime.
+	% Abbriviation for lua_state.
+:- type ls == lua_state.
+
+	% get(Variable, Value, !L)
+	% rawget(Variable, Value, !L)
+	%
+	% Retreive the value of a variable in Lua, 
+	% the raw version will not invoke metamethods
+	% Omitting raw will imply no
+	%
+:- pred get(var::in, value::out, ls::di, ls::uo) is det.
+:- pred rawget(var::in, value::out, ls::di, ls::uo) is det.
+
+	% set(Variable, Value, !L)
+	% rawset(Variable, Value, !L)
 	% 
-	func version(L) = int,
-	
-	func state(L) = lua_state
-
-].
-	% Typeclass defining the full set of operations one may perform in Lua
-	% in a pure manner.
-	%
-:- typeclass lua(L) <= lua_state(L) where [
-	
-	
-	% Set the value of a variable, will not imvoke metamethods
-	func set(var, value, L) = L
-	
-	
-].
-
-	
-	% Syntax sugar for set/3
-:- func 'set :='(var, L, value) = L <= lua(L). 
-
-
-:- instance lua_state(lua_state). 
-
-:- implementation.
-
-:- import_module require.
-
-L ^ set(Var) := Value = set(Var, Value, L).
-
-:- instance lua_state(lua_state) where [
-	(get(_, _) = nil(nil) :- sorry($module, $pred)),
-	(top(_) = 0 :- sorry($module, $pred)),
-	(minstack(_) = 0 :- sorry($module, $pred)),
-	(value_of(_, _) = T :- 
-		dynamic_cast("bananna", T), sorry($module, $pred)),
-	(version(_) = 0 :- sorry($module, $pred)),
-	(state(L) = L)
-].
+	% Assign a value to a variable
+	% Raw version will not invoke metamethods
+:- pred set(var, value, ls, ls).
+:- mode set(in,  in, di, uo) is det.
+:- mode set(out, in, di, uo) is det.
+:- pred rawset(var, value, ls, ls).
+:- mode rawset(in,  in, di, uo) is det.
+:- mode rawset(out, in, di, uo) is det.
 
 %-----------------------------------------------------------------------------%
 %
-% Lua modules
-%	
-
-	% register_module(Module, L, !IO).
-	%
-	% Register a module in Lua.
-	%
-:- pred register_module(string::in, lua_func::in, lua_state::in,
-	io::di, io::uo) is det.
-
-
-%-----------------------------------------------------------------------------%
+% Lua variables
 %
-% Lua functions
-%	
 
-	% This is the type signature for predicates that can be cast as
-	% Lua functions
+
+
+
+% A Lua variable can be used to store any value that can be stored as a 
+% C type.  Furthermore, because variables are instantiated and stored within
+% the Lua state, Mercury cannot construct, deconstruct, equality test or 
+% refrence Lua variables directly like it can C types. These operations are
+% handled by the C API.
+
+:- type var.
+
+	
+:- type vars == list(var).
+
+	% Refers to a value stored in an environment table.
 	%
-:- type lua_func == (func(lua_state, values) = values).
+:- func global(string) = var.
 
 
-:- func function(lua_func, L) = var <= (lua(L), lua(T)).
+
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -183,33 +168,26 @@ L ^ set(Var) := Value = set(Var, Value, L).
 	%
 :- type value
 	--->	nil(nil)	% the abscence of value
-	;	literal(literal_value)
-	;	var(var)	% Instantiated in the Lua state
-	;	c_var(c_var)	% Represented by a C type
-	;	univ(univ)	% Represented by a Mercury type
+	;	number(float)	% double prescision, casts to float
+	;	integer(int)	% int cast to Lua number
+	;	boolean(bool)	% boolean truth values, casts to bool
+	;	string(string)	% string value, casts to string
+	;	char(char)	% Passed as string.
+	;	chunk(string).	% A chunk of Lua code
+	;	lightuserdata(c_pointer)	% naked C pointer
+	;	c_userdata(c_pointer)	% fully allocated userdata
+	;	m_userdata(univ)	% Mercury as userdata
+	;	thread(lua_state)	% A coroutine
+	;	c_function(c_function). % A Lua callable function pointer
+	;	var(var)	% A Lua variable
 	;	error(lua_error). 
 	
 :- type values == list(value).
 
 :- func value(T) = value.
 
-:- some [T] func det_value_of(value, L) = T is det <= lua(L).
+:- some [T] func some_value(value, L) = T is det.
 	
-:- type literal_value
-	--->	number(float)	% double prescision, casts to float
-	;	integer(int)	% int cast to Lua number
-	;	boolean(bool)	% boolean truth values, casts to bool
-	;	string(string)	% string value, casts to string
-	;	char(char)	% Passed as string.
-	;	chunk(string).	% A chunk of Lua code
-	
-:- type literals == list(literal_value).
-	
-:- type c_var
-	--->	lightuserdata(c_pointer)	% naked C pointer
-	;	userdata(userdata)	% fully allocated userdata
-	;	thread(lua_state)	% A coroutine
-	;	c_function(c_function). % A Lua callable function pointer
 
 :- type c_function.	% A Lua callable function defined in C
 
@@ -242,37 +220,43 @@ L ^ set(Var) := Value = set(Var, Value, L).
 
 :- type nil ---> nil.
 
+
+
+
+
+
+
+
+
+
+
 %-----------------------------------------------------------------------------%
 %
-% Lua variables
-%
+% Lua modules
+%	
 
-% A Lua variable can be used to store any value that can be stored as a 
-% C type.  Furthermore, because variables are instantiated and stored within
-% the Lua state, Mercury cannot construct, deconstruct, equality test or 
-% refrence Lua variables directly like it can C types. These operations are
-% handled by the C API.
-
-:- type var.
-
-:- type vars == list(var).
-
-:- type index. 		% stack index
-:- type upvalue. 	% upvalue index
-
-% The ref type represents a strong refrence to a Lua variable instantiated in
-% Lua, as a result, a refrenced variable will not be garbage collected by Lua
-% until said refrence is unregistered or re-assigned.
-%
-% Note that these refrences discussed here are NOT normal C pointers, but values 
-% internal to Lua's register-based VM.  
-
-	
-	% The ref type represents an indirect refrence to a variable 
-	% instantiated in Lua. So long as Mercury does not garbage collect 
-	% the var, Lua will not garbage collect the refrenced variable.
+	% register_module(Module, L, !IO).
 	%
-:- type ref.
+	% Register a module in Lua.
+	%
+:- pred register_module(string::in, lua_func::in, lua_state::in,
+	io::di, io::uo) is det.
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua functions
+%	
+
+	% This is the type signature for predicates that can be cast as
+	% Lua functions
+	%
+:- type lua_func == (func(lua_state, values) = values).
+
+
+:- func function(lua_func, L) = var <= (lua(L), lua(T)).
+
+
 
 
 %-----------------------------------------------------------------------------%
@@ -320,6 +304,8 @@ L ^ set(Var) := Value = set(Var, Value, L).
 	;	syntax_error
 	;	memory_error
 	;	unhandled_error.
+	
+
 
 
 
@@ -410,7 +396,76 @@ L ^ set(Var) := Value = set(Var, Value, L).
 	[promise_pure, will_not_call_mercury], 
 	"Null = NULL;").
 
+%-----------------------------------------------------------------------------%
+%
+% Variables
+%
 
+:- type var
+	--->	stack(index)	% An index on the the local stack
+	;	ref(ref)	% A strong refrence (like a pointer)
+	;	up(upvalue)	% An upvalue pushed onto a C closure
+	;	idx(var, value)	% Value stored in a table
+	;	meta(var)	% A variable's metatable
+	;	var(string)	% A named variable
+	;	registry(registry) % A registry entry
+	;	invalid(string).
+
+:- type index == int.
+:- type upvalue ---> upvalue(int).
+
+:- type registry
+	--->	global	%Global environment
+	;	
+	
+
+%-----------------------------------------------------------------------------%
+%
+% Refrences
+%
+
+	% The ref type represents a strong refrence to a Lua variable instantiated in
+	% Lua, as a result, a refrenced variable will not be garbage collected by Lua
+	% until said refrence is unregistered or re-assigned.
+	%
+	% Note that these refrences discussed here are NOT normal C pointers, but values 
+	% internal to Lua's register-based VM.  
+	%
+:- type ref.
+
+:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
+
+:- pragma foreign_code("C",
+"
+typedef int * luaMR_Ref;
+
+
+/* Creates a new refrence from the stack */
+luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
+	lua_pushvalue(L, index);
+	luaMR_Ref new_ref = MR_GC_NEW(int);
+	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
+	return new_ref;
+}
+
+
+/* Push a refrence onto the provided stack */
+void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
+	if (*ref == LUA_REFNIL) {
+		lua_pushnil(L);
+	}
+	else {
+		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
+	}
+}
+
+/* Remove Lua's refrence to the var in the registry */
+void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
+	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
+}
+
+"). 
 %-----------------------------------------------------------------------------%
 %
 % Length
@@ -548,65 +603,7 @@ pushlist(L, [V | Vs] ) :-
 	 impure lua_push(L, V),
 	 impure pushlist(L, Vs).
 	 
-%-----------------------------------------------------------------------------%
-%
-% Variables
-%
 
-:- type var
-	--->	local(index)	% An index on the the local stack
-	;	ref(ref)	% A strong refrence (like a pointer)
-	;	up(upvalue)	% An upvalue pushed onto a C closure
-	;	index(var, value)	% Value stored in a table or metamethod
-	;	metatable(var)	% A variable's metatable
-	;	env(var)	% a variable's environment
-	;	var(string)	% A named variable
-	;	global		% The global environment
-	;	registry(string) % A registry entry
-	;	registry	% The registry
-	;	invalid(string).
-
-:- type index == int.
-:- type upvalue ---> upvalue(int).
-
-%-----------------------------------------------------------------------------%
-%
-% Refrences
-%
-
-:- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
-
-:- pragma foreign_code("C",
-"
-typedef int * luaMR_Ref;
-
-
-/* Creates a new refrence from the stack */
-luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
-	lua_pushvalue(L, index);
-	luaMR_Ref new_ref = MR_GC_NEW(int);
-	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
-	return new_ref;
-}
-
-
-/* Push a refrence onto the provided stack */
-void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
-	if (*ref == LUA_REFNIL) {
-		lua_pushnil(L);
-	}
-	else {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
-	}
-}
-
-/* Remove Lua's refrence to the var in the registry */
-void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
-	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
-}
-
-"). 
 
 %-----------------------------------------------------------------------------%
 %
