@@ -411,12 +411,6 @@
 
 #endif /* LUA_VERSION_NUM < 502 */ 
 
-/* Registry values */
-#define MR_MODULE ""MR_MODULE""
-#define MR_META_UDATA ""MR_UDATA""
-#define MR_META_FUNCTION
-#define MR_READY ""MR_LUA_IS_READY""
-
 #ifdef BEFORE_502
 #define LUA_RIDX_MAINTHREAD     1
 #define LUA_RIDX_GLOBALS        2
@@ -508,7 +502,7 @@ let(
 
 :- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
 
-
+% TODO: Redefine registry values using foreign_export_enum
 :- pragma foreign_code("C", "
 void luaMR_init(lua_State * L) {
 	
@@ -520,16 +514,13 @@ void luaMR_init(lua_State * L) {
 	
 	lua_pushvalue(L, LUA_GLOBALSINDEX);
 	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
-	
+
+#endif /* BEFORE_502 */
+
 	/* Add tables to the registry. */
 	
 	lua_newtable(L);
 	luaMR_setregistry(L, MR_LUA_MODULE);
-
-	/* TODO: Define and export luaMR_userdata_metatable. */
-	luaMR_userdata_metatable(L);
-	luaMR_setregistry(L, MR_LUA_UDATA);
-	
 	
 
 	/* Add loader to package.loaders */
@@ -573,11 +564,14 @@ void luaMR_init(lua_State * L) {
 
 
 :- type registry
-	--->	global	% Global environment
-	;	main_thread	% main thread
-	;	modules
-	;	meta_userdata
-	;	meta_function.
+	--->	modules
+	;	word
+	;	userdata
+	;	function
+	;	type
+	;	ready.
+	
+:- pragma foreign_export_enum("C", registry, [prefix("LUA_MR_"), uppercase]).
 	
 
 %-----------------------------------------------------------------------------%
