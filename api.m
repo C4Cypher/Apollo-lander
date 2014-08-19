@@ -169,7 +169,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	; V = lightuserdata(T),
 		impure lua_pushlightuserdata(L, T)
 	; V = c_userdata(T),
-		
+		impure lua_pushlightuserdata
 	; V = thread(T),
 		impure 
 	; V = c_function(T),
@@ -227,7 +227,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	% Access metatables, may cause undefined behavior if used on types
 	% that do not have metatables.
 	%
-:- impure pred lua_getmetatable(lua::in, index::in) is det.
+:- impure pred lua_getmetatable(lua::in, index::in) is semidet.
 :- impure pred lua_setmetatable(lua::in, index::in) is det.
 
 	% Pop a key from the top of the stack and push the key-value pair
@@ -317,6 +317,8 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- semipure pred lua_isnumber(lua::in, index::in) is semidet.
 :- semipure pred lua_isnil(lua::in, index::in) is semidet.
 :- semipure pred lua_isuserdata(lua::in, index::in) is semidet.
+:- semipure pred lua_iscuserdata(lua::in, index::in) is semidet.
+:- semipure pred lua_ismuserdata(lua::in, index::in) is semidet.
 :- semipure pred lua_isinteger(lua::in, index::in) is semidet.
 :- semipure pred lua_islightuserdata(lua::in, c_pointer::in) is semidet.
 :- semipure pred lua_isstring(lua::in, index::in) is semidet.
@@ -327,6 +329,8 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 :- semipure func lua_tonumber(lua, index) = float.
 :- semipure func lua_touserdata(lua, index) = univ.
+:- semipure func lua_tocuserdata(lua, index) = c_pointer.
+:- semipure func lua_tomuserdata(lua, index) = univ.
 :- semipure func lua_tointeger(lua, index) = int.
 :- semipure func lua_tolightuserdata(lua, index) = c_pointer.
 :- semipure func lua_tostring(lua, index) = string.
@@ -337,7 +341,9 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 :- impure pred lua_pushnil(lua::in) is det.
 :- impure pred lua_pushnumber(lua::in, float::in) is det.
-:- impure pred lua_pushuserdata(lua::in, univ::in) is det.
+:- impure pred lua_pushuserdata(lua::in, T::in) is det.
+:- impure pred lua_pushcuserdata(lua::in, c_pointer::in) is det.
+:- impure pred lua_pushmuserdata(lua::in, univ::in) is det.
 :- impure pred lua_pushinteger(lua::in, int::in) is det.
 :- impure pred lua_pushlightuserdata(lua::in) is det.
 :- impure pred lua_pushstring(lua::in, string::in) is det.
@@ -375,7 +381,8 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	[will_not_call_mercury], "lua_settable(L, I);"). 
 	
 :- pragma foreign_proc("C", lua_getmetatable(L::in, I::in), 
-	[will_not_call_mercury], "lua_getmetatable(L, I);"). 
+	[will_not_call_mercury], 
+	"SUCCESS_INDICATOR = lua_getmetatable(L, I);"). 
 
 :- pragma foreign_proc("C", lua_setmetatable(L::in, I::in), 
 	[will_not_call_mercury], "lua_setmetatable(L, I);"). 
@@ -474,6 +481,18 @@ return_nil = nil.
 :- pragma foreign_proc("C", lua_isuserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isuserdata(L, Index);").
+	
+lua_iscuserdata(L, I) :- 
+	semipure lua_isuserdata(L,I), 
+	not semipure lua_ismuserdata(L, I).
+
+lua_ismuserdata(L, I) :-
+	semipure lua_isuserdata(L, I),
+	impure lua_getmetatable(L, I),
+	
+	
+		
+	
 
 :- pragma foreign_proc("C", lua_istable(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
