@@ -151,8 +151,40 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 :- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
 	[will_not_call_mercury], "lua_pushvalue(L, I);").
+	
+:- lua_push(L, V) :-
+	require_complete_switch [V]
+	( V = nil(T),
+		impure lua_pushnil(L)
+	; V = number(T),
+		impure lua_pushnumber(L, T)
+	; V = integer(T),
+		impure lua_pushinteger(L, T)
+	; V = boolean(T),
+		impure lua_poosboolean(L, T)
+	; V = string(T),
+		impure lua_pushstring(L, T)
+	; V = char(T),
+		impure lua_pushstring(L, string.from_char(T))
+	; V = lightuserdata(T),
+		impure lua_pushlightuserdata(L, T)
+	; V = c_userdata(T),
+		
+	; V = thread(T),
+		impure 
+	; V = c_function(T),
+		impure 
+	; V = var(T),
+		impure 
+	; V = var(var(T)),
+		impure 
+	; V = m_userdata(T),
+		impure 
+	; V = m_userdata(univ(T)),
+		impure 
+	; V = lua_error(T) ).
 
-:- pragma foreign_proc("C",  pop(L::in, Num::in),
+:- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
 	[will_not_call_mercury], "lua_pop(L, Num);").
 :- interface.
 
