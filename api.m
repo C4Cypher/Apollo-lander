@@ -109,9 +109,6 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 % Stack Manipulation
 %
 
-
-
-
 	% The index at the top of the stack.
 :- semipure func lua_gettop(lua) = int.
 
@@ -200,6 +197,12 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	%
 :- impure pred lua_getmetatable(lua::in, index::in) is det.
 :- impure pred lua_setmetatable(lua::in, index::in) is det.
+
+	% Pop a key from the top of the stack and push the key-value pair
+	% corresponding to the 'next' value associated with the table at
+	% the given index.
+	%
+:- impure pred lua_next(lua::in, index::in) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -313,13 +316,11 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- impure pred lua_pushref(lua::in, ref::in) is det.
 
 %-----------------------------------------------------------------------------%
-
+%-----------------------------------------------------------------------------%
 
 :- implementation.
 
 :- import_module require.
-
-
 
 %-----------------------------------------------------------------------------%
 %
@@ -346,14 +347,15 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 :- pragma foreign_proc("C", lua_setmetatable(L::in, I::in), 
 	[will_not_call_mercury], "lua_setmetatable(L, I);"). 
+	
+:- pragma foreign_proc("C", lua_next(L::in, I::in), 
+	[will_not_call_mercury], "lua_next(L, I);"). 
 
 %-----------------------------------------------------------------------------%
 %
 % The registry, and upvalues.
 %
  
-
-
 :- pragma foreign_proc("C", lua_getregistry(L::in, I::in), 
 	[will_not_call_mercury], "luaMR_getregistry(L, I);"). 
 
