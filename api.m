@@ -48,24 +48,10 @@
 % Note: These methods are unsafe without a clear understanding of the workings
 % of the Lua C api, and even then, they're still pretty unsafe.
 
-%-----------------------------------------------------------------------------%
-%
-% init and ready
-%
-
-	% Set up the Lua state so that it has all of the assigned values
-	% Mercury needs to interact with it.
-	%
-:- pred init(lua_state::in, io::di, io::uo) is det.
-:- impure pred lua_init(lua_state::in) is det.
-
-	% Check to see if lua_init has been called on a Lua state.
-	%
-:- semipure pred ready(lua_state::in) is semidet.
-:- pred ready(lua_state::in, bool::out, io::di, io::uo) is det.
 
 
-:- interface.
+
+
 
 % Visualizing the Lua stack
 %
@@ -265,18 +251,18 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 % Utilites for the concrete Lua state.
 %
 
-	% Create a fresh, new , initialized lua_state.
+	% Create a fresh, new , initialized lua.
 	%
-:- func lua_newstate = lua_state.
+:- func lua_newstate = lua.
 
-	% Destroy a Lua_state
+	% Destroy a lua
 	%
-:- impure pred lua_close(lua_state::in).	
+:- impure pred lua_close(lua::in).	
 
 
 	% Return the Lua state's current status.
 	%
-:- semipure pred lua_status(lua_state::in, status::out). 
+:- semipure pred lua_status(lua::in, status::out). 
 
 
 :- type status
@@ -293,38 +279,38 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 % Value passing 
 %
 
-:- semipure pred lua_isnumber(L::in, Index::in) is semidet.
-:- semipure pred lua_isnil(L::in, Index::in) is semidet.
-:- semipure pred lua_isuserdata(L::in, Index::in) is semidet.
-:- semipure pred lua_isinteger(L::in, Index::in) is semidet.
-:- semipure pred lua_islightuserdata(c_pointer::in, L::in) is semidet.
-:- semipure pred lua_isstring(L::in, Index::in) is semidet.
-:- semipure pred lua_isboolean(L::in, Index::in) is semidet.
-:- semipure pred lua_isthread(L::in, Index::in) is semidet.
-:- semipure pred lua_isfunction(L::in, Index::in) is semidet.
-:- semipure pred lua_iscfunction(L::in, Index::in) is semidet.
+:- semipure pred lua_isnumber(lua::in, index::in) is semidet.
+:- semipure pred lua_isnil(lua::in, index::in) is semidet.
+:- semipure pred lua_isuserdata(lua::in, index::in) is semidet.
+:- semipure pred lua_isinteger(lua::in, index::in) is semidet.
+:- semipure pred lua_islightuserdata(lua::in, c_pointer::in) is semidet.
+:- semipure pred lua_isstring(lua::in, index::in) is semidet.
+:- semipure pred lua_isboolean(lua::in, index::in) is semidet.
+:- semipure pred lua_isthread(lua::in, index::in) is semidet.
+:- semipure pred lua_isfunction(lua::in, index::in) is semidet.
+:- semipure pred lua_iscfunction(lua::in, index::in) is semidet.
 
-:- semipure func lua_tonumber(L, index) = float.
-:- semipure func lua_touserdata(L, index) = univ.
-:- semipure func lua_tointeger(L, index) = int.
-:- semipure func lua_tolightuserdata(L, index) = c_pointer.
-:- semipure func lua_tostring(L, index) = string.
-:- semipure func lua_toboolean(L, index) = bool.
-:- semipure func lua_tothread(L, index) = lua_state.
-:- semipure func lua_tocfunction(L, index) = c_function.
-:- semipure func lua_toref(L, index) = ref.
+:- semipure func lua_tonumber(lua, index) = float.
+:- semipure func lua_touserdata(lua, index) = univ.
+:- semipure func lua_tointeger(lua, index) = int.
+:- semipure func lua_tolightuserdata(lua, index) = c_pointer.
+:- semipure func lua_tostring(lua, index) = string.
+:- semipure func lua_toboolean(lua, index) = bool.
+:- semipure func lua_tothread(lua, index) = lua.
+:- semipure func lua_tocfunction(lua, index) = c_function.
+:- semipure func lua_toref(lua, index) = ref.
 
-:- impure pred lua_pushnil(L::in) is det.
-:- impure pred lua_pushnumber(L::in, float::in) is det.
-:- impure pred lua_pushuserdata(L::in, univ::in) is det.
-:- impure pred lua_pushinteger(L::in, int::in) is det.
-:- impure pred lua_pushlightuserdata(L::in) is det.
-:- impure pred lua_pushstring(L::in, string::in) is det.
-:- impure pred lua_pushboolean(L::in, bool::in) is det.
-:- impure pred lua_pushfunction(L::in, (func(lua_state) = int)::in) is det.
-:- impure pred lua_pushcfunction(L::in, c_function::in) is det.
-:- impure pred lua_pushcclosure(L::in, c_function::in, int::in) is det.
-:- impure pred lua_pushref(L::in, ref::in) is det.
+:- impure pred lua_pushnil(lua::in) is det.
+:- impure pred lua_pushnumber(lua::in, float::in) is det.
+:- impure pred lua_pushuserdata(lua::in, univ::in) is det.
+:- impure pred lua_pushinteger(lua::in, int::in) is det.
+:- impure pred lua_pushlightuserdata(lua::in) is det.
+:- impure pred lua_pushstring(lua::in, string::in) is det.
+:- impure pred lua_pushboolean(lua::in, bool::in) is det.
+:- impure pred lua_pushfunction(lua::in, (func(lua) = int)::in) is det.
+:- impure pred lua_pushcfunction(lua::in, c_function::in) is det.
+:- impure pred lua_pushcclosure(lua::in, c_function::in, int::in) is det.
+:- impure pred lua_pushref(lua::in, ref::in) is det.
 
 %-----------------------------------------------------------------------------%
 
@@ -333,89 +319,6 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 :- import_module require.
 
-%-----------------------------------------------------------------------------%
-%
-% init and ready
-%
-
-:- pragma foreign_proc("C", init(L::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
-
-
-:- pragma foreign_proc("C", init(L::in), 
-	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
-
-
-:- pragma foreign_proc("C", ready(L::in), 
-	[promise_pure, will_not_call_mercury], "
-	SUCCESS_INDICATOR = luaMR_ready(L);
-").
-
-
-:- pragma foreign_proc("C", ready(L::in, Answer::out, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "
-	if(luaMR_ready(L))
-		Answer = MR_YES;
-	else
-		Answer = MR_NO;
-").
-
-:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
-
-:- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
-
-
-:- pragma foreign_code("C", "
-void luaMR_init(lua_State * L) {
-	
-#ifdef BEFORE_502
-
-	/* Set the Main thread in the registry */
-	lua_pushthread(L, L);
-	luaMR_setregistry(L, LUA_RIDX_MAINTHREAD);
-	
-	lua_pushvalue(L, LUA_GLOBALSINDEX);
-	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
-	
-	/* Add tables to the registry. */
-	
-	lua_newtable(L);
-	luaMR_setregistry(L, MR_LUA_MODULE);
-
-	/* TODO: Define and export luaMR_userdata_metatable. */
-	luaMR_userdata_metatable(L);
-	luaMR_setregistry(L, MR_LUA_UDATA);
-	
-	
-
-	/* Add loader to package.loaders */
-	lua_getglobal(L, ""package"");
-	lua_getfield(L, 1, ""loaders"");
-	const int length = luaMR_len(L, 1);
-	lua_pushinteger(L, length + 1);
-	lua_pushcfunction(L, luaMR_loader);
-	lua_settable(L, 2);
-	lua_pop(L, 2);
-	
-	/* Mark Lua as ready */
-	lua_pushboolean(L, 1);
-	luaMR_setregistry(L, MR_LUA_READY);
-} 
-
-").
-
-
-
-:- pragma foreign_code("C", "
-	/* Check to see if Lua has already been initialized. */
-	int luaMR_ready(lua_State * L) {
-		lua_checkstack(L, 1);
-		luaMR_getregistry(L, MR_LUA_READY);
-		int ready = lua_toboolean(L, 1);
-		lua_remove(L, 1);
-		return ready;
-	}
-").
 
 
 %-----------------------------------------------------------------------------%
