@@ -79,13 +79,7 @@
 	%
 :- type lua.	
 	
-	% A refrence to the Lua state meant to be passed as a unique value.
-	%
-:- type lua_state. 
 
-	% Abbriviations for lua_state.
-
-:- type ls == lua_state.
 
 	% Dynamically lookup the value assigned to a variable, will fail
 	% if T is not a compatable type for the assigned value.
@@ -95,18 +89,25 @@
 :- mode var(in, out, in) is semidet.
 :- mode var(out, out, in) is nondet.
 
-
 :- func var(var, lua) = T.
 :- mode var(in, in) = out is semidet.
 :- mode var(out, in) = out is nondet.
 
-	% Evaluate a predicate with a locally scoped temporary variable,
-	% 
-:- pred let(T, pred(var, lua), lua).
-:- mode let(in, in(pred(in, in) is det), in) is det.
-:- mode let(in, in(pred(in, in) is semidet), in) is semidet.
-:- mode let(in, in(pred(in, in) is multi), in) is multi.
-:- mode let(in, in(pred(in, in) is nondet), in) is nondet.
+	% Iterate through all of the key/value pairs of a given table
+	% fails if not a table.
+	%
+:- pred pairs(var, K, V, lua).
+:- mode pairs(in, in, out, in) is semidet.
+:- mode pairs(in, out, in, in) is nondet.
+:- mode pairs(in, out, out, in) is nondet.
+
+	% Iterate through all of the array portion of the table (up until the 
+	% first nil value), fails if not a table.
+	%
+:- pred ipairs(var, int, T, lua).
+:- mode ipairs(in, in, out, in) is semidet.
+:- mode ipairs(in, out, in, in) is nondet.
+:- mode ipairs(in, out, out, in) is nondet.
 
 
 
@@ -118,6 +119,14 @@
 % Due to the fact that the state represented by the lua_State type is mutable, 
 % interacting with Lua in a pure context requires that state be unique and
 % immutable.
+
+	% A refrence to the Lua state meant to be passed as a unique value.
+	%
+:- type lua_state. 
+
+	% Abbriviations for lua_state.
+	%
+:- type ls == lua_state.
 	
 	% Retreive the value of a variable in Lua, 
 	% the raw version will not invoke metamethods
@@ -406,11 +415,6 @@
 /* metatable values*/
 #define LUA_META_MR_TYPE ""__mercury_type""
 
-
-
-
-
-
 ").
 
 	% Succeed if the given value is NULL.
@@ -423,7 +427,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua state
+% The Lua State in a pure 'ground' context
 %
 
 
@@ -435,6 +439,20 @@
 
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
+	
+var(V, T, L) :- 
+
+:- pred any_var(var::out, lua::in) is multi.
+
+any_var(V, L) :-
+	( V = index(I) , semipure luaposindex(I, L)
+	;
+		
+
+%-----------------------------------------------------------------------------%
+%
+% Imperative Lua via state passing in a 'unique' context.
+%
 
 	% This type allows the lua type to be passed uniquely 
 	% while being ground for the purpose of passing imperative code.

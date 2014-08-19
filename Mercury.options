@@ -13,4 +13,7 @@ MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
 MCFLAGS += --no-warn-inferred-erroneous
 
+# For Fun
+MCFLAGS += --auto-comments
+
 
