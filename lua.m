@@ -93,6 +93,17 @@
 :- mode var(in, in) = out is semidet.
 :- mode var(out, in) = out is nondet.
 
+:- func let(values, pred(vars, lua), lua) = pred.
+:- mode let(in, in(pred(in, in) is det), in) = out(pred is det).
+:- mode let(in, in(pred(in, in) is semidet), in) = out(pred is semidet).
+:- mode let(in, in(pred(in, in) is multi), in) = out(pred is multi).
+:- mode let(in, in(pred(in, in) is nondet), in) = out(pred is nondet).
+:- mode let(in, in(pred(in, in) is cc_multi), in) = out(pred is cc_multi).
+:- mode let(in, in(pred(in, in) is cc_nondet), in) = out(pred is cc_nondet).
+:- mode let(in, in(pred(in, in) is erroneus), in) = out(pred is erroneus).
+:- mode let(in, in(pred(in, in) is failure), in) = out(pred is failure).
+
+
 	% Iterate through all of the key/value pairs of a given table
 	% fails if not a table.
 	%
@@ -447,7 +458,8 @@ var(V, T, L) :-
 any_var(V, L) :-
 	( V = index(I) , semipure luaposindex(I, L)
 	;
-		
+
+let(
 
 %-----------------------------------------------------------------------------%
 %
