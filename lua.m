@@ -77,15 +77,15 @@
 
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
+:- type lua.	
+	
+	% A refrence to the Lua state meant to be passed as a unique value.
+	%
 :- type lua_state. 
 
 	% Abbriviations for lua_state.
-:- type lua  == lua_state.
+
 :- type ls == lua_state.
-
-% As a naming convention, I personally prefer to use 'lua' as ground, and
-% 'lua_state' or 'ls' for unique. Furthermore, if 
-
 
 	% Dynamically lookup the value assigned to a variable, will fail
 	% if T is not a compatable type for the assigned value.
@@ -156,6 +156,21 @@
 	%
 :- pred call(var::in, 
 
+%-----------------------------------------------------------------------------%
+%
+% Initializing the Lua state
+%
+
+	% Set up the Lua state so that it has all of the assigned values
+	% Mercury needs to interact with it.
+	%
+:- pred init_lua(lua::in, io::di, io::uo) is det.
+:- pred init_lua(lua_state::di, lua_state::uo) is det.
+
+	% Check to see if lua_init has been called on a Lua state.
+	%
+:- semipure pred ready(lua::in) is semidet.
+:- pred ready(bool::out, ls::di, ls::uo) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -198,8 +213,6 @@
 % internal to Lua's register-based VM.  
 
 :- type ref.
-
-
 
 
 %-----------------------------------------------------------------------------%
@@ -269,14 +282,6 @@
 % In contrast, Lua interprets ANY value other than boolean false or nil as true.
 
 :- type nil ---> nil.
-
-
-
-
-
-
-
-
 
 
 
@@ -428,17 +433,104 @@
 % that query or manipulate the Lua state will use the variable term 'L' to refer 
 % to the Lua state.
 
-:- pragma foreign_type("C", lua_state, "lua_State *",
+:- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-	% For the sake of safety and sanity checking, produce a lua_state_ptr
-	% instantiated as a NULL pointer.
+	% This type allows the lua type to be passed uniquely 
+	% while being ground for the purpose of passing imperative code.
+	% Note, it would be acceptable to interact with lua directly before
+	% constructing it into a lua_state, or after, but never both, due to
+	% the ambiguity that would bring with Mercury's declarative semantics.
+	% I've opted to allow interaction with lua before being passed to
+	% stateful operations, or in the scope of a higher order value.
 	%
-:- func null_state = lua_state.
+:- type lua_state ---> state(lua).
+	
+%-----------------------------------------------------------------------------%
+%
+% Initializing the Lua state
+%
 
-:- pragma foreign_proc("C", null_state = (Null::out), 
-	[promise_pure, will_not_call_mercury], 
-	"Null = NULL;").
+:- pragma foreign_proc("C", init_lua(L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
+
+
+:- pragma foreign_proc("C", init_lua(L0::di, L::uo), 
+	[promise_pure, will_not_call_mercury], "L0 = L; luaMR_init(L);").
+
+
+:- pragma foreign_proc("C", ready(L::in), 
+	[promise_pure, will_not_call_mercury], "
+	SUCCESS_INDICATOR = luaMR_ready(L);
+").
+
+
+:- pragma foreign_proc("C", ready(Answer::out, L0::di, L::uo), 
+	[promise_pure, will_not_call_mercury], "
+	L0 = L;
+	if(luaMR_ready(L))
+		Answer = MR_YES;
+	else
+		Answer = MR_NO;
+").
+
+:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
+
+:- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
+
+
+:- pragma foreign_code("C", "
+void luaMR_init(lua_State * L) {
+	
+#ifdef BEFORE_502
+
+	/* Set the Main thread in the registry */
+	lua_pushthread(L, L);
+	luaMR_setregistry(L, LUA_RIDX_MAINTHREAD);
+	
+	lua_pushvalue(L, LUA_GLOBALSINDEX);
+	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
+	
+	/* Add tables to the registry. */
+	
+	lua_newtable(L);
+	luaMR_setregistry(L, MR_LUA_MODULE);
+
+	/* TODO: Define and export luaMR_userdata_metatable. */
+	luaMR_userdata_metatable(L);
+	luaMR_setregistry(L, MR_LUA_UDATA);
+	
+	
+
+	/* Add loader to package.loaders */
+	lua_getglobal(L, ""package"");
+	lua_getfield(L, 1, ""loaders"");
+	const int length = luaMR_len(L, 1);
+	lua_pushinteger(L, length + 1);
+	lua_pushcfunction(L, luaMR_loader);
+	lua_settable(L, 2);
+	lua_pop(L, 2);
+	
+	/* Mark Lua as ready */
+	lua_pushboolean(L, 1);
+	luaMR_setregistry(L, MR_LUA_READY);
+} 
+
+").
+
+
+
+:- pragma foreign_code("C", "
+	/* Check to see if Lua has already been initialized. */
+	int luaMR_ready(lua_State * L) {
+		lua_checkstack(L, 1);
+		luaMR_getregistry(L, MR_LUA_READY);
+		int ready = lua_toboolean(L, 1);
+		lua_remove(L, 1);
+		return ready;
+	}
+").
+
 
 %-----------------------------------------------------------------------------%
 %
