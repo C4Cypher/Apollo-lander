@@ -347,6 +347,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- impure pred lua_pushnil(lua::in) is det.
 :- impure pred lua_pushnumber(lua::in, float::in) is det.
 :- impure pred lua_pushuserdata(lua::in, T::in) is det.
+:- impure pred lua_pushuniv(lua::in, univ::in) is det.
 :- impure pred lua_pushinteger(lua::in, int::in) is det.
 :- impure pred lua_pushlightuserdata(lua::in) is det.
 :- impure pred lua_pushregistry(lua::in, registry::in)
@@ -499,21 +500,18 @@ return_nil = nil.
 :- pragma foreign_proc("C", lua_isuserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isuserdata(L, Index);").
-	
-lua_ismruserdata(L, I) :-
-	semipure lua_isuserdata(L, I),
-	impure lua_getmetatable(L, I) -> 
-		(
-			impure lua_pushregistry(L, userdata),
-			impure lua_rawget(L, -2),
-			semipure lua_toboolean(L, -1) = yes
-			impure lua_pop(L, 1),
-		;
-			impure lua_pop(L, 1),
-			fail
-		)
-	;
-		fail.
+
+:- pragma foreign_proc("C", lua_ismruserdata(L::in, Index::in),
+	[promise_semipure, will_not_call_mercury], "
+	lua_isuserdata(L, I);
+	if(lua_getmetatable(L, I)) {  
+		lua_pushregistry(L, LUA_MR_USERDATA);
+		lua_rawget(L, Index);
+		SUCCESS_INDICATOR = lua_toboolean(L, -1); 
+		lua_pop(L, 1),
+	} else {
+		SUCCESS_INDICATOR = 0;
+	}
 		
 :- pragma foreign_export("C", lua_ismruserdata(L::in, I::in), 
 	"luaMR_ismruserdata").
@@ -627,14 +625,18 @@ lua_touserdata(L, Index) =
 	[will_not_call_mercury],
 	"lua_pushnil(L, V);").
 
-:- pragma foreign_proc("C", lua_pushnil(L::in, V::in),
-	[will_not_call_mercury],
+lua_pushuserdata(L, V) :-
+	impure lua_pushuniv(L, univ(V)).
+
+:- pragma foreign_proc("C", lua_pushuniv(L::in, V::in),
+	[will_not_call_mercury], "
+	MR_Word * mr_ptr = luaMR_new(V);
+	MR_Word ** lua_ptr = lua_newuserdata(L, sizeof(MR_Word **));
+	lua_ptr = &mr_ptr;
+	set_userdata_metatable(L, -1);
 	
-:- pragma foreign_proc("C", lua_pushuserdata(L::in, V::in),
-	[will_not_call_mercury],
-	"lua_pushstring(
-	L, ""lua_pushuserdata/2 really needs to be implemented."");
-	lua_error(L);").
+	").
+	
 
 :- pragma foreign_proc("C", lua_pushlightuserdata(L::in, V::in),
 	[will_not_call_mercury],
@@ -679,11 +681,11 @@ lua_touserdata(L, Index) =
 	
 :- pragma foreign_code("C", "
 
-void luaMR_set_userdata_metatable(lua_State * L, MR_Word R) {
+void luaMR_set_userdata_metatable(lua_State * L) {
 	if(!lua_getmetatable(L, -1))
 		impure lua_newtable(L);
 		
-	lua_pushlightuserdata(L, R);
+	lua_pushlightuserdata(L, LUA_MR_USERDATA);
 	lua_pushboolean(L, yes);
 	lua_rawset(L, -3);
 	
