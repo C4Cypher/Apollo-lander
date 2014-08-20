@@ -281,7 +281,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 
 	% Call a mercury function from C
 	%
-:- impure func mr_call(lua, func(lua) = int) = int.
+:- impure func mr_call(lua) = int.
 
 	% cpcall(CFunc, LUdataIn, L) = LUdataOut
 	%
@@ -441,7 +441,87 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 % Function constructors, deconstructors, and calls 
 %
 
-% TODO
+:- pragma foreign_proc("C", lua_loadstring(L::in, S::in) = (Success::out),
+	[will_not_call_mercury], "Success = luaL_loadstring(L, S);").
+	
+:- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret) = (Returned::out),
+	[will_not_call_mercury], "
+	int Start = lua_gettop(L) - Args - 1;
+	lua_call(L, Args, Ret);
+	Returned = lua_gettop(L) - Start;
+	").
+	
+lua_call(L, A) = impure lua_call(L, A, multret).
+
+	
+:- pragma foreign_proc("C", lua_pcall(L::in, Args::in, Ret, Err) = (Returned::out),
+	[will_not_call_mercury], "
+	int Start = lua_gettop(L) - Args - 1;
+	lua_pcall(L, Args, Ret, Err);
+	Returned = lua_gettop(L) - Start;
+	").
+	
+lua_pcall(L, A, E) = impure lua_pcall(L, A, multret, E).
+	
+:- func multret = int.
+
+:- pragma foreign_proc("C", multret = (M::out),
+	[promise_pure, will_not_call_mercury], "M = LUA_MULTRET;").
+	
+:- use_module exception.	
+	
+mr_call(L) = R :- 
+	semipure Func = get_func_upvalue(L),
+	impure exception.try(funcpred(L, Func), R1),
+	(
+		R1 = succeeded(R)
+	;
+		R1 = failed,
+		lua_pushnil(L),
+		R = 1,
+	;
+		R1 = exception(E),
+		R = 1,
+		impure lua_pushuserdata(L, E),
+		impure lua_error(L)
+	).
+		
+	
+:- impure pred funcpred(lua, (impure func(lua) = int)), int).
+:- mode funcpred(in, (func(in) = out is det), out) is det.
+:- mode funcpred(in, (func(in) = out is semidet), out) is semidet.
+:- mode funcpred(in, (func(in) = out is cc_multi), out) is cc_multi.
+:- mode funcpred(in, (func(in) = out is cc_nondet), out) is cc_nondet.
+
+funcpred(L, F, F(L)).
+	
+:- semipure func get_func_upvalue(lua) = (impure func(lua) = int).
+
+:- pragma foreign_proc("C", get_func_upvalue(L::in) = (F::out),
+	[promise_semipure, will_not_call_mercury], "
+	luaMR_getupvalue(L, 1);
+	MR_Word ** ptr = lua_touserdata(L, -1);
+	F = **ptr;
+	lua_pop(L, 1);
+").
+
+:- impure func push_func_upvalue(lua, impure func(lua) = int).
+
+:- pragma foreign_proc("C", push_func_upvalue(L::in, Func::in),
+	[will_not_call_mercury], "
+	
+	MR_Word * mr_ptr = luaMR_new(Func);
+	MR_Word ** lua_ptr = lua_newuserdata(L, sizeof(MR_Word **));
+	lua_ptr = &mr_ptr;
+	
+	lua_newtable(L);
+	
+	lua_pushstring(L, "__GC");
+	lua_pushcfunction(L, luaMR_free);
+	lua_rawset(L, -3);
+	
+	lua_setmetatable(L, -2);
+").
 
 %-----------------------------------------------------------------------------%
 %
@@ -582,7 +662,7 @@ lua_touserdata(L, Index) =
  	
 :- pragma foreign_proc("C", to_mr_userdata(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
-	"V = lua_touserdata(L, Index);").
+	"V = **lua_touserdata(L, Index);").
 	
 :- semipure func to_c_userdata(lua, index) = c_pointer.
  	
@@ -690,7 +770,7 @@ lua_pushuserdata(L, V) :-
 
 void luaMR_set_userdata_metatable(lua_State * L) {
 	if(!lua_getmetatable(L, -1))
-		impure lua_newtable(L);
+		lua_newtable(L);
 		
 	lua_pushlightuserdata(L, LUA_MR_USERDATA);
 	lua_pushboolean(L, yes);
