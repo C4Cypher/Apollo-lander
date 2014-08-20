@@ -263,30 +263,37 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 % Function constructors, deconstructors, and calls 
 %
 
-/*
+
 	% Load a function from a string.
-:- impure pred lua_loadstring(string::in, lua::in) is det.
+:- impure pred lua_loadstring(lua::in, string::in) is det.
 
-	% Dump a function as a compiled chunk to a string writer.
-:- impure pred func lua_dump(var, lua) = string.
-
+	% lua_call(L, Args, [Results]) = Returned
 	% call a function
-:- impure func lua_call(int, int, lua) = values.
+:- impure func lua_call(lua, int, int) = int.
+:- impure func lua_call(lua, int) = int
 
-	
+
+	% lua_pcall(L, Args, [Results], Error) = Returned.
 	% call a function with an error handler.
 	%
-:- impure func pcall(var, values, var, lua) = values.
+:- impure func lua_pcall(lua, int, int, index) = int.
+:- impure func lua_pcall(lua, int, index) = int.
+
+	% Call a mercury function from C
+	%
+:- impure func mr_call(lua, func(lua) = int) = int.
 
 	% cpcall(CFunc, LUdataIn, L) = LUdataOut
 	%
 	% Protected C call in Lua, passing a pointer (or MR_Word)
 	% as the only argument.  
 	% 
-:- impure func cpcall(c_function, c_pointer, lua) = c_pointer.
+:- impure func lua_cpcall(c_function, c_pointer, lua) = c_pointer.
 
+	% Throw an error from Mercury to Lua
+	%
+:- impure pred lua_error(lua) is erroneous.
 
-*/
 
 %-----------------------------------------------------------------------------%
 %
