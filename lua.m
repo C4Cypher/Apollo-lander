@@ -252,11 +252,10 @@
 	;	char(char)	% Passed as string.
 	;	chunk(string).	% A chunk of Lua code
 	;	lightuserdata(c_pointer)	% naked C pointer
-	;	c_userdata(c_pointer)	% fully allocated userdata
 	;	thread(lua_state)	% A coroutine
 	;	c_function(c_function). % A Lua callable function pointer
 	;	var(var)	% A Lua variable
-	;	m_userdata(univ)	% Mercury as userdata
+	;	userdata(univ)	% opaque type in Lua for handling foreign data
 	;	lua_error(lua_error). 
 	
 :- type values == list(value).
@@ -568,7 +567,6 @@ void luaMR_init(lua_State * L) {
 	;	word
 	;	userdata
 	;	function
-	;	type
 	;	ready.
 	
 :- pragma foreign_export_enum("C", registry, [prefix("LUA_MR_"), uppercase]).
@@ -633,7 +631,7 @@ some_value(T) = :-
 	; V = c_function(U)
 	; V = var(U)
 	; V = var(var(U))
-	; V = m_userdata(U)
+	; V = userdata(U)
 	) -> dynamic_cast(T, U)
 	; V = m_userdata(univ(T)).
 
@@ -657,13 +655,12 @@ some_value(V) = T :-
 	; V = char(C),
 		string.from_char(C) = T
 	; V = lightuserdata(T)
-	; V = c_userdata(T)
 	; V = thread(T)
 	; V = c_function(T)
 	; V = var(T)
 	; V = var(var(T))
-	; V = m_userdata(T)
-	; V = m_userdata(univ(T))
+	; V = userdata(T)
+	; V = userdata(univ(T))
 	; V = lua_error(T) ).
 
 %-----------------------------------------------------------------------------%
@@ -827,6 +824,32 @@ pushlist(L, [V | Vs] ) :-
 %
 % Mercury userdata
 %
+
+
+:- pragma foreign_code("C", "
+
+	MR_Word * luaMR_new(MR_Word word) {
+		MR_Word * newptr = MR_GC_NEW_UNCOLLECTABLE(sizeof(MR_Word *));
+		newptr = &word;
+		return newptr;
+	}
+	
+	int luaMR_free(lua_State * L) {
+		void * ptr = lua_touserdata(L, 1);
+		MR_GC_FREE(*ptr);
+		return 0;
+	}
+		
+").
+		
+:- semipure func to_string(lua::in) = int.
+
+to_string(L) = 1 :-
+	univ(T) = semipure lua_touserdata(L, 1),
+	semipure lua_tostring(L, string.string(T)).
+	
+:- pragma foreign_export("C", to_string(L::in), "luaMR_tostring").
+
 
 
 %-----------------------------------------------------------------------------%
