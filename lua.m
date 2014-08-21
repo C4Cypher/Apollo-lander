@@ -123,7 +123,6 @@
 
 :- type var
 	--->	local(index)	% An index on the the local stack
-	;	var(string)	% A named variable
 	;	index(value, var)	% Value stored in a table
 	;	meta(var)	% A variable's metatable
 	
@@ -133,6 +132,10 @@
 	
 	% Returned on invalid request.
 	;	invalid(string).
+
+	% Var ^ T = Var ^ index(value(T)).
+	%
+:- func var ^ T = var. 
 
 :- type vars == list(var).
 
@@ -176,10 +179,32 @@
 	
 :- type values == list(value).
 
+:- pred value_cast(T, value).
+:- mode value_cast(in, out) is multi.
+:- mode value_cast(free, out) is det.
+:- mode value_cast(out, in) is nondet.
+:- mode value_cast(free, in) is semidet.
 
 :- func value(T) = value.
-:- func value_of(value) = T.
+:- mode value(in) = out is cc_multi.
+:- mode value(free) = out is det.
+:- mode value(out) = in is cc_nondet.
+:- mode value(free) = in is semidet.
 
+:- func value_of(value) = T.
+:- mode value_of(out) = in is multi.
+:- mode value(free) = in is det.
+:- mode value(in) = out is nondet.
+:- mode value(free) = out is semidet.
+
+:- pred strict_value(T, value).
+:- mode strict_value(in, out) is det.
+:- mode strict_value(free, out) is det.
+:- mode strict_value(out, in) is semidet.
+:- mode strict_value(free, in) is semidet.
+
+:- func det_value(T) = value.
+:- some [T] func det_value_of(value) = T.
 
 
 	
@@ -521,32 +546,29 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 %
 
 
-value(T::in) = (V::out) :-
+value_cast(T::in, V::out) :-
 	( V = nil(T:nil)
-	; V = number(T)
+	; V = number(T::float)
+	; V = number(float(T:int))
+	; V = integer(T:int)
 	; T:float - truncate_to_int(T)@I = 0, V = integer(I)
-	; V = integer(T)
-	; V = integer(float(T))
-	; V = boolean(T)
-	; V = string(T)
+	; V = boolean(T:bool)
+	; V = string(T:string)
+	; V = string(string.from_char(T))
+	; V = char(T:char)
 	; string.length(T:string) = 1,
 		string.det_index(S, 1, C),
-		V
-	; V = char(T)
-	;  V = lightuserdata(T)
-	; V = thread(T)
-	; V = c_function(T)
-	; V = var(T)
-	; V = var(var(T))
-	; V = userdata(T)
-	)
-	; dynamic_cast(T, U)
-	; T = userdata(univ(T))
+		V = char(C)
+	; V = lightuserdata(T:c_pointer)
+	; V = thread(T:lua)
+	; V = c_function(T:c_function)
+	; V = var(T:var)
+	; V = userdata(T:univ)
+	; V = userdata(univ(T))
 	).
+	
 
-value(T::out) = (V::in) :-
-	dynamic_cast(U, T),
-	require_complete_switch [V]
+value_cast(T::out, V::in) :-
 	( V = nil(U)
 	; V = number(U)
 	; V = number(F),
@@ -566,15 +588,34 @@ value(T::out) = (V::in) :-
 	; V = thread(U)
 	; V = c_function(U)
 	; V = var(U)
-	; V = var(var(U))
 	; V = userdata(U)
 	; V = userdata(univ(U))
 	; V = lua_error(U) 
+	), dynamic_cast(U, T).
+
+value_cast(_::free, free).
+
+value(T) = V :- value_cast(T, V).
+
+value_of(V) = T :- value(T) = V.
+
+det_value_of(V) = (U) :-
+	( V = nil(U)
+	; V = number(U)
+	; V = integer(U)
+	; V = boolean(U)
+	; V = string(U)
+	; V = char(U)
+	; V = lightuserdata(U)
+	; V = thread(U)
+	; V = c_function(U)
+	; V = var(U)
+	; V = userdata(U)
+	; V = lua_error(U) 
+	; V = free, U = _
 	).
+	
 
-
-value_of(V) = T :- value(T) = V.		
-		
 
 
 
