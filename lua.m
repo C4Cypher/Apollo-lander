@@ -55,9 +55,10 @@
 
 :- module lua.
 
+
 :- interface.
 
-:- include_module state.
+:- include_module api.
 
 :- import_module io.
 :- import_module float.
@@ -78,103 +79,17 @@
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
 :- type lua.	
-	
 
-
-	% Dynamically lookup the value assigned to a variable, will fail
-	% if T is not a compatable type for the assigned value.
-	% Will not invoke metamethods.
+	% A refrence to the Lua state meant to be passed in a unique context.
 	%
-:- pred var(var, T, lua).
-:- mode var(in, out, in) is semidet.
-:- mode var(out, out, in) is nondet.
-
-:- func var(var, lua) = T.
-:- mode var(in, in) = out is semidet.
-:- mode var(out, in) = out is nondet.
-
-:- func let(values, pred(vars, lua), lua) = pred.
-:- mode let(in, in(pred(in, in) is det), in) = out(pred is det).
-:- mode let(in, in(pred(in, in) is semidet), in) = out(pred is semidet).
-:- mode let(in, in(pred(in, in) is multi), in) = out(pred is multi).
-:- mode let(in, in(pred(in, in) is nondet), in) = out(pred is nondet).
-:- mode let(in, in(pred(in, in) is cc_multi), in) = out(pred is cc_multi).
-:- mode let(in, in(pred(in, in) is cc_nondet), in) = out(pred is cc_nondet).
-:- mode let(in, in(pred(in, in) is erroneus), in) = out(pred is erroneus).
-:- mode let(in, in(pred(in, in) is failure), in) = out(pred is failure).
-
-
-	% Iterate through all of the key/value pairs of a given table
-	% fails if not a table.
-	%
-:- pred pairs(var, K, V, lua).
-:- mode pairs(in, in, out, in) is semidet.
-:- mode pairs(in, out, in, in) is nondet.
-:- mode pairs(in, out, out, in) is nondet.
-
-	% Iterate through all of the array portion of the table (up until the 
-	% first nil value), fails if not a table.
-	%
-:- pred ipairs(var, int, T, lua).
-:- mode ipairs(in, in, out, in) is semidet.
-:- mode ipairs(in, out, in, in) is nondet.
-:- mode ipairs(in, out, out, in) is nondet.
-
-
-
-%-----------------------------------------------------------------------------%
-%
-% Imperative Lua via state passing in a 'unique' context.
-%
-
-% Due to the fact that the state represented by the lua_State type is mutable, 
-% interacting with Lua in a pure context requires that state be unique and
-% immutable.
-
-	% A refrence to the Lua state meant to be passed as a unique value.
-	%
-:- type lua_state. 
+:- type lua_state 
+	---> 	state(lua)
+	;	state(lua, index).
 
 	% Abbriviations for lua_state.
 	%
 :- type ls == lua_state.
-	
-	% Retreive the value of a variable in Lua, 
-	% the raw version will not invoke metamethods
-	% Omitting raw will imply no
-	%
-:- pred get(var::in, value::out, ls::di, ls::uo) is det.
-:- pred rawget(var::in, value::out, ls::di, ls::uo) is det.
 
-	% Assign a value to a variable
-	% Raw version will not invoke metamethods
-:- pred set(var::in, value::in, ls::di, ls::uo) is det.
-:- pred rawset(var::in, value::in, ls::di, ls::uo) is det.
-
-	% Evaluate a function with a pure Lua context
-:- pred eval((func(lua) = T), T ls, ls).
-:- mode eval((func(in) = out is det), out, di, uo) is det.
-:- mode eval((func(in) = out is cc_multi), out, di, uo) is det.
-
-	% Take a Lua state in a pure context and prepare it for stateful calls
-	%
-:- pred begin(lua::in, io::di, ls::uo) is det.
-
-	% Perform a call requiring io.state using lua_state
-:- pred do(pred(io::di, io::uo) is det, ls::di, ls::uo) is det.
-
-	% Finalize the Lua state with return values, and allow no further calls
-	% to the Lua state
-	%
-:- pred return(values::in, ls::in, io::out) is det.
-
-	% Finalize the Lua state to return nil
-	%
-:- pred end(ls::in, io::out) is det.
-
-	% Call a Lua function
-	%
-:- pred call(var::in, 
 
 %-----------------------------------------------------------------------------%
 %
@@ -214,7 +129,7 @@
 	
 	% The following are meant for internal use
 	;	ref(ref)	% A strong refrence (like a pointer)
-	;	registry(registry). % A registry entry
+	;	registry(registry) % A registry entry
 	
 	% Returned on invalid request.
 	;	invalid(string).
@@ -223,7 +138,7 @@
 
 	% Refers to a value stored in an environment table.
 	%
-:- func global(string) = var.
+%:- func global(string) = var.
 
 % The ref type represents a strong refrence to a Lua variable instantiated in
 % Lua, as a result, a refrenced variable will not be garbage collected by Lua
@@ -250,22 +165,23 @@
 	;	boolean(bool)	% boolean truth values, casts to bool
 	;	string(string)	% string value, casts to string
 	;	char(char)	% Passed as string.
-	;	chunk(string).	% A chunk of Lua code
+	;	chunk(string)	% A chunk of Lua code
 	;	lightuserdata(c_pointer)	% naked C pointer
 	;	thread(lua_state)	% A coroutine
-	;	c_function(c_function). % A Lua callable function pointer
+	;	c_function(c_function) % A Lua callable function pointer
 	;	var(var)	% A Lua variable
 	;	userdata(univ)	% opaque type in Lua for handling foreign data
+	;	free		% Represents an unbound variable
 	;	lua_error(lua_error). 
 	
 :- type values == list(value).
 
 
-:- func value(T) = value is cc_multi.
-:- func value_of(value) = T is cc_nondet.
+:- func value(T) = value.
+:- func value_of(value) = T.
 
 
-:- some [T] func some_value(value) = T is cc_multi.
+
 	
 
 :- type c_function.	% A Lua callable function defined in C
@@ -328,8 +244,6 @@
 :- type lua_func == (impure func(lua_state) = int).
 
 
-:- func function(lua_func, L) = var.
-
 
 
 
@@ -352,8 +266,8 @@
 	
 	% Look up the Lua type of a given variable. 
 	% 
-:- func var_type(var, lua) = lua_type.
-:- pred var_type(var::in, lua_type::out, ls::di, ls::uo).
+%:- func var_type(var, lua) = lua_type.
+%:- pred var_type(var::in, lua_type::out, ls::di, ls::uo) is det.
 
 
 	
@@ -382,7 +296,7 @@
 
 :- implementation.
 
-:- import_module lua.state.
+:- import_module lua.api.
 
 :- import_module type_desc.
 :- import_module int.
@@ -444,30 +358,17 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 	
-var(V, T, L) :- 
 
+/*
 :- pred any_var(var::out, lua::in) is multi.
+
 
 any_var(V, L) :-
 	( V = index(I) , semipure luaposindex(I, L)
 	;
 
-let(
+*/
 
-%-----------------------------------------------------------------------------%
-%
-% Imperative Lua via state passing in a 'unique' context.
-%
-
-	% This type allows the lua type to be passed uniquely 
-	% while being ground for the purpose of passing imperative code.
-	% Note, it would be acceptable to interact with lua directly before
-	% constructing it into a lua_state, or after, but never both, due to
-	% the ambiguity that would bring with Mercury's declarative semantics.
-	% I've opted to allow interaction with lua before being passed to
-	% stateful operations, or in the scope of a higher order value.
-	%
-:- type lua_state ---> state(lua).
 	
 %-----------------------------------------------------------------------------%
 %
@@ -483,7 +384,7 @@ let(
 
 
 :- pragma foreign_proc("C", ready(L::in), 
-	[promise_pure, will_not_call_mercury], "
+	[promise_semipure, will_not_call_mercury], "
 	SUCCESS_INDICATOR = luaMR_ready(L);
 ").
 
@@ -569,7 +470,7 @@ void luaMR_init(lua_State * L) {
 	;	function
 	;	ready.
 	
-:- pragma foreign_export_enum("C", registry, [prefix("LUA_MR_"), uppercase]).
+:- pragma foreign_export_enum("C", registry/0, [prefix("LUA_MR_"), uppercase]).
 	
 
 %-----------------------------------------------------------------------------%
@@ -619,49 +520,67 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 % Lua values
 %
 
-some_value(T) = :-
+
+value(T::in) = (V::out) :-
+	( V = nil(T:nil)
+	; V = number(T)
+	; T:float - truncate_to_int(T)@I = 0, V = integer(I)
+	; V = integer(T)
+	; V = integer(float(T))
+	; V = boolean(T)
+	; V = string(T)
+	; string.length(T:string) = 1,
+		string.det_index(S, 1, C),
+		V
+	; V = char(T)
+	;  V = lightuserdata(T)
+	; V = thread(T)
+	; V = c_function(T)
+	; V = var(T)
+	; V = var(var(T))
+	; V = userdata(T)
+	)
+	; dynamic_cast(T, U)
+	; T = userdata(univ(T))
+	).
+
+value(T::out) = (V::in) :-
+	dynamic_cast(U, T),
+	require_complete_switch [V]
 	( V = nil(U)
 	; V = number(U)
+	; V = number(F),
+		(F - truncate_to_int(F)@U) = 0
 	; V = integer(U)
+	; V = integer(I),
+		 U = float(I)
 	; V = boolean(U)
 	; V = string(U)
+	; V = string(S),
+		string.length(S) = 1,
+		string.det_index(S, 1, U)
 	; V = char(U)
+	; V = char(C),
+		string.from_char(C) = U
 	; V = lightuserdata(U)
 	; V = thread(U)
 	; V = c_function(U)
 	; V = var(U)
 	; V = var(var(U))
 	; V = userdata(U)
-	) -> dynamic_cast(T, U)
-	; V = m_userdata(univ(T)).
+	; V = userdata(univ(U))
+	; V = lua_error(U) 
+	).
 
-value_of(V) = T :- dynamic_cast(V, T).		
+
+value_of(V) = T :- value(T) = V.		
 		
-some_value(V) = T :-
-	require_complete_switch [V]
-	( V = nil(T)
-	; V = number(T)
-	; V = number(F),
-		(F - truncate_to_int(F)@T) = 0
-	; V = integer(T)
-	; V = integer(I),
-		 T = float(I)
-	; V = boolean(T)
-	; V = string(T)
-	; V = string(S),
-		string.length(S) = 1,
-		string.det_index(S, 1, T)
-	; V = char(T)
-	; V = char(C),
-		string.from_char(C) = T
-	; V = lightuserdata(T)
-	; V = thread(T)
-	; V = c_function(T)
-	; V = var(T)
-	; V = var(var(T))
-	; V = userdata(T)
-	; V = userdata(univ(T))
-	; V = lua_error(T) ).
+
+
+
+
+:- pragma foreign_type("C", c_function, "lua_CFunction").
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -842,13 +761,13 @@ pushlist(L, [V | Vs] ) :-
 		
 ").
 		
-:- semipure func to_string(lua::in) = int.
+:- semipure func to_string(lua) = int.
 
 to_string(L) = 1 :-
-	univ(T) = semipure lua_touserdata(L, 1),
+	semipure univ(T) =  lua_touserdata(L, 1),
 	semipure lua_tostring(L, string.string(T)).
 	
-:- pragma foreign_export("C", to_string(L::in), "luaMR_tostring").
+:- pragma foreign_export("C", to_string(in), "luaMR_tostring").
 
 
 

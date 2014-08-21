@@ -39,7 +39,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module state.
+:- module api.
 
 :- interface.
 
@@ -152,7 +152,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
 	[will_not_call_mercury], "lua_pushvalue(L, I);").
 	
-:- lua_push(L, V) :-
+lua_push(L, V) :-
 	require_complete_switch [V]
 	( V = nil(T),
 		impure lua_pushnil(L)
@@ -169,18 +169,16 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	; V = lightuserdata(T),
 		impure lua_pushlightuserdata(L, T)
 	; V = thread(T),
-		impure 
+		impure lua_pushthread(L, T)
 	; V = c_function(T),
-		impure 
-	; V = var(T),
-		impure 
-	; V = var(var(T)),
-		impure 
-	; V = m_userdata(T),
-		impure 
+		impure lua_pushcfuction(L, T)
+	; V = var(Var),
+		impure sorry($module, $pred, "Implement the pushing of variables.") 
 	; V = userdata(univ(T)),
-		impure 
-	; V = lua_error(T) ).
+		impure lua_pushuserdata(T)
+	; V = lua_error(T),
+		error(T)
+	).
 
 :- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
 	[will_not_call_mercury], "lua_pop(L, Num);").
@@ -270,7 +268,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 	% lua_call(L, Args, [Results]) = Returned
 	% call a function
 :- impure func lua_call(lua, int, int) = int.
-:- impure func lua_call(lua, int) = int
+:- impure func lua_call(lua, int) = int.
 
 
 	% lua_pcall(L, Args, [Results], Error) = Returned.
@@ -357,7 +355,7 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- impure pred lua_pushuniv(lua::in, univ::in) is det.
 :- impure pred lua_pushinteger(lua::in, int::in) is det.
 :- impure pred lua_pushlightuserdata(lua::in) is det.
-:- impure pred lua_pushregistry(lua::in, registry::in)
+:- impure pred lua_pushregistry(lua::in, registry::in) is det.
 :- impure pred lua_pushstring(lua::in, string::in) is det.
 :- impure pred lua_pushboolean(lua::in, bool::in) is det.
 :- impure pred lua_pushfunction(lua::in, (func(lua) = int)::in) is det.
@@ -444,24 +442,25 @@ lua_stackindex(L, I) :- lua_posindex(L, I) ; lua_negindex(L, I).
 :- pragma foreign_proc("C", lua_loadstring(L::in, S::in) = (Success::out),
 	[will_not_call_mercury], "Success = luaL_loadstring(L, S);").
 	
-:- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret) = (Returned::out),
+:- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret::in) = (Returned::out),
 	[will_not_call_mercury], "
 	int Start = lua_gettop(L) - Args - 1;
 	lua_call(L, Args, Ret);
 	Returned = lua_gettop(L) - Start;
 	").
 	
-lua_call(L, A) = impure lua_call(L, A, multret).
+impure lua_call(L, A) = lua_call(L, A, multret).
 
 	
-:- pragma foreign_proc("C", lua_pcall(L::in, Args::in, Ret, Err) = (Returned::out),
+:- pragma foreign_proc("C", lua_pcall(L::in, Args::in, Ret::in, Err::in) 
+	= (Returned::out),
 	[will_not_call_mercury], "
 	int Start = lua_gettop(L) - Args - 1;
 	lua_pcall(L, Args, Ret, Err);
 	Returned = lua_gettop(L) - Start;
 	").
 	
-lua_pcall(L, A, E) = impure lua_pcall(L, A, multret, E).
+impure lua_pcall(L, A, E) = lua_pcall(L, A, multret, E).
 	
 :- func multret = int.
 
@@ -478,7 +477,7 @@ mr_call(L) = R :-
 	;
 		R1 = failed,
 		lua_pushnil(L),
-		R = 1,
+		R = 1
 	;
 		R1 = exception(E),
 		R = 1,
@@ -487,7 +486,7 @@ mr_call(L) = R :-
 	).
 		
 	
-:- impure pred funcpred(lua, (impure func(lua) = int)), int).
+:- impure pred funcpred(lua, (impure func(lua) = int), int).
 :- mode funcpred(in, (func(in) = out is det), out) is det.
 :- mode funcpred(in, (func(in) = out is semidet), out) is semidet.
 :- mode funcpred(in, (func(in) = out is cc_multi), out) is cc_multi.
@@ -505,7 +504,7 @@ funcpred(L, F, F(L)).
 	lua_pop(L, 1);
 ").
 
-:- impure func push_func_upvalue(lua, impure func(lua) = int).
+:- impure pred push_func_upvalue(lua::in, (impure func(lua) = int)::in) is det.
 
 :- pragma foreign_proc("C", push_func_upvalue(L::in, Func::in),
 	[will_not_call_mercury], "
@@ -516,7 +515,7 @@ funcpred(L, F, F(L)).
 	
 	lua_newtable(L);
 	
-	lua_pushstring(L, "__GC");
+	lua_pushstring(L, ""__GC"");
 	lua_pushcfunction(L, luaMR_free);
 	lua_rawset(L, -3);
 	
@@ -599,6 +598,7 @@ return_nil = nil.
 	} else {
 		SUCCESS_INDICATOR = 0;
 	}
+").
 		
 :- pragma foreign_export("C", lua_ismruserdata(L::in, I::in), 
 	"luaMR_ismruserdata").
@@ -652,8 +652,8 @@ return_nil = nil.
 	[promise_semipure, will_not_call_mercury],
 	"V = lua_tofunction(L, Index);").
 	
-lua_touserdata(L, Index) = 
-	semipure lua_ismruserdata(L, Index) -> 
+semipure lua_touserdata(L, Index) = 
+	 lua_ismruserdata(L, Index) -> 
 		semipure to_mr_userdata(L, Index)
 	;
 		univ(semipure to_c_userdata(L, Index)).
@@ -776,11 +776,11 @@ void luaMR_set_userdata_metatable(lua_State * L) {
 	lua_pushboolean(L, yes);
 	lua_rawset(L, -3);
 	
-	lua_pushstring(L, "__GC");
+	lua_pushstring(L, ""__GC"");
 	lua_pushcfunction(L, luaMR_free);
 	lua_rawset(L, -3);
 	
-	lua_pushstring(L, "__tostring");
+	lua_pushstring(L, ""__tostring"");
 	lua_pushcfunction(L, luaMR_tostring);
 	lua_rawset(L, -3);
 	
@@ -788,7 +788,7 @@ void luaMR_set_userdata_metatable(lua_State * L) {
 }
 ").
 
-:- pragma foreign_export("C", 
+
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
