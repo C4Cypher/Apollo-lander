@@ -83,8 +83,30 @@
 	% A refrence to the Lua state meant to be passed in a unique context.
 	%
 :- type lua_state 
-	---> 	state(lua)
-	;	state(lua, index).
+	---> 	pure(lua)
+	;	impure(lua, index)
+	;	stack(lua_state, index)
+	;	local(lua_state, vars)
+	where equality is unify_state.
+
+:- pred unify_state(ls::in, ls::in) is semidet.
+
+unify_state(pure(L), pure(L)).
+
+unify_state(impure(L, I), impure(L, I)).
+
+unify_state(pure(L), impure(L, I)) :-
+	semipure lua_gettop(L) = I.
+	
+unify_state(impure(L, I), pure(L)) :-
+	semipure lua_gettop(L) = I.
+	
+unify_state(LS1, stack(LS2, I2 - I1))) :- 
+	I2 >= I1, 
+	unify_state(LS1, impure(L, I1)), 
+	unify_state(LS2, impure(L, T2)).
+
+
 
 	% Abbriviations for lua_state.
 	%
@@ -139,9 +161,6 @@
 
 :- type vars == list(var).
 
-	% Refers to a value stored in an environment table.
-	%
-%:- func global(string) = var.
 
 % The ref type represents a strong refrence to a Lua variable instantiated in
 % Lua, as a result, a refrenced variable will not be garbage collected by Lua
