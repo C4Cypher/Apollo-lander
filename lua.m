@@ -82,29 +82,9 @@
 
 	% A refrence to the Lua state meant to be passed in a unique context.
 	%
-:- type lua_state 
-	---> 	pure(lua)
-	;	impure(lua, index)
-	;	stack(lua_state, index)
-	;	local(lua_state, vars)
-	where equality is unify_state.
-
-:- pred unify_state(ls::in, ls::in) is semidet.
-
-unify_state(pure(L), pure(L)).
-
-unify_state(impure(L, I), impure(L, I)).
-
-unify_state(pure(L), impure(L, I)) :-
-	semipure lua_gettop(L) = I.
+:- type lua_state.
 	
-unify_state(impure(L, I), pure(L)) :-
-	semipure lua_gettop(L) = I.
-	
-unify_state(LS1, stack(LS2, I2 - I1))) :- 
-	I2 >= I1, 
-	unify_state(LS1, impure(L, I1)), 
-	unify_state(LS2, impure(L, T2)).
+
 
 
 
@@ -200,27 +180,17 @@ unify_state(LS1, stack(LS2, I2 - I1))) :-
 
 :- pred value_cast(T, value).
 :- mode value_cast(in, out) is multi.
-:- mode value_cast(free, out) is det.
 :- mode value_cast(out, in) is nondet.
-:- mode value_cast(free, in) is semidet.
 
 :- func value(T) = value.
 :- mode value(in) = out is cc_multi.
-:- mode value(free) = out is det.
 :- mode value(out) = in is cc_nondet.
-:- mode value(free) = in is semidet.
+
 
 :- func value_of(value) = T.
 :- mode value_of(out) = in is multi.
-:- mode value(free) = in is det.
-:- mode value(in) = out is nondet.
-:- mode value(free) = out is semidet.
+:- mode value_of(in) = out is nondet.
 
-:- pred strict_value(T, value).
-:- mode strict_value(in, out) is det.
-:- mode strict_value(free, out) is det.
-:- mode strict_value(out, in) is semidet.
-:- mode strict_value(free, in) is semidet.
 
 :- func det_value(T) = value.
 :- some [T] func det_value_of(value) = T.
@@ -401,7 +371,27 @@ unify_state(LS1, stack(LS2, I2 - I1))) :-
 
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
+
+:- type lua_state 
+	---> 	pure(lua)
+	;	temp(lua, index)
+	where equality is unify_state.	
+
+:- pred unify_state(ls::in, ls::in) is semidet.
+
+unify_state(pure(L), pure(L)).
+
+unify_state(temp(L, I), temp(L, I)).
+
+unify_state(pure(L), temp(L, I)) :-
+	semipure lua_gettop(L) = I.
 	
+unify_state(temp(L, I), pure(L)) :-
+	semipure lua_gettop(L) = I.
+	
+:- pragma promise_pure(unify_state/2).
+
+
 
 /*
 :- pred any_var(var::out, lua::in) is multi.
@@ -516,6 +506,7 @@ void luaMR_init(lua_State * L) {
 	
 :- pragma foreign_export_enum("C", registry/0, [prefix("LUA_MR_"), uppercase]).
 	
+Var ^ T = index(det_value(T), Var). 
 
 %-----------------------------------------------------------------------------%
 %
@@ -566,53 +557,84 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 
 
 value_cast(T::in, V::out) :-
-	( V = nil(T:nil)
-	; V = number(T::float)
-	; V = number(float(T:int))
-	; V = integer(T:int)
-	; T:float - truncate_to_int(T)@I = 0, V = integer(I)
-	; V = boolean(T:bool)
-	; V = string(T:string)
-	; V = string(string.from_char(T))
-	; V = char(T:char)
-	; string.length(T:string) = 1,
-		string.det_index(S, 1, C),
-		V = char(C)
-	; V = lightuserdata(T:c_pointer)
-	; V = thread(T:lua)
-	; V = c_function(T:c_function)
-	; V = var(T:var)
-	; V = userdata(T:univ)
+	( V = nil(U),
+		dynamic_cast(T, U)
+	; V = number(U),
+		dynamic_cast(T, U)
+	; V = number(float(U)),
+		dynamic_cast(T, U)
+	; V = integer(U),
+		dynamic_cast(T, U)
+	; U - float(truncate_to_int(U)@I) = 0.0,
+		V = integer(I),
+		dynamic_cast(T, U)
+	; V = boolean(U),
+		dynamic_cast(T, U)
+	; V = string(U),
+		dynamic_cast(T, U)
+	; V = string(string.from_char(U)),
+		dynamic_cast(T, U)
+	; V = char(U),
+		dynamic_cast(T, U)
+	; string.length(U) = 1,
+		string.det_index(U, 1, C),
+		V = char(C), 
+		dynamic_cast(T, U)
+	; V = lightuserdata(U),
+		dynamic_cast(T, U)
+	; V = thread(U),
+		dynamic_cast(T, U)
+	; V = c_function(U),
+		dynamic_cast(T, U)
+	; V = var(U),
+		dynamic_cast(T, U)
+	; V = userdata(U),
+		dynamic_cast(T, U)
 	; V = userdata(univ(T))
 	).
 	
 
 value_cast(T::out, V::in) :-
-	( V = nil(U)
-	; V = number(U)
+	( V = nil(U),
+		dynamic_cast(U, T)
+	; V = number(U),
+		dynamic_cast(U, T)
 	; V = number(F),
-		(F - truncate_to_int(F)@U) = 0
-	; V = integer(U)
+		F - float(truncate_to_int(F)@U) = 0,
+		dynamic_cast(U, T)
+	; V = integer(U),
+		dynamic_cast(U, T)
 	; V = integer(I),
-		 U = float(I)
-	; V = boolean(U)
-	; V = string(U)
+		 U = float(I),
+		dynamic_cast(U, T)
+	; V = boolean(U),
+		dynamic_cast(U, T)
+	; V = string(U),
+		dynamic_cast(U, T)
 	; V = string(S),
 		string.length(S) = 1,
-		string.det_index(S, 1, U)
-	; V = char(U)
+		string.det_index(S, 1, U),
+		dynamic_cast(U, T)
+	; V = char(U),
+		dynamic_cast(U, T)
 	; V = char(C),
-		string.from_char(C) = U
-	; V = lightuserdata(U)
-	; V = thread(U)
-	; V = c_function(U)
-	; V = var(U)
-	; V = userdata(U)
-	; V = userdata(univ(U))
-	; V = lua_error(U) 
-	), dynamic_cast(U, T).
-
-value_cast(_::free, free).
+		string.from_char(C) = U,
+		dynamic_cast(U, T)
+	; V = lightuserdata(U),
+		dynamic_cast(U, T)
+	; V = thread(U),
+		dynamic_cast(U, T)
+	; V = c_function(U),
+		dynamic_cast(U, T)
+	; V = var(U),
+		dynamic_cast(U, T)
+	; V = userdata(U),
+		dynamic_cast(U, T)
+	; V = userdata(univ(U)),
+		dynamic_cast(U, T)
+	; V = lua_error(U),
+		dynamic_cast(U, T) 
+	).
 
 value(T) = V :- value_cast(T, V).
 
@@ -634,7 +656,20 @@ det_value_of(V) = (U) :-
 	; V = free, U = _
 	).
 	
-
+det_value(T) = V :-
+	( V = nil(T:nil)
+	; V = number(T::float)
+	; V = integer(T:int)
+	; V = boolean(T:bool)
+	; V = string(T:string)
+	; V = char(T:char)
+	; V = lightuserdata(T:c_pointer)
+	; V = thread(T:lua)
+	; V = c_function(T:c_function)
+	; V = var(T:var)
+	; V = userdata(T:univ)
+	) -> true 
+	; V = userdata(univ(T)).
 
 
 
