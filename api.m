@@ -173,7 +173,8 @@ lua_push(L, V) :-
 	; V = c_function(T),
 		impure lua_pushcfuction(L, T)
 	; V = var(Var),
-		impure sorry($module, $pred, "Implement the pushing of variables.") 
+		impure sorry($module, $pred, 
+		"Implement the pushing of variables.") 
 	; V = userdata(univ(T)),
 		impure lua_pushuserdata(T)
 	; V = lua_error(T),
@@ -291,6 +292,9 @@ lua_push(L, V) :-
 	% Throw an error from Mercury to Lua
 	%
 :- impure pred lua_error(lua) is erroneous.
+:- impure pred lua_error(lua, T) is erroneous.
+
+
 
 
 %-----------------------------------------------------------------------------%
@@ -521,6 +525,14 @@ funcpred(L, F, F(L)).
 	
 	lua_setmetatable(L, -2);
 ").
+
+:- pragma foreign_proc("C", lua_error(L::in),
+	[will_not_call_mercury],"lua_error(L);").
+	
+lua_error(L, T) :-
+	impure lua_pushuserdata(L, T),
+	impure lua_error(L). 
+	
 
 %-----------------------------------------------------------------------------%
 %

@@ -168,7 +168,7 @@
 	;	string(string)	% string value, casts to string
 	;	chunk(string)	% A chunk of Lua code
 	;	lightuserdata(c_pointer)	% naked C pointer
-	;	thread(lua_state)	% A coroutine
+	;	thread(lua)	% A coroutine
 	;	c_function(c_function) % A Lua callable function pointer
 	;	var(var)	% A Lua variable
 	;	userdata(univ)	% opaque type in Lua for handling foreign data
@@ -226,8 +226,8 @@
 	%
 	% Register a module in Lua.
 	%
-:- pred register_module(string::in, lua_func::in, lua_state::in,
-	io::di, io::uo) is det.
+%:- pred register_module(string::in, lua_func::in, lua::in,
+%	io::di, io::uo) is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -489,7 +489,7 @@ void luaMR_init(lua_State * L) {
 	
 :- pragma foreign_export_enum("C", registry/0, [prefix("LUA_MR_"), uppercase]).
 	
-Var ^ T = index(det_value(T), Var). 
+Var ^ T = index(value(T), Var). 
 
 %-----------------------------------------------------------------------------%
 %
@@ -544,7 +544,8 @@ value(T::in) = (
 	; dynamic_cast(T, U:float) -> number(U)
 	; dynamic_cast(T, U:int) -> number(float(U))
 	; dynamic_cast(T, U:int) -> integer(U)
-	; dynamic_cast(T, U:float), float(truncate_to_int(U)@I) = 0.0 -> integer(I)
+	; dynamic_cast(T, U:float), 
+		float(truncate_to_int(U)@I) = 0.0 -> integer(I)
 	; dynamic_cast(T, U:bool) -> boolean(U)
 	; dynamic_cast(T, U:string) -> string(U)
 	; dynamic_cast(T, U:char) -> string(string.from_char(U))
@@ -593,10 +594,7 @@ value(T::out) = (V::in) :-
 		( dynamic_cast(U, T)
 		; dynamic_cast(string(U), T)
 		)
-	; V = userdata(univ(U)) -> 
-		( dynamic_cast(U, T)
-		; dynamic_cast(string(U), T)
-		)
+	; V = userdata(univ(U)), dynamic_cast(U, T)
 	).
 
 
@@ -663,22 +661,23 @@ void luaMR_setupvalue(lua_State * L, const int id) {
 % Lua modules
 %
 
+/* TODO need to define function/2
 register_module(Name, Pred, L, !IO) :-
 
-	( semipure ready(L) ; impure init(L) ),
+	( semipure ready(L) ; impure init_lua(L, !IO) ),
 	 
 	( ref(Ref) = function(Pred, L)
 		; unexpected($module, $pred, 
 		"function/2 did not return a ref.")
 	),
-	impure lua_getregistry(L, LUA_RIDX_MR_MODULE), /* table -3 */
-	impure lua_pushstring(L, Name), /* key -2 */
-	impure luaMR_pushref(L, R), /* value -1 */
-	impure lua_settable(L, -3), /* table -1 */
-	impure lua_pop(L, 1). /* empty stack */
-	 
-:- pragma promise_pure(register_module/5).
+	impure lua_getregistry(L, LUA_RIDX_MR_MODULE), /* table -3 /
+	impure lua_pushstring(L, Name), /* key -2 /
+	impure luaMR_pushref(L, R), /* value -1 /
+	impure lua_settable(L, -3), /* table -1 /
+	impure lua_pop(L, 1). /* empty stack /
 
+:- pragma promise_pure(register_module/5).
+*/
 
 :- pragma foreign_code("C", "
 
@@ -703,32 +702,30 @@ int luaMR_loader(lua_State * L) {
 %
 
 
-
-:- impure func call_pred(lua_state) = int.
+/* TODO need get
+:- impure func call_pred(lua) = int.
 
 call_pred(L) = ReturnCount :-
 	semipure Top = lua_gettop(L),
 	
 	semipure Args = stack_to_list(L, 1, Top),
 	
-	impure lua_getupvalue(1),
+	impure lua_getupvalue(L, 1),
 	
-	semipure Self = lua_touserdata(L, -1), %TODO
-	
-	Scope = scope(
-		scope(L, Top, 19, map.init), 
-		1, 19, map.singleton(var("self"), Self) ),
+	(semipure univ(Self) = lua_touserdata(L, -1)
+	; error("Value passed as a function was not a valid predicate")
+	), 
 	
 	(try [] Self(Args) = Return 
 	then (
 		pushlist(L, Return),
 		ReturnCount = list.length(Return)
-	) catch_any Err -> lua_error(Err) ).
+	) catch_any Err -> lua_error(L, Err) ).
 	
 :- pragma foreign_export("C", call_pred(in) = out, "luaMR_pred").
 	
 
-:- func stack_to_list(lua_state, int, int) = list(value).
+:- func stack_to_list(lua, int, int) = list(value).
 
 stack_to_list(L, Start, End) = 
 	[ get(local(Start),L) | 
@@ -736,13 +733,13 @@ stack_to_list(L, Start, End) =
 		; stack_to_list(L, Start + 1, End) )
 	].
 			
-:- impure pred pushlist(lua_state::in, values::in) is det.
+:- impure pred pushlist(lua::in, values::in) is det.
 
 pushlist(L, [V | Vs] ) :-
 	 impure lua_push(L, V),
 	 impure pushlist(L, Vs).
 	 
-
+*/
 
 %-----------------------------------------------------------------------------%
 %
@@ -788,7 +785,7 @@ pushlist(L, [V | Vs] ) :-
 
 to_string(L) = 1 :-
 	semipure univ(T) =  lua_touserdata(L, 1),
-	semipure lua_tostring(L, string.string(T)).
+	impure lua_pushstring(L, string.string(T)).
 	
 :- pragma foreign_export("C", to_string(in), "luaMR_tostring").
 
