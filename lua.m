@@ -166,7 +166,6 @@
 	;	integer(int)	% int cast to Lua number
 	;	boolean(bool)	% boolean truth values, casts to bool
 	;	string(string)	% string value, casts to string
-	;	char(char)	% Passed as string.
 	;	chunk(string)	% A chunk of Lua code
 	;	lightuserdata(c_pointer)	% naked C pointer
 	;	thread(lua_state)	% A coroutine
@@ -178,32 +177,16 @@
 	
 :- type values == list(value).
 
-:- pred value_cast(T, value).
-:- mode value_cast(in, out) is multi.
-:- mode value_cast(out, in) is nondet.
-
 :- func value(T) = value.
-:- mode value(in) = out is cc_multi.
-:- mode value(out) = in is cc_nondet.
-
+:- mode value(in) = out is det.
+:- mode value(out) = in is semidet.
 
 :- func value_of(value) = T.
-:- mode value_of(out) = in is multi.
-:- mode value_of(in) = out is nondet.
-
-
-:- func det_value(T) = value.
-:- some [T] func det_value_of(value) = T.
-
-
-	
+:- mode value_of(in) = out is semidet.
+:- mode value_of(out) = in is det.
 
 :- type c_function.	% A Lua callable function defined in C
 
-
-	
-	
-:- interface.
 
 % The nil value
 %
@@ -556,123 +539,68 @@ void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
 %
 
 
-value_cast(T::in, V::out) :-
-	( V = nil(U),
-		dynamic_cast(T, U)
-	; V = number(U),
-		dynamic_cast(T, U)
-	; V = number(float(U)),
-		dynamic_cast(T, U)
-	; V = integer(U),
-		dynamic_cast(T, U)
-	; U - float(truncate_to_int(U)@I) = 0.0,
-		V = integer(I),
-		dynamic_cast(T, U)
-	; V = boolean(U),
-		dynamic_cast(T, U)
-	; V = string(U),
-		dynamic_cast(T, U)
-	; V = string(string.from_char(U)),
-		dynamic_cast(T, U)
-	; V = char(U),
-		dynamic_cast(T, U)
-	; string.length(U) = 1,
-		string.det_index(U, 1, C),
-		V = char(C), 
-		dynamic_cast(T, U)
-	; V = lightuserdata(U),
-		dynamic_cast(T, U)
-	; V = thread(U),
-		dynamic_cast(T, U)
-	; V = c_function(U),
-		dynamic_cast(T, U)
-	; V = var(U),
-		dynamic_cast(T, U)
-	; V = userdata(U),
-		dynamic_cast(T, U)
-	; V = userdata(univ(T))
-	).
+value(T::in) = (
+	( dynamic_cast(T, U:nil) -> nil(U)
+	; dynamic_cast(T, U:float) -> number(U)
+	; dynamic_cast(T, U:int) -> number(float(U))
+	; dynamic_cast(T, U:int) -> integer(U)
+	; dynamic_cast(T, U:float), float(truncate_to_int(U)@I) = 0.0 -> integer(I)
+	; dynamic_cast(T, U:bool) -> boolean(U)
+	; dynamic_cast(T, U:string) -> string(U)
+	; dynamic_cast(T, U:char) -> string(string.from_char(U))
+	; dynamic_cast(T, U:c_pointer) -> lightuserdata(U)
+	; dynamic_cast(T, U:lua) -> thread(U)
+	; dynamic_cast(T, U:c_function) -> c_function(U)
+	; dynamic_cast(T, U:var) -> var(U)
+	; dynamic_cast(T, U:univ) -> userdata(U)
+	; userdata(univ(T))
+	)::out).
 	
 
-value_cast(T::out, V::in) :-
-	( V = nil(U),
-		dynamic_cast(U, T)
-	; V = number(U),
-		dynamic_cast(U, T)
-	; V = number(F),
-		F - float(truncate_to_int(F)@U) = 0,
-		dynamic_cast(U, T)
-	; V = integer(U),
-		dynamic_cast(U, T)
-	; V = integer(I),
-		 U = float(I),
-		dynamic_cast(U, T)
-	; V = boolean(U),
-		dynamic_cast(U, T)
-	; V = string(U),
-		dynamic_cast(U, T)
-	; V = string(S),
-		string.length(S) = 1,
-		string.det_index(S, 1, U),
-		dynamic_cast(U, T)
-	; V = char(U),
-		dynamic_cast(U, T)
-	; V = char(C),
-		string.from_char(C) = U,
-		dynamic_cast(U, T)
-	; V = lightuserdata(U),
-		dynamic_cast(U, T)
-	; V = thread(U),
-		dynamic_cast(U, T)
-	; V = c_function(U),
-		dynamic_cast(U, T)
-	; V = var(U),
-		dynamic_cast(U, T)
-	; V = userdata(U),
-		dynamic_cast(U, T)
-	; V = userdata(univ(U)),
-		dynamic_cast(U, T)
-	; V = lua_error(U),
-		dynamic_cast(U, T) 
+value(T::out) = (V::in) :-
+	require_complete_switch [V]
+	( V = nil(U) -> 
+		( dynamic_cast("nil", T)
+		; dynamic_cast(U, T)
+		)
+	; V = number(U) -> 
+		( U - float(truncate_to_int(U)@I) = 0.0 -> dynamic_cast(I, T)
+		; dynamic_cast(string(U), T)
+		; dynamic_cast(U, T)
+		)
+	; V = integer(U) ->
+		( dynamic_cast(float(U), T)
+		; dynamic_cast(string(U), T)
+		; dynamic_cast(U, T)
+		)
+	; V = boolean(U) -> 
+		( dynamic_cast(U, T)
+		; U = yes, dynamic_cast("true", T)
+		; U = no, dynamic_cast("false", T)
+		)
+	; V = string(U) ->
+		( length(U) = 1, det_index(U, 1, C) -> dynamic_cast(C, T)
+		; to_float(U, F) -> dynamic_cast(F, T)
+		; to_int(U, I) -> dynamic_cast(I, T)
+		; dynamic_cast(U, T)
+		)
+	; V = lightuserdata(U) -> dynamic_cast(U, T)
+	; V = thread(U) -> dynamic_cast(U, T)
+	; V = c_function(U) -> dynamic_cast(U, T)
+	; V = var(U) -> dynamic_cast(U, T)
+	; V = userdata(U) -> dynamic_cast(U, T)
+	; V = lua_error(U) -> 
+		( dynamic_cast(U, T)
+		; dynamic_cast(string(U), T)
+		)
+	; V = userdata(univ(U)) -> 
+		( dynamic_cast(U, T)
+		; dynamic_cast(string(U), T)
+		)
 	).
 
-value(T) = V :- value_cast(T, V).
 
 value_of(V) = T :- value(T) = V.
-
-det_value_of(V) = (U) :-
-	( V = nil(U)
-	; V = number(U)
-	; V = integer(U)
-	; V = boolean(U)
-	; V = string(U)
-	; V = char(U)
-	; V = lightuserdata(U)
-	; V = thread(U)
-	; V = c_function(U)
-	; V = var(U)
-	; V = userdata(U)
-	; V = lua_error(U) 
-	; V = free, U = _
-	).
-	
-det_value(T) = V :-
-	( V = nil(T:nil)
-	; V = number(T::float)
-	; V = integer(T:int)
-	; V = boolean(T:bool)
-	; V = string(T:string)
-	; V = char(T:char)
-	; V = lightuserdata(T:c_pointer)
-	; V = thread(T:lua)
-	; V = c_function(T:c_function)
-	; V = var(T:var)
-	; V = userdata(T:univ)
-	) -> true 
-	; V = userdata(univ(T)).
-
-
-
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
