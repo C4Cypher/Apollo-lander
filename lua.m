@@ -73,12 +73,20 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua State in a pure 'ground' context
+% The Lua State in a pure declarative context
 %
 
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
-:- type lua.	
+:- type lua.
+
+:- func get(var) = T is semidet.
+:- func get_value(var) = value is det.
+
+%-----------------------------------------------------------------------------%
+%
+% The Lua State as a mutable state variable
+%
 
 	% A refrence to the Lua state meant to be passed in a unique context.
 	%
@@ -135,6 +143,22 @@
 	% Returned on invalid request.
 	;	invalid(string).
 
+:- inst query(Key, Table) 
+	---> 	index(Key, query(Key, Table))
+	;	index(Key, Table).
+
+:- inst pairs ---> query(ground, index(free, ground)).
+:- mode pairs == pairs >> ground.
+
+:- inst ipairs ---> query(ground, index(integer(free), ground)).
+:- mode ipairs == ipairs >> ground.
+
+
+
+:- inst all_vars ---> index(free, free).
+:- mode all_vars == all_vars >> ground.
+
+
 	% Var ^ T = Var ^ index(value(T)).
 	%
 :- func var ^ T = var. 
@@ -172,17 +196,21 @@
 	;	c_function(c_function) % A Lua callable function pointer
 	;	var(var)	% A Lua variable
 	;	userdata(univ)	% opaque type in Lua for handling foreign data
-	;	free		% Represents an unbound variable
+	;	unbound		% Represents an unbound variable
 	;	lua_error(lua_error). 
+	
+:- inst unbound == bound(unbound).
 	
 :- type values == list(value).
 
 :- func value(T) = value.
 :- mode value(in) = out is det.
+:- mode value(unused) = out is det.
 :- mode value(out) = in is semidet.
 
 :- func value_of(value) = T.
 :- mode value_of(in) = out is semidet.
+:- mode value_of(out) = unused is det.
 :- mode value_of(out) = in is det.
 
 :- type c_function.	% A Lua callable function defined in C
@@ -557,6 +585,8 @@ value(T::in) = (
 	; userdata(univ(T))
 	)::out).
 	
+value(T::unused) = unbound.
+	
 
 value(T::out) = (V::in) :-
 	require_complete_switch [V]
@@ -595,10 +625,14 @@ value(T::out) = (V::in) :-
 		; dynamic_cast(string(U), T)
 		)
 	; V = userdata(univ(U)), dynamic_cast(U, T)
+	; V = free, fail
 	).
 
+:- pragma promise_pure(value/1).
 
 value_of(V) = T :- value(T) = V.
+
+:- pragma promise_pure(value_of/2).
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
