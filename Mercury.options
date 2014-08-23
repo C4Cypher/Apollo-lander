@@ -12,8 +12,17 @@
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
 MCFLAGS += --no-warn-inferred-erroneous
+MCFLAGS += --no-warn-unresolved-polymorphism
+MCFLAGS += --use-trail
+MCFLAGS += --trail-segments
+MCFLAGS += --libgrades-exclude java
+MCFLAGS += --libgrades-exclude erlang
+MCFLAGS += --libgrades-exclude csharp
+MCFLAGS += --libgrades-include trseg
 
 # For Fun
 MCFLAGS += --auto-comments
 
+# Why do I need this?
+#MCFLAGS += --use-grade-subdirs
 

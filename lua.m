@@ -69,7 +69,10 @@
 :- import_module list.
 :- use_module map.
 :- import_module univ.
+:- import_module type_desc.
 :- import_module require.
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -80,8 +83,8 @@
 	%
 :- type lua.
 
-:- func get(var) = T is semidet.
-:- func get_value(var) = value is det.
+%TODO:- func get(var) = T is semidet.
+%TODO:- func get_value(var) = value is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -143,20 +146,7 @@
 	% Returned on invalid request.
 	;	invalid(string).
 
-:- inst query(Key, Table) 
-	---> 	index(Key, query(Key, Table))
-	;	index(Key, Table).
 
-:- inst pairs ---> query(ground, index(free, ground)).
-:- mode pairs == pairs >> ground.
-
-:- inst ipairs ---> query(ground, index(integer(free), ground)).
-:- mode ipairs == ipairs >> ground.
-
-
-
-:- inst all_vars ---> index(free, free).
-:- mode all_vars == all_vars >> ground.
 
 
 	% Var ^ T = Var ^ index(value(T)).
@@ -190,7 +180,6 @@
 	;	integer(int)	% int cast to Lua number
 	;	boolean(bool)	% boolean truth values, casts to bool
 	;	string(string)	% string value, casts to string
-	;	chunk(string)	% A chunk of Lua code
 	;	lightuserdata(c_pointer)	% naked C pointer
 	;	thread(lua)	% A coroutine
 	;	c_function(c_function) % A Lua callable function pointer
@@ -266,7 +255,7 @@
 	% This is the type signature for predicates that can be cast as
 	% Lua functions
 	%
-:- type lua_func == (impure func(lua_state) = int).
+:- type lua_func == (impure func(lua) = int).
 
 
 
@@ -330,7 +319,12 @@
 :- import_module string.
 :- import_module require.
 
-:- pragma require_feature_set([conservative_gc, double_prec_float]). 
+
+
+:- pragma require_feature_set([conservative_gc, trailing, double_prec_float]). 
+
+:- import_module trail.
+
 
 :- pragma foreign_decl("C", 
 "
@@ -383,24 +377,7 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-:- type lua_state 
-	---> 	pure(lua)
-	;	temp(lua, index)
-	where equality is unify_state.	
-
-:- pred unify_state(ls::in, ls::in) is semidet.
-
-unify_state(pure(L), pure(L)).
-
-unify_state(temp(L, I), temp(L, I)).
-
-unify_state(pure(L), temp(L, I)) :-
-	semipure lua_gettop(L) = I.
-	
-unify_state(temp(L, I), pure(L)) :-
-	semipure lua_gettop(L) = I.
-	
-:- pragma promise_pure(unify_state/2).
+:- type lua_state ---> 	{ lua, choicepoint_id }.	
 
 
 
@@ -572,8 +549,6 @@ value(T::in) = (
 	; dynamic_cast(T, U:float) -> number(U)
 	; dynamic_cast(T, U:int) -> number(float(U))
 	; dynamic_cast(T, U:int) -> integer(U)
-	; dynamic_cast(T, U:float), 
-		float(truncate_to_int(U)@I) = 0.0 -> integer(I)
 	; dynamic_cast(T, U:bool) -> boolean(U)
 	; dynamic_cast(T, U:string) -> string(U)
 	; dynamic_cast(T, U:char) -> string(string.from_char(U))
@@ -585,54 +560,30 @@ value(T::in) = (
 	; userdata(univ(T))
 	)::out).
 	
-value(T::unused) = unbound.
+value(_::unused) = ((unbound)::out).
 	
 
 value(T::out) = (V::in) :-
 	require_complete_switch [V]
-	( V = nil(U) -> 
-		( dynamic_cast("nil", T)
-		; dynamic_cast(U, T)
-		)
-	; V = number(U) -> 
-		( U - float(truncate_to_int(U)@I) = 0.0 -> dynamic_cast(I, T)
-		; dynamic_cast(string(U), T)
-		; dynamic_cast(U, T)
-		)
-	; V = integer(U) ->
-		( dynamic_cast(float(U), T)
-		; dynamic_cast(string(U), T)
-		; dynamic_cast(U, T)
-		)
-	; V = boolean(U) -> 
-		( dynamic_cast(U, T)
-		; U = yes, dynamic_cast("true", T)
-		; U = no, dynamic_cast("false", T)
-		)
-	; V = string(U) ->
-		( length(U) = 1, det_index(U, 1, C) -> dynamic_cast(C, T)
-		; to_float(U, F) -> dynamic_cast(F, T)
-		; to_int(U, I) -> dynamic_cast(I, T)
-		; dynamic_cast(U, T)
-		)
-	; V = lightuserdata(U) -> dynamic_cast(U, T)
-	; V = thread(U) -> dynamic_cast(U, T)
-	; V = c_function(U) -> dynamic_cast(U, T)
-	; V = var(U) -> dynamic_cast(U, T)
+	( V = nil(N) ->  dynamic_cast(N, T)
+	; V = number(F) -> dynamic_cast(F, T)
+	; V = integer(I) -> dynamic_cast(I, T)
+	; V = boolean(B) -> dynamic_cast(B, T)
+	; V = string(S) -> dynamic_cast(S, T)
+	; V = lightuserdata(P) -> dynamic_cast(P, T)
+	; V = thread(L) -> dynamic_cast(L, T)
+	; V = c_function(F) -> dynamic_cast(F, T)
+	; V = var(Var) -> dynamic_cast(Var, T)
 	; V = userdata(U) -> dynamic_cast(U, T)
-	; V = lua_error(U) -> 
-		( dynamic_cast(U, T)
-		; dynamic_cast(string(U), T)
-		)
-	; V = userdata(univ(U)), dynamic_cast(U, T)
-	; V = free, fail
+	; V = lua_error(E) -> dynamic_cast(E, T)
+	; some [Some] V = userdata(univ(Some)) -> dynamic_cast(Some, T)
+	; V = unbound, fail
 	).
 
 :- pragma promise_pure(value/1).
 
 value_of(V) = T :- value(T) = V.
 
-:- pragma promise_pure(value_of/2).
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
@@ -815,13 +766,20 @@ pushlist(L, [V | Vs] ) :-
 		
 ").
 		
-:- semipure func to_string(lua) = int.
+:- impure func to_string(lua) = int.
 
 to_string(L) = 1 :-
-	semipure univ(T) =  lua_touserdata(L, 1),
-	impure lua_pushstring(L, string.string(T)).
+	semipure lua_touserdata(L, 1) = U,
+	U = univ(T)  ->
+		impure lua_pushstring(L, string.string(T)) 
+	; 
+		impure lua_pushstring(L, string.string($module) ++ " " ++
+		string.string($pred) ++ " Was not userdata."),
+		impure lua_error(L).
+			
+		
 	
-:- pragma foreign_export("C", to_string(in), "luaMR_tostring").
+:- pragma foreign_export("C", to_string(in) = out, "luaMR_tostring").
 
 
 
