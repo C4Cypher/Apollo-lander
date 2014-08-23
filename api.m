@@ -302,8 +302,11 @@
 :- impure pred lua_pushregistry(lua::in, registry::in) is det.
 :- impure pred lua_pushstring(lua::in, string::in) is det.
 :- impure pred lua_pushboolean(lua::in, bool::in) is det.
-:- impure pred lua_pushthread(lua::in, lua::in) is det.
-:- impure pred lua_pushfunction(lua::in, (func(lua) = int)::in) is det.
+:- impure pred lua_pushthread(lua::in) is det.
+:- impure func lua_pushthread(lua) = bool.
+:- impure pred lua_pushfunc(lua, lua_func).
+:- mode lua_pushfunc(in, dfi) is det.
+:- mode lua_pushfunc(in, sfi) is det.
 :- impure pred lua_pushcfunction(lua::in, c_function::in) is det.
 :- impure pred lua_pushcclosure(lua::in, c_function::in, int::in) is det.
 :- impure pred lua_pushref(lua::in, ref::in) is det.
@@ -316,6 +319,12 @@
 :- import_module require.
 :- import_module exception.
 :- import_module solutions.
+
+:- pragma foreign_decl("C", "
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+").
 
 %-----------------------------------------------------------------------------%
 %
@@ -361,31 +370,35 @@ lua_stackindex(L, I) :-
 	
 lua_push(L, V) :-
 	require_complete_switch [V]
-	( V = nil(_),
+	( V = nil(_) ->
 		impure lua_pushnil(L)
-	; V = number(T),
+	; V = number(T) ->
 		impure lua_pushnumber(L, T)
-	; V = integer(T),
+	; V = integer(T) ->
 		impure lua_pushinteger(L, T)
-	; V = boolean(T),
+	; V = boolean(T) ->
 		impure lua_pushboolean(L, T)
-	; V = string(T),
+	; V = string(T) ->
 		impure lua_pushstring(L, T)
-	; V = lightuserdata(T),
+	; V = lightuserdata(T) ->
 		impure lua_pushlightuserdata(L, T)
-	; V = thread(T),
-		impure lua_pushthread(L, T)
-	; V = c_function(T),
+	; V = thread(T) ->
+		(T = L -> impure lua_pushthread(L)
+		; error("Can only push the active thread onto the stack.")
+		)
+	; V = c_function(T) ->
 		impure lua_pushcfunction(L, T)
-	; V = var(_),
+	; V = var(_) ->
 		sorry($module, $pred, 
 		"Implement the pushing of variables.") 
-	; V = userdata(T),
+	; V = userdata(T) ->
 		impure lua_pushuniv(L, T)
-	; V = lua_error(T),
+	; V = lua_error(T) ->
 		impure lua_error(L, T)
-	; V = unbound,
+	; V = unbound ->
 		impure lua_pushuserdata(L, V)
+	; unexpected($module, $pred, "Attempted to push an unexpected value: "
+		++ string.string(V))
 	).
 
 :- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
@@ -499,27 +512,30 @@ lua_pcall(L, A, E) = R :-
 
 
 mr_call(L) = R :- 
-	solutions(try(mr_call(L)), [E, _]),
+	promise_equivalent_solutions [E] (try(mr_call(L), E)),
 	require_complete_switch [E]
 	( E = succeeded(R) 
 	; E = failed,
 		impure lua_pushboolean(L, no),
 		R = 1
-	; E = exception(_),
+	; E = exception(Ex),
 		impure lua_pushnil(L),
-		impure lua_pushuserdata(L, E),
+		impure lua_pushuserdata(L, Ex),
 		R = 2
 	).
 		
 
-:- pred mr_call(lua::in, int::out) is cc_multi.
+:- pred mr_call(lua::in, int::out) is semidet.
 	
 mr_call(L,  R) :- 
-	semipure lua_getupvalue(L, 1),
-	semipure univ(F) = lua_touserdata(L, -1) -> 
-		R = F(L)	
+	impure lua_getupvalue(L, 1),
+	semipure lua_touserdata(L, -1) = U,
+	U = univ(FU) ->
+		require_complete_switch [FU]
+		( FU = det_func(F) ; FU = semidet_func(F) ),
+		impure R = impure_apply(F,L)	
 	; 
-		impure lua_error(L, 
+		error( 
 		"Called Mercury function without valid func upvalue.").
 
 :- pragma promise_pure(mr_call/2).
@@ -558,7 +574,7 @@ return_nil = nil.
 	luaMR_init(L);
 	").
 	
-lua_newstate = { lua_new, current_choicepoint_id }.
+lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
 :- pragma promise_pure(lua_newstate/0).
 
@@ -676,7 +692,8 @@ lua_touserdata(L, Index) = U :-
 	semipure lua_ismruserdata(L, Index) -> 
 		semipure U = lua_tomruserdata(L, Index)
 	;
-		semipure U = univ(lua_tocuserdata(L, Index)).
+		semipure C = lua_tocuserdata(L, Index),
+		U = univ(C).
 
 :- semipure func lua_tomruserdata(lua, index) = univ.
  	
@@ -724,9 +741,18 @@ lua_touserdata(L, Index) = U :-
 	[will_not_call_mercury],
 	"lua_pushinteger(L, V);").
 
-:- pragma foreign_proc("C", lua_pushthread(L::in, V::in),
+:- pragma foreign_proc("C", lua_pushthread(L::in),
 	[will_not_call_mercury],
-	"lua_pushthread(L, V);").
+	"lua_pushthread(L);").
+
+:- pragma foreign_proc("C", lua_pushthread(L::in) = (Main::out),
+	[will_not_call_mercury], "
+	if(lua_pushthread(L, V))
+		Main = MR_YES;
+	else
+		Main = MR_NO;
+").
+
 
 :- pragma foreign_proc("C", lua_pushnil(L::in),
 	[will_not_call_mercury],
@@ -761,8 +787,8 @@ lua_pushuserdata(L, V) :-
 	 else
 	 	lua_pushboolean(L, 0);").
 
-lua_pushfunction(L, V) :-
-	impure lua_pushuserdata(L, V),
+lua_pushfunc(L, V) :- 
+	impure lua_pushuserdata(L, func_udata(V)),
 	impure lua_pushcclosure(L, mr_call_ptr, 1).
 
 :- pragma foreign_proc("C", lua_pushcfunction(L::in, V::in),

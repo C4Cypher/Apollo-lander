@@ -9,6 +9,8 @@
 # MCFLAGS += --flag
 # MCFLAGS-module += --flag
 
+MAIN_TARGET = liblua
+
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
 MCFLAGS += --no-warn-inferred-erroneous

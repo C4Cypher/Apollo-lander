@@ -72,7 +72,7 @@
 :- import_module type_desc.
 :- import_module require.
 
-
+:- import_module trail.
 
 %-----------------------------------------------------------------------------%
 %
@@ -93,16 +93,23 @@
 
 	% A refrence to the Lua state meant to be passed in a unique context.
 	%
-:- type lua_state.
-	
-
-
-
+:- type lua_state ---> 	{ lua, choicepoint_id }.	
 
 	% Abbriviations for lua_state.
 	%
 :- type ls == lua_state.
 
+:- inst det_lua_state == unique({ ground, ground }).
+:- inst nondet_lua_state == mostly_unique({ ground, ground }).
+
+:- inst dls == det_lua_state.
+:- inst nls == nondet_lua_state.
+
+:- mode ldi == di(dls).
+:- mode luo == out(dls).
+
+:- mode lni == mdi(nls).
+:- mode lno == out(nls).
 
 %-----------------------------------------------------------------------------%
 %
@@ -113,12 +120,18 @@
 	% Mercury needs to interact with it.
 	%
 :- pred init_lua(lua::in, io::di, io::uo) is det.
-:- pred init_lua(lua_state::di, lua_state::uo) is det.
+:- pred init_lua(lua_state::ldi, lua_state::luo) is det.
 
 	% Check to see if lua_init has been called on a Lua state.
 	%
 :- semipure pred ready(lua::in) is semidet.
-:- pred ready(bool::out, ls::di, ls::uo) is det.
+
+:- pred ready(bool, ls, ls).
+:- mode ready(out, ldi, luo) is det.
+:- mode ready(out, lni, lno) is det.
+
+
+:- pred ready(ls::lni, ls::lno) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -164,6 +177,8 @@
 % internal to Lua's register-based VM.  
 
 :- type ref.
+
+%:- func ref(var) = ref.
 
 
 %-----------------------------------------------------------------------------%
@@ -257,8 +272,44 @@
 	%
 :- type lua_func == (impure func(lua) = int).
 
+:- inst det_lua_func == 
+	(func(in(bound(lua))) = out(bound(int)) is det).
+	
+:- inst semidet_lua_func == 
+	(func(in(bound(lua))) = out(bound(int)) is semidet).
+	
+
+:- inst dlf == det_lua_func.
+:- inst slf == semidet_lua_func.
 
 
+:- mode dfi == in(det_lua_func).
+:- mode dfo == out(det_lua_func).
+
+:- mode sfi == in(semidet_lua_func).
+:- mode sfo == out(semidet_lua_func).
+
+:- type func_udata.
+
+:- func func_udata(lua_func) = func_udata.
+:- mode func_udata(dfi) = dfuo is det.
+:- mode func_udata(sfi) = sfuo is det.
+:- mode func_udata(dfo) = dfui is det.
+:- mode func_udata(sfo) = sfui is det.
+
+
+:- type func_udata
+	--->	det_func(lua_func)
+	;	semidet_func(lua_func).
+
+:- inst dfu ---> det_func(det_lua_func).
+:- inst sfu ---> semidet_func(semidet_lua_func).
+
+:- mode dfui == in(dfu).
+:- mode dfuo == out(dfu).
+
+:- mode sfui == in(sfu).
+:- mode sfuo == out(sfu).
 
 
 %-----------------------------------------------------------------------------%
@@ -312,6 +363,8 @@
 
 :- import_module lua.api.
 
+:- pragma foreign_import_module("C", lua.api).
+
 :- import_module type_desc.
 :- import_module int.
 :- import_module float.
@@ -323,7 +376,7 @@
 
 :- pragma require_feature_set([conservative_gc, trailing, double_prec_float]). 
 
-:- import_module trail.
+
 
 
 :- pragma foreign_decl("C", 
@@ -331,6 +384,8 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+
+#include <mercury_memory.h>
 
 /* Checking for Lua language features introduced with 5.2 */
 #if LUA_VERSION_NUM >= 502
@@ -354,13 +409,7 @@
 
 ").
 
-	% Succeed if the given value is NULL.
-	%
-:- pred null(T::in) is semidet.
 
-:- pragma foreign_proc("C", null(T::in),
-	[promise_pure, will_not_call_mercury], 
-	"SUCCESS_INDICATOR = (T == NULL);").
 
 %-----------------------------------------------------------------------------%
 %
@@ -377,7 +426,6 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-:- type lua_state ---> 	{ lua, choicepoint_id }.	
 
 
 
@@ -401,8 +449,13 @@ any_var(V, L) :-
 	[promise_pure, will_not_call_mercury], "luaMR_init(L);").
 
 
-:- pragma foreign_proc("C", init_lua(L0::di, L::uo), 
-	[promise_pure, will_not_call_mercury], "L0 = L; luaMR_init(L);").
+
+init_lua({L, C}, {L, C}) :- promise_pure( impure init_lua(L)).
+
+:- impure pred init_lua(lua::in) is det.
+
+:- pragma foreign_proc("C", init_lua(L::in), 
+	[may_call_mercury], "luaMR_init(L);").
 
 
 :- pragma foreign_proc("C", ready(L::in), 
@@ -411,20 +464,17 @@ any_var(V, L) :-
 ").
 
 
-:- pragma foreign_proc("C", ready(Answer::out, L0::di, L::uo), 
-	[promise_pure, will_not_call_mercury], "
-	L0 = L;
-	if(luaMR_ready(L))
-		Answer = MR_YES;
-	else
-		Answer = MR_NO;
-").
+ready({L, C}, {L, C}) :- promise_pure (semipure ready(L)).
 
-:- pragma foreign_decl("C", "extern void luaMR_init(lua_State *);").
+ready(B, {L, C}, {L, C}) :- 
+	promise_pure 
+	( semipure ready(L) -> B = yes
+	; B = no).
+
+:- pragma foreign_decl("C", "void luaMR_init(lua_State *);").
 
 :- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
 
-% TODO: Redefine registry values using foreign_export_enum
 :- pragma foreign_code("C", "
 void luaMR_init(lua_State * L) {
 	
@@ -432,10 +482,10 @@ void luaMR_init(lua_State * L) {
 
 	/* Set the Main thread in the registry */
 	lua_pushthread(L, L);
-	luaMR_setregistry(L, LUA_RIDX_MAINTHREAD);
+	luaMR_setregistry(L, (int)LUA_RIDX_MAINTHREAD);
 	
 	lua_pushvalue(L, LUA_GLOBALSINDEX);
-	luaMR_setregistry(L, LUA_RIDX_GLOBALS);
+	luaMR_setregistry(L, (int)LUA_RIDX_GLOBALS);
 
 #endif /* BEFORE_502 */
 
@@ -467,7 +517,9 @@ void luaMR_init(lua_State * L) {
 	/* Check to see if Lua has already been initialized. */
 	int luaMR_ready(lua_State * L) {
 		lua_checkstack(L, 1);
-		luaMR_getregistry(L, MR_LUA_READY);
+		lua_pushvalue(L, LUA_REGISTRYINDEX);
+		lua_pushlightuserdata(L, LUA_MR_READY);
+		lua_getttable(L, -2);
 		int ready = lua_toboolean(L, 1);
 		lua_remove(L, 1);
 		return ready;
@@ -505,17 +557,25 @@ Var ^ T = index(value(T), Var).
 
 :- pragma foreign_type("C", ref, "luaMR_Ref", [can_pass_as_mercury_type]).
 
+:- pragma foreign_decl("C", "
+
+	typedef int * luaMR_Ref;
+	
+	luaMR_Ref luaMR_new_ref(lua_State *, int);
+	void luaMR_push_ref(lua_State *, luaMR_Ref);
+	void luaMR_finalize_ref(lua_State *, luaMR_Ref);
+").
+
 :- pragma foreign_code("C",
 "
-typedef int * luaMR_Ref;
-
 
 /* Creates a new refrence from the stack */
 luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
 	lua_pushvalue(L, index);
 	luaMR_Ref new_ref = MR_GC_NEW(int);
 	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-	MR_GC_register_finalizer(new_ref, luaMR_finalize_ref, L);
+	MR_GC_register_finalizer(new_ref, 
+		(GC_finalization_proc)luaMR_finalize_ref, L);
 	return new_ref;
 }
 
@@ -526,12 +586,12 @@ void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
 		lua_pushnil(L);
 	}
 	else {
-		lua_rawgeti(L, LUA_REGISTRYINDEX, id);
+		lua_rawgeti(L, LUA_REGISTRYINDEX, *ref);
 	}
 }
 
 /* Remove Lua's refrence to the var in the registry */
-void luaMR_finalize_ref(luaMR_Ref ref, lua_State * L) {
+void luaMR_finalize_ref(lua_State * L, luaMR_Ref ref) {
 	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
 }
 
@@ -593,9 +653,13 @@ value_of(V) = T :- value(T) = V.
 % Length
 %
 
+:- pragma foreign_decl("C", "
+	size_t luaMR_len(lua_State *, int);
+").
+
 :- pragma foreign_code("C", "
 
-size_t luaMR_len(lua_State *L, int index) {
+size_t luaMR_len(lua_State * L, int index) {
 	
 #ifdef BEFORE_502
 	return lua_objlen(L, index);
@@ -613,30 +677,37 @@ size_t luaMR_len(lua_State *L, int index) {
 %
 % The registry, and upvalues.
 %
- 
+
+:- pragma foreign_decl("C", "
+	void luaMR_getregistry(lua_State *, const char *);
+	void luaMR_setregistry(lua_State *, const char *);
+	int  luaMR_getupvalue(lua_State *, const int);
+	void luaMR_setupvalue(lua_State *, const int);
+").
+
 
 :- pragma foreign_code("C", "
-void luaMR_getregistry(lua_State * L, const char * k) {
-	lua_getfield(L, LUA_REGISTRYINDEX, k);
-}
-
-void luaMR_setregistry(lua_State * L, const char * k) {
-	lua_setfield(L, LUA_REGISTRYINDEX, k);
-}
-
-int luaMR_getupvalue(lua_State * L, const int id) {
-	lua_pushvalue(L, lua_upvalueindex(id));
-	if (lua_type(L, -1) == LUA_TNONE) {
-		lua_pop(L, 1);
-		return 0;
-	} else {
-		return 1;
+	void luaMR_getregistry(lua_State * L, const char * k) {
+		lua_getfield(L, LUA_REGISTRYINDEX, k);
 	}
-}
 
-void luaMR_setupvalue(lua_State * L, const int id) {
-	lua_replace(L, lua_upvalueindex(id));
-}
+	void luaMR_setregistry(lua_State * L, const char * k) {
+		lua_setfield(L, LUA_REGISTRYINDEX, k);
+	}
+
+	int luaMR_getupvalue(lua_State * L, const int id) {
+		lua_pushvalue(L, lua_upvalueindex(id));
+		if (lua_type(L, -1) == LUA_TNONE) {
+			lua_pop(L, 1);
+			return 0;
+		} else {
+			return 1;
+		}
+	}
+
+	void luaMR_setupvalue(lua_State * L, const int id) {
+		lua_replace(L, lua_upvalueindex(id));
+	}
 
 ").
 
@@ -646,13 +717,15 @@ void luaMR_setupvalue(lua_State * L, const int id) {
 % Lua modules
 %
 
-/* TODO need to define function/2
-register_module(Name, Pred, L, !IO) :-
+/*
+register_module(Name, Func, L, !IO) :-
 
 	( semipure ready(L) ; impure init_lua(L, !IO) ),
 	 
-	( ref(Ref) = function(Pred, L)
-		; unexpected($module, $pred, 
+	( 	impure lua_pushfunc(L, Func),
+		impure lua
+	; 
+		unexpected($module, $pred, 
 		"function/2 did not return a ref.")
 	),
 	impure lua_getregistry(L, LUA_RIDX_MR_MODULE), /* table -3 /
@@ -664,19 +737,23 @@ register_module(Name, Pred, L, !IO) :-
 :- pragma promise_pure(register_module/5).
 */
 
+:- pragma foreign_decl("C", "
+	int luaMR_loader(lua_State *);
+").
+
 :- pragma foreign_code("C", "
 
-/* take the provided module name and attempt to load an apollo module
-passes any additional arguments. */
-int luaMR_loader(lua_State * L) {
-	if (lua_isstring(L, 1)) {
-		const char * module_name = lua_tostring(L, 1);
-		luaMR_getregistry(L, LUA_RIDX_MR_MODULE);
-		lua_getfield(L, 2, module_name);
-		return 1;
+	/* take the provided module name and attempt to load an apollo module
+	passes any additional arguments. */
+	int luaMR_loader(lua_State * L) {
+		if (lua_isstring(L, 1)) {
+			const char * module_name = lua_tostring(L, 1);
+			luaMR_getregistry(L, LUA_MR_MODULES);
+			lua_getfield(L, 2, module_name);
+			return 1;
+		}
+		return 0;
 	}
-	return 0;
-}
 
 ").
 
@@ -686,45 +763,12 @@ int luaMR_loader(lua_State * L) {
 % Lua functions
 %
 
-
-/* TODO need get
-:- impure func call_pred(lua) = int.
-
-call_pred(L) = ReturnCount :-
-	semipure Top = lua_gettop(L),
+func_udata(F::dfi) = (U::dfuo) :- U = det_func(F).
+func_udata(F::dfo) = (U::dfui) :- U = det_func(F).
+func_udata(F::sfi) = (U::sfuo) :- U = semidet_func(F).
+func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 	
-	semipure Args = stack_to_list(L, 1, Top),
-	
-	impure lua_getupvalue(L, 1),
-	
-	(semipure univ(Self) = lua_touserdata(L, -1)
-	; error("Value passed as a function was not a valid predicate")
-	), 
-	
-	(try [] Self(Args) = Return 
-	then (
-		pushlist(L, Return),
-		ReturnCount = list.length(Return)
-	) catch_any Err -> lua_error(L, Err) ).
-	
-:- pragma foreign_export("C", call_pred(in) = out, "luaMR_pred").
-	
-
-:- func stack_to_list(lua, int, int) = list(value).
-
-stack_to_list(L, Start, End) = 
-	[ get(local(Start),L) | 
-		( Start > End -> []
-		; stack_to_list(L, Start + 1, End) )
-	].
-			
-:- impure pred pushlist(lua::in, values::in) is det.
-
-pushlist(L, [V | Vs] ) :-
-	 impure lua_push(L, V),
-	 impure pushlist(L, Vs).
-	 
-*/
+:- pragma promise_pure(func_udata/1).
 
 %-----------------------------------------------------------------------------%
 %
@@ -749,18 +793,22 @@ pushlist(L, [V | Vs] ) :-
 % Mercury userdata
 %
 
+:- pragma foreign_decl("C", "
+	MR_Word * luaMR_new(MR_Word);
+	int luaMR_free(lua_State *);
+").
 
 :- pragma foreign_code("C", "
 
 	MR_Word * luaMR_new(MR_Word word) {
-		MR_Word * newptr = MR_GC_NEW_UNCOLLECTABLE(sizeof(MR_Word *));
-		newptr = &word;
+		MR_Word * newptr = MR_GC_malloc_uncollectable(sizeof newptr);
+		*newptr = word;
 		return newptr;
 	}
 	
 	int luaMR_free(lua_State * L) {
 		void * ptr = lua_touserdata(L, 1);
-		MR_GC_FREE(*ptr);
+		MR_GC_free(ptr);
 		return 0;
 	}
 		
