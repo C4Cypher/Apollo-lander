@@ -224,7 +224,7 @@
 	% Protected C call in Lua, passing a pointer (or MR_Word)
 	% as the only argument.  
 	% 
-:- impure func lua_cpcall(c_function, c_pointer, lua) = c_pointer.
+:- impure func lua_cpcall(lua, c_function, c_pointer) = c_pointer.
 
 	% Throw an error from Mercury to Lua
 	%
@@ -275,7 +275,6 @@
 :- semipure pred lua_ismruserdata(lua::in, index::in) is semidet.
 :- semipure pred lua_isinteger(lua::in, index::in) is semidet.
 :- semipure pred lua_islightuserdata(lua::in, index::in) is semidet.
-:- semipure pred lua_isregistry(lua::in, index::in, registry::in) is semidet.
 :- semipure pred lua_isstring(lua::in, index::in) is semidet.
 :- semipure pred lua_istable(lua::in, index::in) is semidet.
 :- semipure pred lua_isboolean(lua::in, index::in) is semidet.
@@ -285,8 +284,8 @@
 
 :- semipure func lua_tonumber(lua, index) = float.
 :- semipure func lua_touserdata(lua, index) = univ.
+:- semipure func lua_tocuserdata(lua, index) = c_pointer.
 :- semipure func lua_tointeger(lua, index) = int.
-:- semipure func lua_tolightuserdata(lua, index) = c_pointer.
 :- semipure func lua_tostring(lua, index) = string.
 :- semipure func lua_toboolean(lua, index) = bool.
 :- semipure func lua_tothread(lua, index) = lua.
@@ -299,7 +298,6 @@
 :- impure pred lua_pushuniv(lua::in, univ::in) is det.
 :- impure pred lua_pushinteger(lua::in, int::in) is det.
 :- impure pred lua_pushlightuserdata(lua::in, c_pointer::in) is det.
-:- impure pred lua_pushregistry(lua::in, registry::in) is det.
 :- impure pred lua_pushstring(lua::in, string::in) is det.
 :- impure pred lua_pushboolean(lua::in, bool::in) is det.
 :- impure pred lua_pushthread(lua::in) is det.
@@ -424,7 +422,7 @@ lua_push(L, V) :-
 	[will_not_call_mercury], "lua_rawgeti(L, I, N);").
 	 
 :- pragma foreign_proc("C", lua_rawseti(L::in, I::in, N::in), 
-	[will_not_call_mercury], "lua_rawset(L, I, N);"). 
+	[will_not_call_mercury], "lua_rawseti(L, I, N);"). 
 
 :- pragma foreign_proc("C", lua_gettable(L::in, I::in), 
 	[will_not_call_mercury], "lua_gettable(L, I);"). 
@@ -501,7 +499,7 @@ lua_pcall(L, A, E) = R :-
 
 :- pragma foreign_proc("C", lua_cpcall(L::in, Func::in, Ptr::in) = (R::out),
 	[will_not_call_mercury], "
-	R = lua_cpcall(L, Func, Ptr);
+	R = lua_cpcall(L, Func, (void *)Ptr);
 	").
 
 
@@ -545,7 +543,7 @@ mr_call(L,  R) :-
 :- func mr_call_ptr = c_function.
 
 :- pragma foreign_proc("C", mr_call_ptr = (F::out),
-	[promise_pure, will_not_call_mercury], "F = &luaMR_call;").
+	[promise_pure, will_not_call_mercury], "F = (lua_CFunction)luaMR_call;").
 
 :- pragma foreign_proc("C", lua_error(L::in),
 	[will_not_call_mercury],"lua_error(L);").
@@ -628,12 +626,11 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
 :- pragma foreign_proc("C", lua_ismruserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury], "
-	lua_isuserdata(L, I);
-	if(lua_getmetatable(L, I)) {  
-		lua_pushregistry(L, LUA_MR_USERDATA);
+	if(lua_isuserdata(L, Index) && lua_getmetatable(L, Index)) {  
+		lua_pushstring(L, LUA_MR_USERDATA);
 		lua_rawget(L, Index);
 		SUCCESS_INDICATOR = lua_toboolean(L, -1); 
-		lua_pop(L, 1),
+		lua_pop(L, 1);
 	} else {
 		SUCCESS_INDICATOR = 0;
 	}
@@ -649,12 +646,6 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 :- pragma foreign_proc("C", lua_islightuserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_islightuserdata(L, Index);").
-	
-:- pragma foreign_proc("C", lua_isregistry(L::in, Index::in, Registry::in),
-	[promise_semipure, will_not_call_mercury], "
-	if(lua_islightuserdata(L, Index)) 
-		SUCCESS_INDICATOR = (Registry == lua_tolightuserdata(L, Index))
-	").
 	
 :- pragma foreign_proc("C", lua_isboolean(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
@@ -676,8 +667,12 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 	"V = lua_tonumber(L, Index);").
 
 :- pragma foreign_proc("C", lua_tostring(L::in, Index::in) = (V::out),
-	[promise_semipure, will_not_call_mercury],
-	"V = lua_tostring(L, Index);").
+	[promise_semipure, will_not_call_mercury], "
+	size_t * len;
+	const char * S = lua_tolstring(L, Index, len);
+	V = MR_GC_NEW_ARRAY(char, (int) *len);
+	strncpy(V, S, *len);
+").
 
 :- pragma foreign_proc("C", lua_tointeger(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
@@ -699,17 +694,11 @@ lua_touserdata(L, Index) = U :-
  	
 :- pragma foreign_proc("C", lua_tomruserdata(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
-	"V = **lua_touserdata(L, Index);").
+	"V = **(MR_Word **)lua_touserdata(L, Index);").
 	
-:- semipure func lua_tocuserdata(lua, index) = c_pointer.
- 	
 :- pragma foreign_proc("C", lua_tocuserdata(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
-	"V = lua_touserdata(L, Index);").
-
-:- pragma foreign_proc("C", lua_tolightuserdata(L::in, Index::in) = (V::out),
-	[promise_semipure, will_not_call_mercury],
-	"V = lua_tolightuserdata(L, Index);").
+	"V = (size_t)lua_touserdata(L, Index);").
 
 :- pragma foreign_proc("C", lua_toboolean(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
@@ -724,7 +713,7 @@ lua_touserdata(L, Index) = U :-
 
 :- pragma foreign_proc("C", lua_toref(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
-	"V = luaMR_new_ref(L, Index);").
+	"V = (luaMR_Ref)luaMR_newref(L, Index);").
 
 
 %-----------------------------------------------------------------------------%
@@ -747,7 +736,7 @@ lua_touserdata(L, Index) = U :-
 
 :- pragma foreign_proc("C", lua_pushthread(L::in) = (Main::out),
 	[will_not_call_mercury], "
-	if(lua_pushthread(L, V))
+	if(lua_pushthread(L))
 		Main = MR_YES;
 	else
 		Main = MR_NO;
@@ -766,18 +755,14 @@ lua_pushuserdata(L, V) :-
 	MR_Word * mr_ptr = luaMR_new(V);
 	MR_Word ** lua_ptr = lua_newuserdata(L, sizeof(MR_Word **));
 	lua_ptr = &mr_ptr;
-	set_userdata_metatable(L, -1);
+	luaMR_set_userdata_metatable(L, -1);
 	
 	").
 	
 
 :- pragma foreign_proc("C", lua_pushlightuserdata(L::in, V::in),
 	[will_not_call_mercury],
-	"lua_pushlightuserdata(L, V);").
-
-:- pragma foreign_proc("C", lua_pushregistry(L::in, V::in),
-	[will_not_call_mercury],
-	"lua_pushlightuserdata(L, V);").
+	"lua_pushlightuserdata(L, (void *)V);").
 	
 :- pragma foreign_proc("C", lua_pushboolean(L::in, V::in),
 	[will_not_call_mercury],
@@ -801,32 +786,38 @@ lua_pushfunc(L, V) :-
 
 :- pragma foreign_proc("C", lua_pushref(L::in, V::in),
 	[will_not_call_mercury],
-	"luaMR_lua_pushref(L, V);").
+	"luaMR_pushref(L, V);").
 
 %-----------------------------------------------------------------------------%
 
-:- impure pred set_userdata_metatable(lua::in, registry::in) is det.
+:- impure pred set_userdata_metatable(lua::in, index::in) is det.
 
-:- pragma foreign_proc("C", set_userdata_metatable(L::in, R::in),
-	[will_not_call_mercury], "luaMR_set_userdata_metatable(L, R);").
-	
+:- pragma foreign_proc("C", set_userdata_metatable(L::in, I::in),
+	[will_not_call_mercury], "luaMR_set_userdata_metatable(L, I);").
+
+:- pragma foreign_decl("C", "
+void luaMR_set_userdata_metatable(lua_State *, int);
+").
+
 :- pragma foreign_code("C", "
 
-void luaMR_set_userdata_metatable(lua_State * L) {
-	if(!lua_getmetatable(L, -1))
+void luaMR_set_userdata_metatable(lua_State * L, int I) {
+	if(!lua_getmetatable(L, I))
 		lua_newtable(L);
 		
-	lua_pushlightuserdata(L, LUA_MR_USERDATA);
-	lua_pushboolean(L, yes);
+	lua_pushstring(L, LUA_MR_USERDATA);
+	lua_pushboolean(L, 1);
 	lua_rawset(L, -3);
 	
 	lua_pushstring(L, ""__GC"");
-	lua_pushcfunction(L, luaMR_free);
+	lua_pushcfunction(L, (lua_CFunction)luaMR_free);
 	lua_rawset(L, -3);
 	
 	lua_pushstring(L, ""__tostring"");
-	lua_pushcfunction(L, luaMR_tostring);
+	lua_pushcfunction(L, (lua_CFunction)luaMR_tostring);
 	lua_rawset(L, -3);
+	
+	lua_setmetatable(L, I);
 	
 	lua_pop(L, 1);
 }

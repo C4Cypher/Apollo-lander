@@ -154,7 +154,7 @@
 	
 	% The following are meant for internal use
 	;	ref(ref)	% A strong refrence (like a pointer)
-	;	registry(registry) % A registry entry
+	;	global(string) 	% A global variable
 	
 	% Returned on invalid request.
 	;	invalid(string).
@@ -404,8 +404,13 @@
 #define LUA_RIDX_LAST           LUA_RIDX_GLOBALS
 #endif /* BEFORE_502 */
 
+#define LUA_MR_MODULES ""LUA_MR_MODULES""
+#define LUA_MR_READY ""LUA_MR_READY""
+
 /* metatable values*/
-#define LUA_META_MR_TYPE ""__mercury_type""
+#define LUA_MR_TYPE ""__mercury_type""
+#define LUA_MR_USERDATA ""__mercury_userdata""
+
 
 ").
 
@@ -481,18 +486,22 @@ void luaMR_init(lua_State * L) {
 #ifdef BEFORE_502
 
 	/* Set the Main thread in the registry */
-	lua_pushthread(L, L);
-	luaMR_setregistry(L, (int)LUA_RIDX_MAINTHREAD);
+	lua_pushvalue(L, LUA_REGISTRYINDEX);
+	lua_pushinteger(L, LUA_RIDX_MAINTHREAD); 
+	if(!lua_pushthread(L))
+		MR_fatal_error(""Must init main thread."");
+	lua_settable(L, -3);
 	
+	lua_pushinteger(L, LUA_RIDX_GLOBALS);
 	lua_pushvalue(L, LUA_GLOBALSINDEX);
-	luaMR_setregistry(L, (int)LUA_RIDX_GLOBALS);
+	lua_settable(L, -3);
 
 #endif /* BEFORE_502 */
 
 	/* Add tables to the registry. */
 	
 	lua_newtable(L);
-	luaMR_setregistry(L, MR_LUA_MODULE);
+	luaMR_setregistry(L, LUA_MR_MODULES);
 	
 
 	/* Add loader to package.loaders */
@@ -506,7 +515,7 @@ void luaMR_init(lua_State * L) {
 	
 	/* Mark Lua as ready */
 	lua_pushboolean(L, 1);
-	luaMR_setregistry(L, MR_LUA_READY);
+	luaMR_setregistry(L, LUA_MR_READY);
 } 
 
 ").
@@ -518,8 +527,8 @@ void luaMR_init(lua_State * L) {
 	int luaMR_ready(lua_State * L) {
 		lua_checkstack(L, 1);
 		lua_pushvalue(L, LUA_REGISTRYINDEX);
-		lua_pushlightuserdata(L, LUA_MR_READY);
-		lua_getttable(L, -2);
+		lua_pushstring(L, LUA_MR_READY);
+		lua_gettable(L, -2);
 		int ready = lua_toboolean(L, 1);
 		lua_remove(L, 1);
 		return ready;
@@ -537,14 +546,8 @@ void luaMR_init(lua_State * L) {
 :- type index == int.
 
 
-:- type registry
-	--->	modules
-	;	word
-	;	userdata
-	;	function
-	;	ready.
+
 	
-:- pragma foreign_export_enum("C", registry/0, [prefix("LUA_MR_"), uppercase]).
 	
 Var ^ T = index(value(T), Var). 
 
@@ -561,27 +564,27 @@ Var ^ T = index(value(T), Var).
 
 	typedef int * luaMR_Ref;
 	
-	luaMR_Ref luaMR_new_ref(lua_State *, int);
-	void luaMR_push_ref(lua_State *, luaMR_Ref);
-	void luaMR_finalize_ref(lua_State *, luaMR_Ref);
+	luaMR_Ref luaMR_newref(lua_State *, int);
+	void luaMR_pushref(lua_State *, luaMR_Ref);
+	void luaMR_finalizeref(lua_State *, luaMR_Ref);
 ").
 
 :- pragma foreign_code("C",
 "
 
 /* Creates a new refrence from the stack */
-luaMR_Ref luaMR_new_ref(lua_State * L, int index) {
+luaMR_Ref luaMR_newref(lua_State * L, int index) {
 	lua_pushvalue(L, index);
 	luaMR_Ref new_ref = MR_GC_NEW(int);
 	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 	MR_GC_register_finalizer(new_ref, 
-		(GC_finalization_proc)luaMR_finalize_ref, L);
+		(GC_finalization_proc)luaMR_finalizeref, L);
 	return new_ref;
 }
 
 
 /* Push a refrence onto the provided stack */
-void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
+void luaMR_pushref(lua_State * L, luaMR_Ref ref) {
 	if (*ref == LUA_REFNIL) {
 		lua_pushnil(L);
 	}
@@ -591,7 +594,7 @@ void luaMR_push_ref(lua_State * L, luaMR_Ref ref) {
 }
 
 /* Remove Lua's refrence to the var in the registry */
-void luaMR_finalize_ref(lua_State * L, luaMR_Ref ref) {
+void luaMR_finalizeref(lua_State * L, luaMR_Ref ref) {
 	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
 }
 
@@ -677,6 +680,7 @@ size_t luaMR_len(lua_State * L, int index) {
 %
 % The registry, and upvalues.
 %
+
 
 :- pragma foreign_decl("C", "
 	void luaMR_getregistry(lua_State *, const char *);
