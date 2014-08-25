@@ -6,7 +6,7 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: lua.m.
+% File: luaMR.m.
 % Main author: C4Cypher.
 % Stability: low.
 % 
@@ -53,7 +53,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module lua.
+:- module luaMR.
 
 
 :- interface.
@@ -353,17 +353,14 @@
 	;	unhandled_error.
 	
 
-
-
-
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
 :- implementation.
 
-:- import_module lua.api.
+:- import_module luaMR.api.
 
-:- pragma foreign_import_module("C", lua.api).
+:- pragma foreign_import_module("C", luaMR.api).
 
 :- import_module type_desc.
 :- import_module int.
@@ -373,11 +370,7 @@
 :- import_module require.
 
 
-
 :- pragma require_feature_set([conservative_gc, trailing, double_prec_float]). 
-
-
-
 
 :- pragma foreign_decl("C", 
 "
@@ -484,7 +477,7 @@ ready(B, {L, C}, {L, C}) :-
 void luaMR_init(lua_State * L) {
 	
 #ifdef BEFORE_502
-
+	
 	/* Set the Main thread in the registry */
 	lua_pushvalue(L, LUA_REGISTRYINDEX);
 	lua_pushinteger(L, LUA_RIDX_MAINTHREAD); 
@@ -495,7 +488,8 @@ void luaMR_init(lua_State * L) {
 	lua_pushinteger(L, LUA_RIDX_GLOBALS);
 	lua_pushvalue(L, LUA_GLOBALSINDEX);
 	lua_settable(L, -3);
-
+ 
+ 	
 #endif /* BEFORE_502 */
 
 	/* Add tables to the registry. */
@@ -505,12 +499,12 @@ void luaMR_init(lua_State * L) {
 	
 
 	/* Add loader to package.loaders */
-	lua_getglobal(L, ""package"");
-	lua_getfield(L, 1, ""loaders"");
+	lua_getglobal(L, ""package""); 
+	lua_getfield(L, -1, ""loaders""); 
 	const int length = luaMR_len(L, 1);
-	lua_pushinteger(L, length + 1);
-	lua_pushcfunction(L, luaMR_loader);
-	lua_settable(L, 2);
+	lua_pushinteger(L, length + 1); 
+	lua_pushcfunction(L, luaMR_loader); 
+	lua_settable(L, -3);
 	lua_pop(L, 2);
 	
 	/* Mark Lua as ready */
@@ -716,6 +710,7 @@ size_t luaMR_len(lua_State * L, int index) {
 ").
 
 
+
 %-----------------------------------------------------------------------------%
 %
 % Lua modules
@@ -774,6 +769,7 @@ func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 	
 :- pragma promise_pure(func_udata/1).
 
+
 %-----------------------------------------------------------------------------%
 %
 % Lua Types
@@ -820,7 +816,7 @@ func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 		
 :- impure func to_string(lua) = int.
 
-to_string(L) = 1 :-
+to_string(L) = 1 :- 
 	semipure lua_touserdata(L, 1) = U,
 	U = univ(T)  ->
 		impure lua_pushstring(L, string.string(T)) 
@@ -828,7 +824,7 @@ to_string(L) = 1 :-
 		impure lua_pushstring(L, string.string($module) ++ " " ++
 		string.string($pred) ++ " Was not userdata."),
 		impure lua_error(L).
-			
+
 		
 	
 :- pragma foreign_export("C", to_string(in) = out, "luaMR_tostring").

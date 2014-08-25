@@ -9,7 +9,7 @@
 # MCFLAGS += --flag
 # MCFLAGS-module += --flag
 
-MAIN_TARGET = liblua
+MAIN_TARGET = testluaMR
 
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
@@ -22,9 +22,11 @@ MCFLAGS += --libgrades-exclude erlang
 MCFLAGS += --libgrades-exclude csharp
 MCFLAGS += --libgrades-include trseg
 
+#MCFLAGS += -L /usr/lib/x86_64-linux-gnu
+MCFLAGS += -llua5.1
+
 # For Fun
 MCFLAGS += --auto-comments
 
-# Why do I need this?
-#MCFLAGS += --use-grade-subdirs
+MCFLAGS += --use-grade-subdirs
 

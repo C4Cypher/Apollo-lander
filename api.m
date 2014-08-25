@@ -89,6 +89,11 @@
 	% The index of the registry
 :- func lua_registryindex = index.
 
+	% The index of the global environment
+:- func lua_globalindex = index.
+
+:- func index(int) = index.
+
 %-----------------------------------------------------------------------------%
 %
 % Stack Manipulation
@@ -108,7 +113,7 @@
 :- semipure pred lua_checkstack(lua::in, int::in) is semidet.
 
 	% Directly push values from a different stack index
-:- impure pred 	lua_pushvalue(lua::in, int::in) is det.
+:- impure pred 	lua_pushvalue(lua::in, index::in) is det.
 
 	% Push a value onto the Lua stack
 :- impure pred lua_push(lua::in, value::in) is det.
@@ -131,7 +136,11 @@
 	
 	% The Lua type of a value on the stack
 	%
-:- semipure func lua_gettype(lua, int) = lua_type.
+:- semipure func lua_type(lua, index) = lua_type.
+	
+	% The Lua type of a stack value as a string
+	%
+:- semipure func lua_typename(lua, index) = string.
 
 % Get calls will remove the key from the top of the table and replace it
 % with the value.
@@ -163,6 +172,11 @@
 :- impure pred lua_gettable(lua::in, index::in) is det.
 :- impure pred lua_settable(lua::in, index::in) is det.
 	
+	% Access a value from a table using a string key
+	%
+:- impure pred lua_getfield(lua::in, index::in, string::in) is det.
+:- impure pred lua_setfield(lua::in, index::in, string::in) is det.
+
 	% Access metatables, may cause undefined behavior if used on types
 	% that do not have metatables.
 	%
@@ -203,7 +217,7 @@
 	% Load a function from a string.
 :- impure func lua_loadstring(lua, string) = status is det.
 
-	% lua_call(L, Args, [Results]) = Returned
+	% lua_call(L, Args, [Results])
 	% call a function
 :- impure func lua_call(lua, int, int) = int.
 :- impure func lua_call(lua, int) = int.
@@ -346,6 +360,11 @@ lua_stackindex(L, I) :-
 
 :- pragma foreign_proc("C", lua_registryindex = (I::out),
 	[promise_pure, will_not_call_mercury], "I = LUA_REGISTRYINDEX;").
+	
+:- pragma foreign_proc("C", lua_globalindex = (I::out),
+	[promise_pure, will_not_call_mercury], "I = LUA_GLOBALSINDEX;").
+	
+index(I) = I.
 
 %-----------------------------------------------------------------------------%
 %
@@ -408,9 +427,14 @@ lua_push(L, V) :-
 % Accessing and manipulating variables 
 %
 
-:- pragma foreign_proc("C",  lua_gettype(L::in, Index::in) = (Type::out), 
+:- pragma foreign_proc("C",  lua_type(L::in, Index::in) = (Type::out), 
 	[promise_semipure, will_not_call_mercury],
 	"Type = lua_type(L, Index);").
+	
+:- pragma foreign_proc("C",  lua_typename(L::in, Index::in) = (Name::out), 
+	[promise_semipure, will_not_call_mercury],
+	"Name = (char *)lua_typename(L, lua_type(L, Index));").
+
 
 :- pragma foreign_proc("C", lua_rawget(L::in, I::in), 
 	[will_not_call_mercury], "lua_rawget(L, I);").
@@ -429,6 +453,12 @@ lua_push(L, V) :-
 	
 :- pragma foreign_proc("C", lua_settable(L::in, I::in), 
 	[will_not_call_mercury], "lua_settable(L, I);"). 
+	
+:- pragma foreign_proc("C", lua_getfield(L::in, I::in, K::in), 
+	[will_not_call_mercury], "lua_getfield(L, I, K);"). 
+	
+:- pragma foreign_proc("C", lua_setfield(L::in, I::in, K::in), 
+	[will_not_call_mercury], "lua_setfield(L, I, K);"). 
 	
 :- pragma foreign_proc("C", lua_getmetatable(L::in, I::in), 
 	[will_not_call_mercury], 
@@ -569,6 +599,7 @@ return_nil = nil.
 :- pragma foreign_proc("C", lua_new = (L::out),
 	[promise_pure, will_not_call_mercury], "
 	L = luaL_newstate();
+	luaL_openlibs(L);
 	luaMR_init(L);
 	").
 	
@@ -626,7 +657,7 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
 :- pragma foreign_proc("C", lua_ismruserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury], "
-	if(lua_isuserdata(L, Index) && lua_getmetatable(L, Index)) {  
+	if(lua_isuserdata(L, Index) && lua_getmetatable(L, Index)) { 
 		lua_pushstring(L, LUA_MR_USERDATA);
 		lua_rawget(L, Index);
 		SUCCESS_INDICATOR = lua_toboolean(L, -1); 
@@ -668,10 +699,10 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
 :- pragma foreign_proc("C", lua_tostring(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury], "
-	size_t * len;
-	const char * S = lua_tolstring(L, Index, len);
-	V = MR_GC_NEW_ARRAY(char, (int) *len);
-	strncpy(V, S, *len);
+	size_t  len;
+	const char * S0 = lua_tolstring(L, Index, &len);
+	char * S = MR_malloc(len);
+	V = strncpy(S, S0, len);
 ").
 
 :- pragma foreign_proc("C", lua_tointeger(L::in, Index::in) = (V::out),
@@ -687,7 +718,7 @@ lua_touserdata(L, Index) = U :-
 	semipure lua_ismruserdata(L, Index) -> 
 		semipure U = lua_tomruserdata(L, Index)
 	;
-		semipure C = lua_tocuserdata(L, Index),
+		semipure C = lua_tocuserdata(L, Index), throw("fuck you"),
 		U = univ(C).
 
 :- semipure func lua_tomruserdata(lua, index) = univ.
@@ -747,16 +778,15 @@ lua_touserdata(L, Index) = U :-
 	[will_not_call_mercury],
 	"lua_pushnil(L);").
 
-lua_pushuserdata(L, V) :-
+lua_pushuserdata(L, V) :- 
 	impure lua_pushuniv(L, univ(V)).
 
 :- pragma foreign_proc("C", lua_pushuniv(L::in, V::in),
-	[will_not_call_mercury], "
+	[will_not_call_mercury], " 
 	MR_Word * mr_ptr = luaMR_new(V);
 	MR_Word ** lua_ptr = lua_newuserdata(L, sizeof(MR_Word **));
-	lua_ptr = &mr_ptr;
+	*lua_ptr = mr_ptr;
 	luaMR_set_userdata_metatable(L, -1);
-	
 	").
 	
 
@@ -802,9 +832,13 @@ void luaMR_set_userdata_metatable(lua_State *, int);
 :- pragma foreign_code("C", "
 
 void luaMR_set_userdata_metatable(lua_State * L, int I) {
-	if(!lua_getmetatable(L, I))
+	lua_pushvalue(L, I);
+	
+	if(!lua_getmetatable(L, -1))
 		lua_newtable(L);
-		
+	
+	
+	
 	lua_pushstring(L, LUA_MR_USERDATA);
 	lua_pushboolean(L, 1);
 	lua_rawset(L, -3);
@@ -817,8 +851,8 @@ void luaMR_set_userdata_metatable(lua_State * L, int I) {
 	lua_pushcfunction(L, (lua_CFunction)luaMR_tostring);
 	lua_rawset(L, -3);
 	
-	lua_setmetatable(L, I);
-	
+	lua_setmetatable(L, -2);
+		
 	lua_pop(L, 1);
 }
 ").

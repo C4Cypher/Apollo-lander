@@ -6,29 +6,45 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: scope.m.
+% File: testluaMR.m.
 % Main author: c4cypher.
 % Stability: low.
 % 
-% Describe the module.
+% Test the luaMR library.
 % 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module scope.
+:- module testluaMR.
 
 :- interface.
 
-:- type scope(L)
-	---> 	scope(
-			parent::L, % Parent scope
-			size::int,% number of values allocated for this scope 
-			local::map(var, value), % local variable associations 
-			top::index
-		).
+:- import_module io.
 
-% top/2 carries the index that triggers automatic use of lua_checkstack for
-% additional values on the stack. 
-	
-%:- instance lua_state(scope(L)) <= lua_state(L).	
-%:- instance lua(scope(L)) <= lua_state(L).
+:- pred main(io::di, io::uo) is det.
+
+
+:- implementation.
+
+:- import_module univ.
+:- import_module list.
+:- import_module exception.
+
+:- import_module luaMR.
+:- import_module luaMR.api.
+
+:- pragma foreign_import_module("C", luaMR).
+
+main(!IO) :-
+	L = lua_new, 
+	impure lua_pushvalue(L, lua_globalindex),
+	impure lua_getfield(L, index(-1), "tostring"),
+	impure lua_pushuserdata(L, ["A","B", "C"]),
+	impure _ = lua_call(L, 1, 1),
+	impure S = lua_tostring(L, index(-1)),
+	print(S, !IO).
+
+:- pragma promise_pure(main/2).
+
+
+
