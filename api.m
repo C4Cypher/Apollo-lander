@@ -657,13 +657,16 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
 :- pragma foreign_proc("C", lua_ismruserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury], "
-	if(lua_isuserdata(L, Index) && lua_getmetatable(L, Index)) { 
+	int Top = lua_gettop(L);
+	lua_pushvalue(L, Index); /* 1 */	
+	if(lua_isuserdata(L, -1) && lua_getmetatable(L, -1)) { /* 2 */ 
 		lua_pushstring(L, LUA_MR_USERDATA);
-		lua_rawget(L, Index);
+		lua_rawget(L, -2);
 		SUCCESS_INDICATOR = lua_toboolean(L, -1); 
-		lua_pop(L, 1);
+		lua_settop(L, Top);
 	} else {
 		SUCCESS_INDICATOR = 0;
+		lua_settop(L, Top);
 	}
 ").
 		

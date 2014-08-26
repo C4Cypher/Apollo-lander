@@ -817,13 +817,8 @@ func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 :- impure func to_string(lua) = int.
 
 to_string(L) = 1 :- 
-	semipure lua_touserdata(L, 1) = U,
-	U = univ(T)  ->
-		impure lua_pushstring(L, string.string(T)) 
-	; 
-		impure lua_pushstring(L, string.string($module) ++ " " ++
-		string.string($pred) ++ " Was not userdata."),
-		impure lua_error(L).
+	semipure lua_touserdata(L, 1) = U, 
+	impure lua_pushstring(L, string.string(univ_value(U))).
 
 		
 	

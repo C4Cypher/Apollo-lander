@@ -11,6 +11,7 @@
 
 MAIN_TARGET = testluaMR
 
+MCFLAGS += --debug --use-trail --trail-segments --stack-segments
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
 MCFLAGS += --no-warn-inferred-erroneous

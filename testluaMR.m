@@ -40,9 +40,10 @@ main(!IO) :-
 	impure lua_pushvalue(L, lua_globalindex),
 	impure lua_getfield(L, index(-1), "tostring"),
 	impure lua_pushuserdata(L, ["A","B", "C"]),
-	impure _ = lua_call(L, 1, 1),
-	impure S = lua_tostring(L, index(-1)),
-	print(S, !IO).
+	impure _ = lua_call(L, 1, 1), 
+	semipure S = lua_tostring(L, index(-1)),
+	print(S, !IO),
+	impure lua_close(L).
 
 :- pragma promise_pure(main/2).
 
