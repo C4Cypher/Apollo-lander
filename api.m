@@ -449,7 +449,9 @@ lua_pushvar(L, V) :-
 	; V = index(Val, Table) ->
 		( Val = nil(_) ->
 			impure lua_pusnhil(L)
-		; Val = unbound -> unexpected($module, $pred, "Attempted to index by unbound value.")
+		; Val = unbound -> 
+			unexpected($module, $pred, 
+			"Attempted to index by unbound value.")
 		;
 			impure lua_pushvar(L, Table),
 			impure lua_push(L, Val),
