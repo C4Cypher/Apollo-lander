@@ -115,12 +115,6 @@
 	% Directly push values from a different stack index
 :- impure pred 	lua_pushvalue(lua::in, index::in) is det.
 
-	% Push a value onto the Lua stack
-:- impure pred lua_push(lua::in, value::in) is det.
-
-	% Push a variable onto the stack
-:- impure pred lua_pushvar(lua::in, var::in) is det.
-
 	% Pop a number of values off the stack.
 :- impure pred 	lua_pop(lua::in, int::in) is det.
 
@@ -144,6 +138,17 @@
 	% Pop a value from the top of the stack, and insert it at the
 	% given stack index, shifting elements up.
 :- impure pred lua_insert(lua::in, index::in) is det.
+
+%-----------------------------------------------------------------------------%
+%
+% Pushing Mercury values and vars onto the stack 
+%
+
+	% Push a luaMR.value onto the Lua stack
+:- impure pred push_value(lua::in, value::in) is det.
+
+	% Push a luaMR.var onto the stack
+:- impure pred push_var(lua::in, var::in) is det.
 
 
 
@@ -411,7 +416,26 @@ index(I) = I.
 :- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
 	[will_not_call_mercury], "lua_pushvalue(L, I);").
 	
-lua_push(L, V) :-
+
+
+:- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
+	[will_not_call_mercury], "lua_pop(L, Num);").
+
+:- pragma foreign_proc("C",  lua_remove(L::in, Index::in), 
+	[will_not_call_mercury], "lua_remove(L, Index);").
+
+:- pragma foreign_proc("C",  lua_replace(L::in, Index::in), 
+	[will_not_call_mercury], "lua_replace(L, Index);").
+
+:- pragma foreign_proc("C",  lua_insert(L::in, Index::in), 
+	[will_not_call_mercury], "lua_insert(L, Index);").
+
+%-----------------------------------------------------------------------------%
+%
+% Pushing Mercury values and vars onto the stack 
+%
+
+push_value(L, V) :-
 	require_complete_switch [V]
 	( V = nil(_) ->
 		impure lua_pushnil(L)
@@ -443,33 +467,43 @@ lua_push(L, V) :-
 		++ string.string(V))
 	).
 	
-lua_pushvar(L, V) :-
+push_var(L, V) :-
 	require_complete_switch [V]
 	( V = local(I) -> impure lua_pushvalue(L, I)
 	; V = index(Val, Table) ->
-		( Val = nil(_) ->
-			impure lua_pusnhil(L)
-		; Val = unbound -> 
-			unexpected($module, $pred, 
-			"Attempted to index by unbound value.")
+		( Val = nil(_) -> impure lua_pushnil(L)
+		; Val = unbound -> throw(lua_error(runtime_error, 
+			"attempt to index var " ++ string(Table) ++
+			" by an unbound value."))
+		; impure lua_pushvar(L, Table), semipure lua_isnil(L, -1) -> 
+			throw(lua_error(
+			runtime_error, "attempt to index var "
+			++ string.string(Table) ++
+			" (a nil value)."))
 		;
-			impure lua_pushvar(L, Table),
-			impure lua_push(L, Val),
+			impure push_value(L, Val),
 			impure lua_rawget(L, -2),
 			impure lua_remove(L, -2)
 		)
-
-:- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
-	[will_not_call_mercury], "lua_pop(L, Num);").
-
-:- pragma foreign_proc("C",  lua_remove(L::in, Index::in), 
-	[will_not_call_mercury], "lua_remove(L, Index);").
-
-:- pragma foreign_proc("C",  lua_replace(L::in, Index::in), 
-	[will_not_call_mercury], "lua_replace(L, Index);").
-
-:- pragma foreign_proc("C",  lua_insert(L::in, Index::in), 
-	[will_not_call_mercury], "lua_insert(L, Index);").
+	; V = meta(Table) ->
+		impure push_var(L, Table), 
+		( impure lua_getmetatable(L, -1) ->
+			impure lua_remove(L, -2)
+		; 
+			impure lua_pop(L, 1),
+			impure lua_pushnil(L)
+		)
+	; V = ref(R) -> impure lua_pushref(L, R)
+	; V = global(S) ->
+		impure lua_pushvalue(L, globalsindex),
+		impure lua_pushstring(L, S),
+		impure lua_rawget(L, -2),
+		impure lua_remove(L, -2)
+	; V = invalid(S) ->
+		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+		" attempted to push invalid var: " ++ S))
+	; unexpected($module, $pred, "Switch on var V failed."
+	).
 
 %-----------------------------------------------------------------------------%
 %
