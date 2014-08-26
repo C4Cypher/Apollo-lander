@@ -701,7 +701,7 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 	[promise_semipure, will_not_call_mercury], "
 	size_t  len;
 	const char * S0 = lua_tolstring(L, Index, &len);
-	char * S = MR_malloc(len);
+	char * S = MR_GC_malloc(len);
 	V = strncpy(S, S0, len);
 ").
 
