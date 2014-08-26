@@ -400,6 +400,8 @@ lua_stackindex(L, I) :-
 	
 index(I) = I.
 
+:- pragma inline(index/1).
+
 :- pragma foreign_proc("C", absolute(L::in, I::in) = (A::out), 
 	[promise_semipure, will_not_call_mercury], "
 	A = I > 0 ? I : lua_gettop(L) + 1 + I;").
@@ -763,6 +765,8 @@ return_nil = nil.
 	luaL_openlibs(L);
 	luaMR_init(L);
 	").
+	
+:- pragma inline(lua_new/0).
 	
 lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
