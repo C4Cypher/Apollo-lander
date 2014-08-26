@@ -94,6 +94,9 @@
 
 :- func index(int) = index.
 
+	% Get the absolute stack position
+:- semipure func absolute(lua, index) = index.
+
 %-----------------------------------------------------------------------------%
 %
 % Stack Manipulation
@@ -397,6 +400,18 @@ lua_stackindex(L, I) :-
 	
 index(I) = I.
 
+:- pragma foreign_proc("C", absolute(L::in, I::in) = (A::out), 
+	[promise_semipure, will_not_call_mercury], "
+	A = I > 0 ? I : lua_gettop(L) + 1 + I;").
+	
+:- pragma inline(absolute/2).
+	
+:- pragma foreign_decl("C", "
+	static inline int luaMR_absolute(lua_State * L, int I) 
+		{ return I > 0 ? I : lua_gettop(L) + 1 + I; }").
+
+
+
 %-----------------------------------------------------------------------------%
 %
 % Stack Manipulation
@@ -406,29 +421,43 @@ index(I) = I.
 	[promise_semipure, will_not_call_mercury],
 	"Index = lua_gettop(L); ").
 	
+:- pragma inline(lua_gettop/1). 
+	
 :- pragma foreign_proc("C",  lua_settop(L::in, Index::in),
 	[will_not_call_mercury],
 	"lua_settop(L, Index);").
+	
+:- pragma inline(lua_settop/2).
 
 :- pragma foreign_proc("C",  lua_checkstack(L::in, Free::in),
 	[will_not_call_mercury, promise_semipure], "lua_checkstack(L, Free);").
+	
+:- pragma inline(lua_checkstack/2).
 
 :- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
 	[will_not_call_mercury], "lua_pushvalue(L, I);").
 	
-
+:- pragma inline(lua_pushvalue/2).
 
 :- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
 	[will_not_call_mercury], "lua_pop(L, Num);").
+	
+:- pragma inline(lua_pop/2).
 
 :- pragma foreign_proc("C",  lua_remove(L::in, Index::in), 
 	[will_not_call_mercury], "lua_remove(L, Index);").
+	
+:- pragma inline(lua_remove/2).
 
 :- pragma foreign_proc("C",  lua_replace(L::in, Index::in), 
 	[will_not_call_mercury], "lua_replace(L, Index);").
+	
+:- pragma inline(lua_replace/2).
 
 :- pragma foreign_proc("C",  lua_insert(L::in, Index::in), 
 	[will_not_call_mercury], "lua_insert(L, Index);").
+	
+:- pragma inline(lua_insert/2).
 
 %-----------------------------------------------------------------------------%
 %
@@ -514,51 +543,80 @@ push_var(L, V) :-
 	[promise_semipure, will_not_call_mercury],
 	"Type = lua_type(L, Index);").
 	
+:- pragma inline(lua_type/1).
+	
 :- pragma foreign_proc("C",  lua_typename(L::in, Index::in) = (Name::out), 
 	[promise_semipure, will_not_call_mercury],
 	"Name = (char *)lua_typename(L, lua_type(L, Index));").
+	
+:- pragma inline(lua_typename/q).
 
 
 :- pragma foreign_proc("C", lua_rawget(L::in, I::in), 
 	[will_not_call_mercury], "lua_rawget(L, I);").
+	
+:- pragma inline(lua_rawget/2).
 	 
 :- pragma foreign_proc("C", lua_rawset(L::in, I::in), 
 	[will_not_call_mercury], "lua_rawset(L, I);"). 
+	
+:- pragma inline(lua_rawset/2).
 
 :- pragma foreign_proc("C", lua_rawgeti(L::in, I::in, N::in), 
 	[will_not_call_mercury], "lua_rawgeti(L, I, N);").
+	
+:- pragma inline(lua_rawgeti/3).
 	 
 :- pragma foreign_proc("C", lua_rawseti(L::in, I::in, N::in), 
 	[will_not_call_mercury], "lua_rawseti(L, I, N);"). 
+	
+:- pragma inline(lua_rawseti/3).
 
 :- pragma foreign_proc("C", lua_gettable(L::in, I::in), 
 	[will_not_call_mercury], "lua_gettable(L, I);"). 
 	
+:- pragma inline(lua_gettable/2).
+	
 :- pragma foreign_proc("C", lua_settable(L::in, I::in), 
 	[will_not_call_mercury], "lua_settable(L, I);"). 
 	
+:- pragma inline(lua_settable/2).
+	
 :- pragma foreign_proc("C", lua_getfield(L::in, I::in, K::in), 
-	[will_not_call_mercury], "lua_getfield(L, I, K);"). 
+	[will_not_call_mercury], "lua_getfield(L, I, K);").
+	
+:- pragma inline(lua_getfield/3).
 	
 :- pragma foreign_proc("C", lua_setfield(L::in, I::in, K::in), 
 	[will_not_call_mercury], "lua_setfield(L, I, K);"). 
+
+:- pragma inline(lua_setfield/3).
 	
 :- pragma foreign_proc("C", lua_getmetatable(L::in, I::in), 
 	[will_not_call_mercury], 
 	"SUCCESS_INDICATOR = lua_getmetatable(L, I);"). 
+	
+:- pragma inline(lua_getmetatable/2).
 
-:- pragma foreign_proc("C", lua_setmetatable(L::in, I::in), 
+:- pragma foreign_proc("C", lua_setmetatable(L::in, I0::in), 
 	[will_not_call_mercury], "
+	I = luaMR_absolute(L, I0);
 	lua_setmetatable(L, I);
 	if(luaMR_ismruserdata(L, I))
 		luaMR_set_userdata_metatable(L, I);
 "). 
 
+:- pragma inline(lua_setmetatable).
+
 :- pragma foreign_proc("C", lua_newtable(L::in), 
 	[will_not_call_mercury], "lua_newtable(L);"). 
+	
+:- pragma inline(lua_newtable/1).
 
 :- pragma foreign_proc("C", lua_next(L::in, I::in), 
 	[will_not_call_mercury], "lua_next(L, I);"). 
+	
+:- pragma inline(lua_next/2).
 
 %-----------------------------------------------------------------------------%
 %
@@ -566,10 +624,14 @@ push_var(L, V) :-
 %
  
 :- pragma foreign_proc("C", lua_getregistry(L::in, I::in), 
-	[will_not_call_mercury], "luaMR_getregistry(L, I);"). 
+	[will_not_call_mercury], "luaMR_getregistry(L, I);").
+	
+:- pragma inline(lua_getregistry/2).
 
 :- pragma foreign_proc("C", lua_setregistry(L::in, I::in), 
 	[will_not_call_mercury], "luaMR_setregistry(L, I);"). 
+	
+:- pragma inline(lua_setregistry/2).
 	
 	
 :- pragma foreign_proc("C", lua_getupvalue(L::in, I::in), 
@@ -577,8 +639,12 @@ push_var(L, V) :-
 	SUCCESS_INDICATOR = luaMR_getupvalue(L, I);
 "). 
 
+:- pragma inline(lua_getupvalue/2).
+
 :- pragma foreign_proc("C", lua_setupvalue(L::in, I::in), 
 	[will_not_call_mercury], "luaMR_setupvalue(L, I);"). 
+	
+:- pragma inline(lua_setupvalue/2).
 
 %-----------------------------------------------------------------------------%
 %
@@ -588,12 +654,16 @@ push_var(L, V) :-
 :- pragma foreign_proc("C", lua_loadstring(L::in, S::in) = (Success::out),
 	[will_not_call_mercury], "Success = luaL_loadstring(L, S);").
 	
+:- pragma inline(lua_loadstring/2).
+	
 :- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret::in) = (Returned::out),
 	[will_not_call_mercury], "
 	int Start = lua_gettop(L) - Args - 1;
 	lua_call(L, Args, Ret);
 	Returned = lua_gettop(L) - Start;
 	").
+	
+:- pragma inline(lua_call/3).
 	
 lua_call(L, A) = R :-
 	impure R = lua_call(L, A, multret).
@@ -606,6 +676,8 @@ lua_call(L, A) = R :-
 	lua_pcall(L, Args, Ret, Err);
 	Returned = lua_gettop(L) - Start;
 	").
+	
+:- pragma inline(lua_pcall/4).
 	
 lua_pcall(L, A, E) = R :-
 	impure R = lua_pcall(L, A, multret, E).
@@ -620,6 +692,8 @@ lua_pcall(L, A, E) = R :-
 
 :- pragma foreign_proc("C", multret = (M::out),
 	[promise_pure, will_not_call_mercury], "M = LUA_MULTRET;").
+	
+:- pragma inline(multret/0).
 
 
 mr_call(L) = R :- 
@@ -661,6 +735,8 @@ mr_call(L,  R) :-
 :- pragma foreign_proc("C", lua_error(L::in),
 	[will_not_call_mercury],"lua_error(L);").
 	
+:- pragma inline(lua_error/1).
+	
 lua_error(L, T) :-
 	impure lua_pushuserdata(L, T),
 	impure lua_error(L). 
@@ -676,6 +752,8 @@ lua_error(L, T) :-
 :- func return_nil = nil.
 
 return_nil = nil.
+
+:- pragma inline(return_nil/0).
 
 :- pragma foreign_export("C", return_nil = out, "luaMR_nil").
 
@@ -714,10 +792,14 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 :- pragma foreign_proc("C", lua_isnumber(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	" SUCCESS_INDICATOR = lua_isnumber(L, Index);").
+	
+:- pragma inline(lua_isnumber/2).
 
 :- pragma foreign_proc("C", lua_isstring(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	" SUCCESS_INDICATOR = lua_isstring(L, Index);").
+	
+:- pragma inline(lua_isstring/2).
 
 :- pragma foreign_proc("C", lua_isinteger(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
@@ -725,18 +807,26 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 	if(lua_isnumber(L, Index));
 	 SUCCESS_INDICATOR = 
 	 	!(lua_tonumber(L, Index) - lua_tointeger(L, Index));").
+	 	
+:- pragma inline(lua_isinteger/2).
 
 :- pragma foreign_proc("C", lua_isthread(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isthread(L, Index);").
+	
+:- pragma inline(lua_isthread/2).
 
 :- pragma foreign_proc("C", lua_isnil(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isnil(L, Index);").
+	
+:- pragma inline(lua_isnil/2).
 
 :- pragma foreign_proc("C", lua_isuserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isuserdata(L, Index);").
+	
+:- pragma inline(lua_isuserdata/2).
 
 :- pragma foreign_proc("C", lua_ismruserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury], "
@@ -759,22 +849,32 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 :- pragma foreign_proc("C", lua_istable(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_istable(L, Index);").
+	
+:- pragma inline(lua_istable/2).
 
 :- pragma foreign_proc("C", lua_islightuserdata(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_islightuserdata(L, Index);").
 	
+:- pragma inline(lua_islightuserdata/2).
+	
 :- pragma foreign_proc("C", lua_isboolean(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isboolean(L, Index);").
+	
+:- pragma inline(lua_isboolean/2).
 	
 :- pragma foreign_proc("C", lua_isfunction(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_isfunction(L, Index);").
 
+:- pragma inline(lua_isfunction/2).
+
 :- pragma foreign_proc("C", lua_iscfunction(L::in, Index::in),
 	[promise_semipure, will_not_call_mercury],
 	"SUCCESS_INDICATOR = lua_iscfunction(L, Index);").
+	
+:- pragma inline(lua_iscfunction/2).
 
 
 %-----------------------------------------------------------------------------%
@@ -782,23 +882,28 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 :- pragma foreign_proc("C", lua_tonumber(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
 	"V = lua_tonumber(L, Index);").
+	
+:- pragma inline(lua_tonumber/2).
 
 :- pragma foreign_proc("C", lua_tostring(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury], "
 	size_t  len;
 	const char * S0 = lua_tolstring(L, Index, &len);
-	char * S = MR_GC_malloc(len);
+	char * S = MR_GC_malloc(len); /* <_<; */
 	V = strncpy(S, S0, len);
 ").
 
 :- pragma foreign_proc("C", lua_tointeger(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
 	"V = lua_tointeger(L, Index);").
+	
+:- pragma inline(lua_tointeger/2).
 
 :- pragma foreign_proc("C", lua_tothread(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
 	"V = lua_tothread(L, Index);").
 
+:- pragma inline(lua_tothread/2).
 	
 lua_touserdata(L, Index) = U :-
 	semipure lua_ismruserdata(L, Index) -> 
@@ -813,24 +918,31 @@ lua_touserdata(L, Index) = U :-
 	[promise_semipure, will_not_call_mercury],
 	"V = **(MR_Word **)lua_touserdata(L, Index);").
 	
+:- pragma inline(lua_touserdata/2).
+	
 :- pragma foreign_proc("C", lua_tocuserdata(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
 	"V = (size_t)lua_touserdata(L, Index);").
+	
+:- pragma inline(lua_tocuserdata/2).
 
 :- pragma foreign_proc("C", lua_toboolean(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
-	"if(lua_toboolean(L, Index))
-	 	V = MR_YES;
-	 else
-	 	V = MR_NO;").
+	"V = lua_toboolean(L, Index) ? MR_YES : MR_NO;").
+	 	
+:- pragma inline(lua_toboolean/2).
 	 	
 :- pragma foreign_proc("C", lua_tocfunction(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
 	"V = lua_tocfunction(L, Index);").
+	
+:- pragma inline(lua_tocfunction/2).
 
 :- pragma foreign_proc("C", lua_toref(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
 	"V = (luaMR_Ref)luaMR_newref(L, Index);").
+	
+:- pragma inline(lua_toref/2).
 
 
 %-----------------------------------------------------------------------------%
@@ -838,34 +950,43 @@ lua_touserdata(L, Index) = U :-
 :- pragma foreign_proc("C", lua_pushnumber(L::in, V::in),
 	[will_not_call_mercury],
 	"lua_pushnumber(L, V);").
+	
+:- pragma inline(lua_pushnumber/2).
 
 :- pragma foreign_proc("C", lua_pushstring(L::in, V::in),
 	[will_not_call_mercury],
 	"lua_pushstring(L, V);").
+	
+:- pragma inline(lua_pushstring/2).
 
 :- pragma foreign_proc("C", lua_pushinteger(L::in, V::in),
 	[will_not_call_mercury],
 	"lua_pushinteger(L, V);").
+	
+:- pragma inline(lua_pushinteger/2).
 
 :- pragma foreign_proc("C", lua_pushthread(L::in),
 	[will_not_call_mercury],
 	"lua_pushthread(L);").
+	
+:- pragma inline(lua_pushthread/1).
 
 :- pragma foreign_proc("C", lua_pushthread(L::in) = (Main::out),
 	[will_not_call_mercury], "
-	if(lua_pushthread(L))
-		Main = MR_YES;
-	else
-		Main = MR_NO;
-").
+	Main = lua_pushthread(L) MR_YES : MR_NO;").
 
+:- pragma inline(lua_pushthread/2).
 
 :- pragma foreign_proc("C", lua_pushnil(L::in),
 	[will_not_call_mercury],
 	"lua_pushnil(L);").
+	
+:- pragma inline(lua_pushnil/1).
 
 lua_pushuserdata(L, V) :- 
 	impure lua_pushuniv(L, univ(V)).
+	
+:- pragma inline(lua_pushuserdata/2).
 
 :- pragma foreign_proc("C", lua_pushuniv(L::in, V::in),
 	[will_not_call_mercury], " 
@@ -880,29 +1001,36 @@ lua_pushuserdata(L, V) :-
 	[will_not_call_mercury],
 	"lua_pushlightuserdata(L, (void *)V);").
 	
+:- pragma inline(lua_pushlightuserdata/2).
+	
 :- pragma foreign_proc("C", lua_pushboolean(L::in, V::in),
 	[will_not_call_mercury],
-"
-	 if(V == MR_YES)
-	 	lua_pushboolean(L, 1);
-	 else
-	 	lua_pushboolean(L, 0);").
+	"lua_pushboolean(L, V == MR_YES ? 1 : 0);").
+	
+:- pragma inline(lua_pushboolean/2).
 
 lua_pushfunc(L, V) :- 
 	impure lua_pushuserdata(L, func_udata(V)),
 	impure lua_pushcclosure(L, mr_call_ptr, 1).
+	
 
 :- pragma foreign_proc("C", lua_pushcfunction(L::in, V::in),
 	[will_not_call_mercury],
 	"lua_pushcfunction(L, V);").
 	
+:- pragma inline(lua_pushcfunction/2).
+	
 :- pragma foreign_proc("C", lua_pushcclosure(L::in, V::in, Up::in),
 	[will_not_call_mercury],
 	"lua_pushcclosure(L, V, Up);").
+	
+:- pragma inline(lua_pushclosure/3).
 
 :- pragma foreign_proc("C", lua_pushref(L::in, V::in),
 	[will_not_call_mercury],
 	"luaMR_pushref(L, V);").
+	
+:- pragma inline(lua_pushref/2).
 
 %-----------------------------------------------------------------------------%
 
@@ -910,6 +1038,8 @@ lua_pushfunc(L, V) :-
 
 :- pragma foreign_proc("C", set_userdata_metatable(L::in, I::in),
 	[will_not_call_mercury], "luaMR_set_userdata_metatable(L, I);").
+
+:- pragma inline(set_userdata_metatable/2).
 
 :- pragma foreign_decl("C", "
 void luaMR_set_userdata_metatable(lua_State *, int);
