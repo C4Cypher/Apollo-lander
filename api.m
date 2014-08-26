@@ -415,29 +415,28 @@ lua_push(L, V) :-
 	require_complete_switch [V]
 	( V = nil(_) ->
 		impure lua_pushnil(L)
-	; V = number(T) ->
-		impure lua_pushnumber(L, T)
-	; V = integer(T) ->
-		impure lua_pushinteger(L, T)
-	; V = boolean(T) ->
-		impure lua_pushboolean(L, T)
-	; V = string(T) ->
-		impure lua_pushstring(L, T)
-	; V = lightuserdata(T) ->
-		impure lua_pushlightuserdata(L, T)
-	; V = thread(T) ->
-		(T = L -> impure lua_pushthread(L)
+	; V = number(F) ->
+		impure lua_pushnumber(L, F)
+	; V = integer(I) ->
+		impure lua_pushinteger(L, I)
+	; V = boolean(B) ->
+		impure lua_pushboolean(L, B)
+	; V = string(S) ->
+		impure lua_pushstring(L, S)
+	; V = lightuserdata(P) ->
+		impure lua_pushlightuserdata(L, P)
+	; V = thread(L2) ->
+		(L2 = L -> impure lua_pushthread(L)
 		; error("Can only push the active thread onto the stack.")
 		)
-	; V = c_function(T) ->
-		impure lua_pushcfunction(L, T)
-	; V = var(_) ->
-		sorry($module, $pred, 
-		"Implement the pushing of variables.") 
-	; V = userdata(T) ->
-		impure lua_pushuniv(L, T)
-	; V = lua_error(T) ->
-		impure lua_error(L, T)
+	; V = c_function(F) ->
+		impure lua_pushcfunction(L, F)
+	; V = var(Var) ->
+		impure lua_pushvar(L, Var) 
+	; V = userdata(U) ->
+		impure lua_pushuniv(L, U)
+	; V = lua_error(E) ->
+		impure lua_error(L, E)
 	; V = unbound ->
 		impure lua_pushuserdata(L, V)
 	; unexpected($module, $pred, "Attempted to push an unexpected value: "
@@ -448,7 +447,15 @@ lua_pushvar(L, V) :-
 	require_complete_switch [V]
 	( V = local(I) -> impure lua_pushvalue(L, I)
 	; V = index(Val, Table) ->
-		impure lua_pushvar(L, Table)
+		( Val = nil(_) ->
+			impure lua_pusnhil(L)
+		; Val = unbound -> unexpected($module, $pred, "Attempted to index by unbound value.")
+		;
+			impure lua_pushvar(L, Table),
+			impure lua_push(L, Val),
+			impure lua_rawget(L, -2),
+			impure lua_remove(L, -2)
+		)
 
 :- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
 	[will_not_call_mercury], "lua_pop(L, Num);").
