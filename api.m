@@ -87,10 +87,10 @@
 :- semipure pred lua_stackindex(lua::in, index::out) is nondet.
 
 	% The index of the registry
-:- func lua_registryindex = index.
+:- func registryindex = index.
 
 	% The index of the global environment
-:- func lua_globalindex = index.
+:- func globalindex = index.
 
 :- func index(int) = index.
 
@@ -118,13 +118,32 @@
 	% Push a value onto the Lua stack
 :- impure pred lua_push(lua::in, value::in) is det.
 
-	% Pop 
+	% Push a variable onto the stack
+:- impure pred lua_pushvar(lua::in, var::in) is det.
+
+	% Pop a number of values off the stack.
 :- impure pred 	lua_pop(lua::in, int::in) is det.
 
 % Note: Use of lua_remove and lua_insert is highly discouraged when used with 
 % this library, given that said operations impurely re-arrange the Lua stack
 % in a manner that ignores restrictions that Mercury needs to interact with
-% it purely.
+% it purely. Furthermore, the indexes provided to the following procedures
+% MUST be valid indexes on the stack, not pseudo-indexes such as 
+% registryindex or globalindex.
+
+	% Remove a value from the stack at a given index, shifting the elments
+	% above it down(dangerous)
+	%
+:- impure pred lua_remove(lua::in, index::in) is det.
+
+	% Pop a value from the top of the stack and use it to replace the
+	% value at the given stack index, without disturbing the rest of the
+	% stack.
+:- impure pred lua_replace(lua::in, index::in) is det.
+
+	% Pop a value from the top of the stack, and insert it at the
+	% given stack index, shifting elements up.
+:- impure pred lua_insert(lua::in, index::in) is det.
 
 
 
@@ -240,9 +259,16 @@
 	% 
 :- impure func lua_cpcall(lua, c_function, c_pointer) = c_pointer.
 
-	% Throw an error from Mercury to Lua
+% TODO: Should lua_error/2/3 be failure?
+
+	% Throw an error from Mercury to Lua, passing the value on the stack
+	% as the error value.
 	%
 :- impure pred lua_error(lua::in) is erroneous.
+
+	% Throw an error from Mercury to Lua, passing the given value
+	% as the error value.
+	%
 :- impure pred lua_error(lua::in, T::in) is erroneous.
 
 
@@ -358,10 +384,10 @@ lua_negindex(L, -P) :- semipure lua_posindex(L, P).
 lua_stackindex(L, I) :- 
 	semipure lua_posindex(L, I) ; semipure lua_negindex(L, I). 
 
-:- pragma foreign_proc("C", lua_registryindex = (I::out),
+:- pragma foreign_proc("C", registryindex = (I::out),
 	[promise_pure, will_not_call_mercury], "I = LUA_REGISTRYINDEX;").
 	
-:- pragma foreign_proc("C", lua_globalindex = (I::out),
+:- pragma foreign_proc("C", globalindex = (I::out),
 	[promise_pure, will_not_call_mercury], "I = LUA_GLOBALSINDEX;").
 	
 index(I) = I.
@@ -389,38 +415,59 @@ lua_push(L, V) :-
 	require_complete_switch [V]
 	( V = nil(_) ->
 		impure lua_pushnil(L)
-	; V = number(T) ->
-		impure lua_pushnumber(L, T)
-	; V = integer(T) ->
-		impure lua_pushinteger(L, T)
-	; V = boolean(T) ->
-		impure lua_pushboolean(L, T)
-	; V = string(T) ->
-		impure lua_pushstring(L, T)
-	; V = lightuserdata(T) ->
-		impure lua_pushlightuserdata(L, T)
-	; V = thread(T) ->
-		(T = L -> impure lua_pushthread(L)
+	; V = number(F) ->
+		impure lua_pushnumber(L, F)
+	; V = integer(I) ->
+		impure lua_pushinteger(L, I)
+	; V = boolean(B) ->
+		impure lua_pushboolean(L, B)
+	; V = string(S) ->
+		impure lua_pushstring(L, S)
+	; V = lightuserdata(P) ->
+		impure lua_pushlightuserdata(L, P)
+	; V = thread(L2) ->
+		(L2 = L -> impure lua_pushthread(L)
 		; error("Can only push the active thread onto the stack.")
 		)
-	; V = c_function(T) ->
-		impure lua_pushcfunction(L, T)
-	; V = var(_) ->
-		sorry($module, $pred, 
-		"Implement the pushing of variables.") 
-	; V = userdata(T) ->
-		impure lua_pushuniv(L, T)
-	; V = lua_error(T) ->
-		impure lua_error(L, T)
+	; V = c_function(F) ->
+		impure lua_pushcfunction(L, F)
+	; V = var(Var) ->
+		impure lua_pushvar(L, Var) 
+	; V = userdata(U) ->
+		impure lua_pushuniv(L, U)
+	; V = lua_error(E) ->
+		impure lua_error(L, E)
 	; V = unbound ->
 		impure lua_pushuserdata(L, V)
 	; unexpected($module, $pred, "Attempted to push an unexpected value: "
 		++ string.string(V))
 	).
+	
+lua_pushvar(L, V) :-
+	require_complete_switch [V]
+	( V = local(I) -> impure lua_pushvalue(L, I)
+	; V = index(Val, Table) ->
+		( Val = nil(_) ->
+			impure lua_pusnhil(L)
+		; Val = unbound -> unexpected($module, $pred, "Attempted to index by unbound value.")
+		;
+			impure lua_pushvar(L, Table),
+			impure lua_push(L, Val),
+			impure lua_rawget(L, -2),
+			impure lua_remove(L, -2)
+		)
 
 :- pragma foreign_proc("C",  lua_pop(L::in, Num::in),
 	[will_not_call_mercury], "lua_pop(L, Num);").
 
+:- pragma foreign_proc("C",  lua_remove(L::in, Index::in), 
+	[will_not_call_mercury], "lua_remove(L, Index);").
+
+:- pragma foreign_proc("C",  lua_replace(L::in, Index::in), 
+	[will_not_call_mercury], "lua_replace(L, Index);").
+
+:- pragma foreign_proc("C",  lua_insert(L::in, Index::in), 
+	[will_not_call_mercury], "lua_insert(L, Index);").
 
 %-----------------------------------------------------------------------------%
 %
@@ -704,7 +751,7 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 	[promise_semipure, will_not_call_mercury], "
 	size_t  len;
 	const char * S0 = lua_tolstring(L, Index, &len);
-	char * S = MR_malloc(len);
+	char * S = MR_GC_malloc(len);
 	V = strncpy(S, S0, len);
 ").
 
