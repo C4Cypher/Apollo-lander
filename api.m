@@ -235,16 +235,17 @@
 	% Load a function from a string.
 :- impure func lua_loadstring(lua, string) = status is det.
 
-	% lua_call(L, Args, [Results])
+	% lua_call(L, Args, Results)
+	% lua_call(L, Args) = Results]
 	% call a function
-:- impure func lua_call(lua, int, int) = int.
+:- impure pred lua_call(lua::in, int::in, int::in) is det.
 :- impure func lua_call(lua, int) = int.
 
-
-	% lua_pcall(L, Args, [Results], Error) = Returned.
+	% lua_pcall(L, Args, Results, Error_handler). 
+	% lua_pcall(L, Args, Error_handler) = Returned.
 	% call a function with an error handler.
 	%
-:- impure func lua_pcall(lua, int, int, index) = int.
+:- impure pred lua_pcall(lua::in, int::in, int::in, index::in) is det.
 :- impure func lua_pcall(lua, int, index) = int.
 
 	% Call a mercury function from C
@@ -633,31 +634,30 @@ push_var(L, V) :-
 	
 :- pragma inline(lua_loadstring/2).
 	
-:- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret::in) = (Returned::out),
-	[may_call_mercury], "
-	int Start = lua_gettop(L) - Args - 1;
-	lua_call(L, Args, Ret);
-	Returned = lua_gettop(L) - Start;
-	").
+:- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret::in),
+	[may_call_mercury], "lua_call(L, Args, Ret);").
 	
 :- pragma inline(lua_call/3).
 	
 lua_call(L, A) = R :-
-	impure R = lua_call(L, A, multret).
+	semipure T1 = lua_gettop(L),
+	S = T1 - A - 1,
+	impure lua_call(L, A, multret),
+	semipure T2 = lua_gettop(L),
+	R = T2 - S.
 
 	
-:- pragma foreign_proc("C", lua_pcall(L::in, Args::in, Ret::in, Err::in) 
-	= (Returned::out),
-	[may_call_mercury], "
-	int Start = lua_gettop(L) - Args - 1;
-	lua_pcall(L, Args, Ret, Err);
-	Returned = lua_gettop(L) - Start;
-	").
+:- pragma foreign_proc("C", lua_pcall(L::in, Args::in, Ret::in, Err::in),
+	[may_call_mercury], "lua_pcall(L, Args, Ret, Err);").
 	
 :- pragma inline(lua_pcall/4).
 	
 lua_pcall(L, A, E) = R :-
-	impure R = lua_pcall(L, A, multret, E).
+	semipure T1 = lua_gettop(L),
+	S = T1 - A - 1,
+	impure lua_pcall(L, A, multret, E),
+	semipure T2 = lua_gettop(L),
+	R = T2 - S.
 
 :- pragma foreign_proc("C", lua_cpcall(L::in, Func::in, Ptr::in) = (R::out),
 	[may_call_mercury], "
