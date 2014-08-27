@@ -60,6 +60,14 @@
 
 :- include_module api.
 
+% Note: The impure operations defined in the api module that interact directly
+% with the lua type are used to implement this library, however they do not 
+% conform to the semantics of the prodedures in this library.  Semipure
+% procedures are safe to be called without special consideration. However
+% the impure prodedures in the api module WILL produce side effects that
+% will produce undefined behavior in this library if they are not properly
+% implemented. Use the api module at your own risk.
+
 :- import_module io.
 :- import_module float.
 :- import_module int.
@@ -76,22 +84,23 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua State in a pure declarative context
+% The Lua State in an impure context
 %
 
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
 :- type lua.
 
-%TODO:- func get(var) = T is semidet.
-%TODO:- func get_value(var) = value is det.
 
 %-----------------------------------------------------------------------------%
 %
 % The Lua State as a mutable state variable
 %
 
-	% A refrence to the Lua state meant to be passed in a unique context.
+	% A refrence to the Lua state meant to be passed in a safe, 
+	% declarative manner. The choicepoint_id type is from the
+	% extras/trail module, used to perform backtracable
+	% side effects.
 	%
 :- type lua_state ---> 	{ lua, choicepoint_id }.	
 
@@ -110,6 +119,9 @@
 
 :- mode lni == mdi(nls).
 :- mode lno == out(nls).
+
+:- func lua_newstate = lua_state.
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -424,18 +436,7 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-
-
-
-/*
-:- pred any_var(var::out, lua::in) is multi.
-
-
-any_var(V, L) :-
-	( V = index(I) , semipure luaposindex(I, L)
-	;
-
-*/
+lua_newstate = { lua_new, null_choicepoint_id }.
 
 	
 %-----------------------------------------------------------------------------%
