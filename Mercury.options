@@ -11,7 +11,10 @@
 
 MAIN_TARGET = testluaMR
 
-MCFLAGS += --debug --use-trail --trail-segments --stack-segments
+# Debugging Flags
+#MCFLAGS += --debug --use-trail --stack-segments
+#MGNUCFLAGS += --c-debug
+
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
 MCFLAGS += --no-warn-inferred-erroneous
@@ -23,7 +26,6 @@ MCFLAGS += --libgrades-exclude erlang
 MCFLAGS += --libgrades-exclude csharp
 MCFLAGS += --libgrades-include trseg
 
-#MCFLAGS += -L /usr/lib/x86_64-linux-gnu
 MCFLAGS += -llua5.1
 
 # For Fun

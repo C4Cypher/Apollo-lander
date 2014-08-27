@@ -803,12 +803,12 @@ func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 	MR_Word * luaMR_new(MR_Word word) {
 		MR_Word * newptr = MR_GC_malloc_uncollectable(sizeof newptr);
 		*newptr = word;
-		return newptr;
+		return newptr; 
 	}
 	
 	int luaMR_free(lua_State * L) {
-		void * ptr = lua_touserdata(L, 1);
-		MR_GC_free(ptr);
+		MR_Word ** ptr = lua_touserdata(L, 1);
+		MR_GC_free(*ptr);
 		return 0;
 	}
 		
@@ -817,7 +817,7 @@ func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 :- impure func to_string(lua) = int.
 
 to_string(L) = 1 :- 
-	semipure lua_touserdata(L, 1) = U, 
+	semipure lua_touserdata(L, 1) = U,
 	impure lua_pushstring(L, string.string(univ_value(U))).
 
 		

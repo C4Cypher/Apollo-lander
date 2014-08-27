@@ -77,15 +77,6 @@
 % Stack indexes
 %
 
-	% Positive valid stack indexes
-:- semipure pred lua_posindex(lua::in, index::out) is nondet.
-
-	% Negative valid stack indexes
-:- semipure pred lua_negindex(lua::in, index::out) is nondet.
-
-	% All valid stack indexes (not counting pseudoindex).
-:- semipure pred lua_stackindex(lua::in, index::out) is nondet.
-
 	% The index of the registry
 :- func registryindex = index.
 
@@ -377,20 +368,7 @@
 % Stack indexes
 %
 
-lua_posindex(L, I) :-
-	semipure T = lua_gettop(L),
-	(
-		I = 1
-	;
-		semipure lua_posindex(L, I - 1),
-		I =< T
-	).
-	
-		
-lua_negindex(L, -P) :- semipure lua_posindex(L, P).
 
-lua_stackindex(L, I) :- 
-	semipure lua_posindex(L, I) ; semipure lua_negindex(L, I). 
 
 :- pragma foreign_proc("C", registryindex = (I::out),
 	[promise_pure, will_not_call_mercury], "I = LUA_REGISTRYINDEX;").
@@ -408,10 +386,7 @@ index(I) = I.
 	
 :- pragma inline(absolute/2).
 	
-:- pragma foreign_decl("C", "
-	static inline int luaMR_absolute(lua_State * L, int I) 
-		{ return I > 0 ? I : lua_gettop(L) + 1 + I; }").
-
+:- pragma foreign_export("C", absolute(in, in) = out, "luaMR_absolute").
 
 
 %-----------------------------------------------------------------------------%
@@ -487,7 +462,7 @@ push_value(L, V) :-
 	; V = c_function(F) ->
 		impure lua_pushcfunction(L, F)
 	; V = var(Var) ->
-		impure lua_pushvar(L, Var) 
+		impure push_var(L, Var) 
 	; V = userdata(U) ->
 		impure lua_pushuniv(L, U)
 	; V = lua_error(E) ->
@@ -506,7 +481,7 @@ push_var(L, V) :-
 		; Val = unbound -> throw(lua_error(runtime_error, 
 			"attempt to index var " ++ string(Table) ++
 			" by an unbound value."))
-		; impure lua_pushvar(L, Table), semipure lua_isnil(L, -1) -> 
+		; impure push_var(L, Table), semipure lua_isnil(L, -1) -> 
 			throw(lua_error(
 			runtime_error, "attempt to index var "
 			++ string.string(Table) ++
@@ -526,14 +501,14 @@ push_var(L, V) :-
 		)
 	; V = ref(R) -> impure lua_pushref(L, R)
 	; V = global(S) ->
-		impure lua_pushvalue(L, globalsindex),
+		impure lua_pushvalue(L, globalindex),
 		impure lua_pushstring(L, S),
 		impure lua_rawget(L, -2),
 		impure lua_remove(L, -2)
 	; V = invalid(S) ->
 		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		" attempted to push invalid var: " ++ S))
-	; unexpected($module, $pred, "Switch on var V failed."
+	; unexpected($module, $pred, "Switch on var V failed.")
 	).
 
 %-----------------------------------------------------------------------------%
@@ -545,13 +520,13 @@ push_var(L, V) :-
 	[promise_semipure, will_not_call_mercury],
 	"Type = lua_type(L, Index);").
 	
-:- pragma inline(lua_type/1).
+:- pragma inline(lua_type/2).
 	
 :- pragma foreign_proc("C",  lua_typename(L::in, Index::in) = (Name::out), 
 	[promise_semipure, will_not_call_mercury],
 	"Name = (char *)lua_typename(L, lua_type(L, Index));").
 	
-:- pragma inline(lua_typename/q).
+:- pragma inline(lua_typename/2).
 
 
 :- pragma foreign_proc("C", lua_rawget(L::in, I::in), 
@@ -602,13 +577,13 @@ push_var(L, V) :-
 
 :- pragma foreign_proc("C", lua_setmetatable(L::in, I0::in), 
 	[will_not_call_mercury], "
-	I = luaMR_absolute(L, I0);
+	int I = luaMR_absolute(L, I0);
 	lua_setmetatable(L, I);
 	if(luaMR_ismruserdata(L, I))
 		luaMR_set_userdata_metatable(L, I);
 "). 
 
-:- pragma inline(lua_setmetatable).
+:- pragma inline(lua_setmetatable/2).
 
 :- pragma foreign_proc("C", lua_newtable(L::in), 
 	[will_not_call_mercury], "lua_newtable(L);"). 
@@ -654,12 +629,12 @@ push_var(L, V) :-
 %
 
 :- pragma foreign_proc("C", lua_loadstring(L::in, S::in) = (Success::out),
-	[will_not_call_mercury], "Success = luaL_loadstring(L, S);").
+	[may_call_mercury], "Success = luaL_loadstring(L, S);").
 	
 :- pragma inline(lua_loadstring/2).
 	
 :- pragma foreign_proc("C", lua_call(L::in, Args::in, Ret::in) = (Returned::out),
-	[will_not_call_mercury], "
+	[may_call_mercury], "
 	int Start = lua_gettop(L) - Args - 1;
 	lua_call(L, Args, Ret);
 	Returned = lua_gettop(L) - Start;
@@ -673,7 +648,7 @@ lua_call(L, A) = R :-
 	
 :- pragma foreign_proc("C", lua_pcall(L::in, Args::in, Ret::in, Err::in) 
 	= (Returned::out),
-	[will_not_call_mercury], "
+	[may_call_mercury], "
 	int Start = lua_gettop(L) - Args - 1;
 	lua_pcall(L, Args, Ret, Err);
 	Returned = lua_gettop(L) - Start;
@@ -685,7 +660,7 @@ lua_pcall(L, A, E) = R :-
 	impure R = lua_pcall(L, A, multret, E).
 
 :- pragma foreign_proc("C", lua_cpcall(L::in, Func::in, Ptr::in) = (R::out),
-	[will_not_call_mercury], "
+	[may_call_mercury], "
 	R = lua_cpcall(L, Func, (void *)Ptr);
 	").
 
@@ -761,10 +736,37 @@ return_nil = nil.
 
 :- pragma foreign_proc("C", lua_new = (L::out),
 	[promise_pure, will_not_call_mercury], "
-	L = luaL_newstate();
+	void * ptr = MR_malloc(sizeof(ptr));
+	L = lua_newstate((lua_Alloc)luaMR_alloc, ptr);
 	luaL_openlibs(L);
 	luaMR_init(L);
 	").
+	
+:- pragma foreign_decl("C", "
+	void * luaMR_alloc(void *, void *, size_t, size_t);").
+	
+:- pragma foreign_code("C", "
+	void * luaMR_alloc(void * ud, void * ptr, 
+			size_t osize, size_t nsize) {
+		(void)ud;
+		if(nsize == 0) {
+			if(osize == 0)
+				return NULL;
+			else
+				MR_GC_free(ptr);
+				return NULL;
+		} else {
+			if(osize == 0) {
+				ptr = MR_GC_malloc(nsize);
+				return ptr;
+			} else {
+				ptr = MR_GC_realloc(ptr,nsize);
+				return ptr;
+			}
+		}
+	}
+").
+	
 	
 :- pragma inline(lua_new/0).
 	
@@ -891,10 +893,7 @@ lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
 
 :- pragma foreign_proc("C", lua_tostring(L::in, Index::in) = (V::out),
 	[promise_semipure, will_not_call_mercury], "
-	size_t  len;
-	const char * S0 = lua_tolstring(L, Index, &len);
-	char * S = MR_GC_malloc(len); /* <_<; */
-	V = strncpy(S, S0, len);
+	V = MR_copy_string(lua_tostring(L, Index));
 ").
 
 :- pragma foreign_proc("C", lua_tointeger(L::in, Index::in) = (V::out),
@@ -913,7 +912,7 @@ lua_touserdata(L, Index) = U :-
 	semipure lua_ismruserdata(L, Index) -> 
 		semipure U = lua_tomruserdata(L, Index)
 	;
-		semipure C = lua_tocuserdata(L, Index), throw("fuck you"),
+		semipure C = lua_tocuserdata(L, Index),
 		U = univ(C).
 
 :- semipure func lua_tomruserdata(lua, index) = univ.
@@ -977,9 +976,9 @@ lua_touserdata(L, Index) = U :-
 
 :- pragma foreign_proc("C", lua_pushthread(L::in) = (Main::out),
 	[will_not_call_mercury], "
-	Main = lua_pushthread(L) MR_YES : MR_NO;").
+	Main = lua_pushthread(L) ? MR_YES : MR_NO;").
 
-:- pragma inline(lua_pushthread/2).
+:- pragma inline(lua_pushthread/1).
 
 :- pragma foreign_proc("C", lua_pushnil(L::in),
 	[will_not_call_mercury],
@@ -1028,7 +1027,7 @@ lua_pushfunc(L, V) :-
 	[will_not_call_mercury],
 	"lua_pushcclosure(L, V, Up);").
 	
-:- pragma inline(lua_pushclosure/3).
+:- pragma inline(lua_pushcclosure/3).
 
 :- pragma foreign_proc("C", lua_pushref(L::in, V::in),
 	[will_not_call_mercury],
@@ -1066,11 +1065,11 @@ void luaMR_set_userdata_metatable(lua_State * L, int I) {
 	lua_pushstring(L, ""__GC"");
 	lua_pushcfunction(L, (lua_CFunction)luaMR_free);
 	lua_rawset(L, -3);
-	
+
 	lua_pushstring(L, ""__tostring"");
 	lua_pushcfunction(L, (lua_CFunction)luaMR_tostring);
 	lua_rawset(L, -3);
-	
+
 	lua_setmetatable(L, -2);
 		
 	lua_pop(L, 1);
