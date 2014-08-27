@@ -282,7 +282,6 @@
 	%
 :- func lua_new = lua.
 
-:- func lua_newstate = lua_state.
 
 	% Destroy a lua
 	%
@@ -550,17 +549,17 @@ push_var(L, V) :-
 :- pragma inline(lua_rawseti/3).
 
 :- pragma foreign_proc("C", lua_gettable(L::in, I::in), 
-	[will_not_call_mercury], "lua_gettable(L, I);"). 
+	[may_call_mercury], "lua_gettable(L, I);"). 
 	
 :- pragma inline(lua_gettable/2).
 	
 :- pragma foreign_proc("C", lua_settable(L::in, I::in), 
-	[will_not_call_mercury], "lua_settable(L, I);"). 
+	[may_call_mercury], "lua_settable(L, I);"). 
 	
 :- pragma inline(lua_settable/2).
 	
 :- pragma foreign_proc("C", lua_getfield(L::in, I::in, K::in), 
-	[will_not_call_mercury], "lua_getfield(L, I, K);").
+	[may_call_mercury], "lua_getfield(L, I, K);").
 	
 :- pragma inline(lua_getfield/3).
 	
@@ -570,13 +569,13 @@ push_var(L, V) :-
 :- pragma inline(lua_setfield/3).
 	
 :- pragma foreign_proc("C", lua_getmetatable(L::in, I::in), 
-	[will_not_call_mercury], 
+	[may_call_mercury], 
 	"SUCCESS_INDICATOR = lua_getmetatable(L, I);"). 
 	
 :- pragma inline(lua_getmetatable/2).
 
 :- pragma foreign_proc("C", lua_setmetatable(L::in, I0::in), 
-	[will_not_call_mercury], "
+	[may_call_mercury], "
 	int I = luaMR_absolute(L, I0);
 	lua_setmetatable(L, I);
 	if(luaMR_ismruserdata(L, I))
@@ -591,7 +590,7 @@ push_var(L, V) :-
 :- pragma inline(lua_newtable/1).
 
 :- pragma foreign_proc("C", lua_next(L::in, I::in), 
-	[will_not_call_mercury], "lua_next(L, I);"). 
+	[may_call_mercury], "lua_next(L, I);"). 
 	
 :- pragma inline(lua_next/2).
 
@@ -710,7 +709,7 @@ mr_call(L,  R) :-
 	[promise_pure, will_not_call_mercury], "F = (lua_CFunction)luaMR_call;").
 
 :- pragma foreign_proc("C", lua_error(L::in),
-	[will_not_call_mercury],"lua_error(L);").
+	[may_call_mercury],"lua_error(L);").
 	
 :- pragma inline(lua_error/1).
 	
@@ -770,12 +769,9 @@ return_nil = nil.
 	
 :- pragma inline(lua_new/0).
 	
-lua_newstate = { lua_new, CP } :- impure current_choicepoint_id = CP.
-
-:- pragma promise_pure(lua_newstate/0).
 
 :- pragma foreign_proc("C", lua_close(L::in),
-	[will_not_call_mercury], "lua_close(L);").
+	[may_call_mercury], "lua_close(L);").
 	
 :- pragma foreign_proc("C", lua_status(L::in) = (S::out),
 	[promise_semipure, will_not_call_mercury], "S = lua_status(L);").
