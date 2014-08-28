@@ -58,15 +58,16 @@
 
 :- interface.
 
+:- include_
 :- include_module api.
 
-% Note: The impure operations defined in the api module that interact directly
-% with the lua type are used to implement this library, however they do not 
-% conform to the semantics of the prodedures in this library.  Semipure
-% procedures are safe to be called without special consideration. However
-% the impure prodedures in the api module WILL produce side effects that
-% will produce undefined behavior in this library if they are not properly
-% implemented. Use the api module at your own risk.
+% Note: The impure operations defined in the api and modules are used to 
+% implement this library, however they do not fully conform to the semantics of 
+% the prodedures in this library.  Semipure procedures should be safe to be 
+% called without special consideration. However; the impure prodedures in the
+% api module WILL produce side effects that will produce undefined behavior in
+% this library if they are not properly implemented. Use the api module at your
+% own risk.
 
 :- import_module io.
 :- import_module float.
@@ -98,29 +99,32 @@
 %
 
 	% A refrence to the Lua state meant to be passed in a safe, 
-	% declarative manner. The choicepoint_id type is from the
-	% extras/trail module, used to perform backtracable
-	% side effects.
+	% declarative manner. 
 	%
-:- type lua_state ---> 	{ lua, choicepoint_id }.	
+:- type lua_state. 	
 
 	% Abbriviations for lua_state.
 	%
 :- type ls == lua_state.
 
-:- inst det_lua_state == unique({ ground, ground }).
-:- inst nondet_lua_state == mostly_unique({ ground, ground }).
+	% Create a new Lua state.
+	%
+:- func new_state = lua_state.
 
-:- inst dls == det_lua_state.
-:- inst nls == nondet_lua_state.
+	% Deconstruct the lua state into/from a direct refrence to
+	% the lua type.
+	%
+:- func lua(lua_state) = lua.
+:- mode lua(in) = out is det.
+:- mode lua(di) = out is det.
+:- mode lua(mdi) = out is det.
 
-:- mode ldi == di(dls).
-:- mode luo == out(dls).
+	% Construct a lua_state from lua.
+	%
+:- func state(lua) = lua_state.
+:- mode state(in) = uo is det.
 
-:- mode lni == mdi(nls).
-:- mode lno == out(nls).
 
-:- func lua_newstate = lua_state.
 
 
 %-----------------------------------------------------------------------------%
@@ -132,18 +136,18 @@
 	% Mercury needs to interact with it.
 	%
 :- pred init_lua(lua::in, io::di, io::uo) is det.
-:- pred init_lua(lua_state::ldi, lua_state::luo) is det.
+:- pred init_lua(lua_state::di, lua_state::uo) is det.
 
 	% Check to see if lua_init has been called on a Lua state.
 	%
 :- semipure pred ready(lua::in) is semidet.
 
 :- pred ready(bool, ls, ls).
-:- mode ready(out, ldi, luo) is det.
-:- mode ready(out, lni, lno) is det.
+:- mode ready(out, di, uo) is det.
+:- mode ready(out, mdi, muo) is det.
 
 
-:- pred ready(ls::lni, ls::lno) is semidet.
+:- pred ready(ls::mdi, ls::muo) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -423,7 +427,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua State in a pure 'ground' context
+% The Lua State 
 %
 
 
@@ -436,9 +440,15 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-lua_newstate = { lua_new, null_choicepoint_id }.
+:- type lua_state ---> { lua, choicepoint_id }.
 
-	
+new_state = { lua_new, null_choicepoint_id }.
+
+lua({ L, _ }) = L.
+
+state(L) = { unique_lua(L), current_id }.
+
+
 %-----------------------------------------------------------------------------%
 %
 % Initializing the Lua state
