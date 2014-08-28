@@ -429,8 +429,7 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-:- pragma foreign_type("C", lua_state "luaMR_lua_state *",
-	[can_pass_as_mercury_type]).
+:- pragma foreign_type("C", lua_state, "luaMR_lua_state").
 
 
 
