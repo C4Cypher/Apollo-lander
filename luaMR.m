@@ -81,8 +81,6 @@
 :- import_module type_desc.
 :- import_module require.
 
-:- import_module trail.
-
 %-----------------------------------------------------------------------------%
 %
 % The Lua State in an impure context
@@ -364,8 +362,10 @@
 :- implementation.
 
 :- import_module luaMR.api.
+:- import_module luaMR.state.
 
 :- pragma foreign_import_module("C", luaMR.api).
+:- pragma foreign_import_module("C", luaMR.state).
 
 :- import_module type_desc.
 :- import_module int.
@@ -429,7 +429,10 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-:- type lua_state ---> { lua, choicepoint_id }.
+:- pragma foreign_type("C", lua_state "luaMR_lua_state *",
+	[can_pass_as_mercury_type]).
+
+
 
 new_state = { lua_new, null_choicepoint_id }.
 
