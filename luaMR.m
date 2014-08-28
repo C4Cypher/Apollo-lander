@@ -58,7 +58,7 @@
 
 :- interface.
 
-:- include_
+:- include_module state.
 :- include_module api.
 
 % Note: The impure operations defined in the api and modules are used to 
@@ -111,18 +111,7 @@
 	%
 :- func new_state = lua_state.
 
-	% Deconstruct the lua state into/from a direct refrence to
-	% the lua type.
-	%
-:- func lua(lua_state) = lua.
-:- mode lua(in) = out is det.
-:- mode lua(di) = out is det.
-:- mode lua(mdi) = out is det.
 
-	% Construct a lua_state from lua.
-	%
-:- func state(lua) = lua_state.
-:- mode state(in) = uo is det.
 
 
 
@@ -443,11 +432,6 @@
 :- type lua_state ---> { lua, choicepoint_id }.
 
 new_state = { lua_new, null_choicepoint_id }.
-
-lua({ L, _ }) = L.
-
-state(L) = { unique_lua(L), current_id }.
-
 
 %-----------------------------------------------------------------------------%
 %
