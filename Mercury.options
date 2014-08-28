@@ -12,9 +12,10 @@
 MAIN_TARGET = testluaMR
 
 # Debugging Flags
-#MCFLAGS += --debug --use-trail --stack-segments
+#MCFLAGS += --debug --stack-segments
 #MGNUCFLAGS += --c-debug
 
+MCFLAGS += --intermodule-optimization
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
 MCFLAGS += --no-warn-inferred-erroneous
