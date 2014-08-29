@@ -257,7 +257,7 @@
 
 :- type lua_result
 	--->	returned(int)
-	;	lua_error(lua_error).
+	;	returned_error(lua_error).
 
 	% cpcall(CFunc, LUdataIn, L) = LUdataOut
 	%
@@ -653,19 +653,20 @@ lua_call(L, A) = R :-
 	R = T2 - S.
 
 
-lua_pcall(L, Args, Ret, Err) = Result :-
+lua_pcall(L, A, R, E) = Result :-
 	semipure T1 = lua_gettop(L),
 	S = T1 - A - 1,
-	impure Error = lua_pcall2(L, A, multret, E),
-	Error = no_error ->
+	impure Error = lua_pcall2(L, A, R, E),
+	( Error = no_error ->
 		semipure T2 = lua_gettop(L),
 		Result = returned(T2 - S)
 	; 
 		semipure Message = lua_tostring(L, -1),
 		impure lua_pop(L, 1),
-		Result = lua_error(Error, Message).
+		Result = returned_error(lua_error(Error, Message))
+	).
 
-:- func lua_pcall2(lua, int, int, index) = int.
+:- impure func lua_pcall2(lua, int, int, index) = error_type.
 
 :- pragma foreign_proc("C", lua_pcall2(L::in, Args::in, Ret::in, Err::in) 
 		= (Result::out),
@@ -678,11 +679,12 @@ lua_pcall(L, A, E) = R :-
 	
 lua_pcall(L, A) = R :-
 	impure Result = lua_pcall(L, A, 0),
-	Result = lua_error(Error) ->
+	( Result = returned_error(Error) ->
 		throw(Error)
 	; 
-		Result = returned(R).
-
+		Result = returned(R)
+	).
+	
 :- pragma foreign_proc("C", lua_cpcall(L::in, Func::in, Ptr::in) = (R::out),
 	[may_call_mercury], "
 	R = lua_cpcall(L, Func, (void *)Ptr);
@@ -724,10 +726,6 @@ mr_call(L,  R) :-
 		error( 
 		"Called Mercury function without valid func upvalue.").
 		
-:- impure func mr_error(lua) = int.
-
-mr_error
-
 :- pragma promise_pure(mr_call/2).
 		
 :- pragma foreign_export("C", mr_call(in) = out, "luaMR_call").	

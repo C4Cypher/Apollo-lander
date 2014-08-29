@@ -350,7 +350,8 @@
 	---> 	lua_error(error_type, string).
 
 :- type error_type
-	--->	runtime_error
+	--->	no_error
+	;	runtime_error
 	;	syntax_error
 	;	memory_error
 	;	unhandled_error.
@@ -433,7 +434,7 @@
 
 
 
-new_state = { lua_new, null_choicepoint_id }.
+new_state = lua_state(lua_new, null_id, empty_trail).
 
 %-----------------------------------------------------------------------------%
 %
@@ -445,7 +446,7 @@ new_state = { lua_new, null_choicepoint_id }.
 
 
 
-init_lua({L, C}, {L, C}) :- promise_pure( impure init_lua(L)).
+init_lua(!LS) :- promise_pure( impure init_lua(!.LS ^ lua)).
 
 :- impure pred init_lua(lua::in) is det.
 
@@ -459,11 +460,11 @@ init_lua({L, C}, {L, C}) :- promise_pure( impure init_lua(L)).
 ").
 
 
-ready({L, C}, {L, C}) :- promise_pure (semipure ready(L)).
+ready(!LS) :- promise_pure (semipure ready(!.LS ^ lua)).
 
-ready(B, {L, C}, {L, C}) :- 
+ready(B, !LS) :- 
 	promise_pure 
-	( semipure ready(L) -> B = yes
+	( semipure ready(!.LS ^ lua) -> B = yes
 	; B = no).
 
 :- pragma foreign_decl("C", "void luaMR_init(lua_State *);").
@@ -830,6 +831,7 @@ to_string(L) = 1 :-
 
 :- pragma foreign_enum("C", error_type/0,
 [
+	no_error	-	"0",
 	runtime_error 	-	"LUA_ERRRUN",
 	syntax_error 	-	"LUA_ERRSYNTAX",
 	memory_error	-	"LUA_ERRMEM",
