@@ -21,6 +21,13 @@
 
 :- import_module trail.
 
+	% The various types that might be used to backtrack a Lua state
+:- type lua_trail
+	--->	lua_func(lua_func)
+	;	c_function(c_function)
+	;	ref(ref)
+	;	empty_trail.
+
 
 	% Abbriviated choicepoint id.
 :- type id == choicepoint_id.
@@ -34,19 +41,24 @@
 	% Fail if the current choicepoint is newer than 
 	% the stored choicepoint.
 	%
-:- semipure func current(lua_state).
+:- semipure pred current(lua_state).
 :- mode current(ui) is semidet.
 :- mode current(mui) is semidet.
 
 
-	% Construct or deconstruct a Lua state while preserving 
-	% it's uniqueness.
+
+	% Construct or deconstruct a Lua state 
 	%
-:- func lua_state(lua, id, lua_func) = lua_state.
+:- func lua_state(lua, id, lua_trail) = lua_state.
 :- mode lua_state(in, in, in) = uo is det.
-:- mode lua_state(in, in, in) = muo is det.
-:- mode lua_state(out, out, out) = ui is det.
-:- mode lua_state(out, out, out) = mui is det.
+:- mode lua_state(out, out, out) = di is det.
+:- mode lua_state(out, out, out) = mdi is det.
+
+	% Unique deconstructor
+	%
+:- func unique_state(lua, id, lua_trail) = lua_state.
+:- mode unique_state(out, out, out) = ui is det.
+:- mode unique_state(out, out, out) = mui is det.
 
 % Access the members of a Lua state while preserving it's uniqueness.
 
@@ -55,19 +67,18 @@
 :- mode lua(mui) = uo is det.
 
 :- func id(lua_state) = id.
-:- mode id(ui) = uo.
-:- mode id(mui) = uo.
+:- mode id(ui) = uo is det.
+:- mode id(mui) = uo is det.
 
-:- func trail_func(lua_state) = lua_func.
-:- mode trail_func(ui) = out(lua_trail).
-:- mode trail_func(mui) = out(lua_trail).
-
+:- func trail(lua_state) = lua_trail.
+:- mode trail(ui) = out is det.
+:- mode trail(mui) = out is det.
 
 
 	% Register a new trail function, it will be called before the existing
 	% trail_func is called.
-:- pred update_trail_func(lua_func, ls, ls).
-:- mode update_trail_func(in, mdi, muo) is det.
+:- pred update_lua_trail(lua_func, ls, ls).
+:- mode update_lua_trail(in, mdi, muo) is det.
 
 	% Register the trail_func of a lua_state on the trail, update the
 	% choicepoint ID, and reset the trail func.
@@ -82,17 +93,14 @@
 	% Just update the trail_func.
 	%
 :- impure pred trail_if_newer(lua_func::in, ls::mdi, ls::muo) is det.
-:- impure pred trail_if_newer(impure pred(untrail_reason::in) is semidet, 
-	lua_func::in, ls::mdi, ls::muo) is det.
+
 
 	% Predicates that can be used to register a trail_func with the trail.
 	% The latter form will only backtrack on undo, exception or retry.
-	% Will throw an exception if the trail_func fails, using the value
-	% on the top of the stack.
 	%
-:- impure pred backtrack(trail_func::in, lua::in) is det.
+:- impure pred backtrack(lua_trail::in, lua::in) is det.
 :- impure pred backtrack(untrail_reason::in, 
-	trail_func::in, lua_state::in) is det.
+	lua_trail::in, lua_state::in) is det.
 	
 
 
@@ -114,78 +122,120 @@ current(lua_state(_, Id, _)) :- choicepoint_newer(current_id, Id).
 	} luaMR_lua_state;
 ").
 
-lua_state(L, I, T) = S :- S0 = lua_state2(L, I, T)
 
-
-:- pragma foreign_proc("C", lua_state(L::in, Id::in, 
-	Trail::in) = (State::uo),
+:- pragma foreign_proc("C", lua_state(L::in, I::in, T::in) = (S::uo),
 	[will_not_call_mercury, promise_pure], "
 	
 	luaMR_lua_state newstate;
 	newstate->lua = L;
-	newstate.id = Id;
-	newstate->trail = Trail;
-	*State = newstate;
+	newstate.id = I;
+	newstate->trail = T;
+	S = newstate;
 ").
 
-:- pragma foreign_proc("C", lua_state(L::in, Id::in, 
-	Trail::in) = (State::muo),
+:- pragma foreign_proc("C", lua_state(L::in, I::in, T::in) = (S::muo),
 	[will_not_call_mercury, promise_pure], "
 	
 	luaMR_lua_state newstate;
 	newstate->lua = L;
-	newstate.id = Id;
-	newstate->trail = Trail;
-	*State = newstate;
+	newstate.id = I;
+	newstate->trail = T;
+	S = newstate;
 ").
 
-:- pragma foreign_proc("C", lua_state(L::out, Id::out, 
-	Trail::out) = (State::ui),
+:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out) = (S::di),
 	[will_not_call_mercury, promise_pure], "
 	
-	L = State->lua;
-	ID = State.id;
-	Trail State->trail;
+	L = S->lua;
+	I = S.id;
+	T = S->trail;
 ").
 
-:- pragma foreign_proc("C", lua_state(L::out, Id::out, 
-	Trail::out) = (State::mui),
+:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out) = (S::mdi),
 	[will_not_call_mercury, promise_pure], "
 	
-	L = State->lua;
-	ID = State.id;
-	Trail State->trail;
+	L = S->lua;
+	I = S.id;
+	T = S->trail;
 ").
 	
+:- pragma foreign_proc("C", unique_state(L::out, I::out, T::out) = (S::ui),
+	[will_not_call_mercury, promise_pure], "
 	
-lua(lua_state(L, _, _)) = L.
-id(lua_state(_, I, _)) = I.
-trail(lua_state(_, _, T)) = T.
+	L = S->lua;
+	I = S.id;
+	T = S->trail;
+").
 
-update_trail_func(F, lua_state(L, C, F0), lua_state(L, C, 
-	( impure func(L::in) = ((0)::out) is det :-
-		impure backtrack(F, L),
-		impure backtrack(F0, L)
-	)
-).
+:- pragma foreign_proc("C", unique_state(L::out, I::out, T::out) = (S::ui),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+	I = S.id;
+	T = S->trail;
+").
 
-trail_lua_closure(F0, LS, lua_state(L, current_id, empty_trail) :-
+
+lua(unique_state(L, _, _)) = L.
+id(unique_state(_, I, _)) = I.
+trail(unique_state(_, _, T)) = T.
+
+
+update_lua_trail(T, lua_state(L, C, T0), lua_state(L, C, lua_func(F))) :-
+	require_complete_switch [T] some [F0]
+	( T = lua_func(F0)
+	; T = empty_trail, 
+		unexpected($module, $pred,
+		"cannot update the Lua trail with an empty_trail") 
+	; some [R] 
+		( T = c_function(C), 
+			impure lua_pushcfunction(L, C),
+			semipure R = lua_toref(L, index(-1)),
+			impure lua_pop(L, 1)
+		; T = ref(R)
+		) -> F0 = ( impure func(L::in) = (Ret - 1::out) is det :-
+			impure lua_pushref(L, R),
+			semipure Err_index = lua_gettop(L),
+			impure Ret = lua_pcall(L, index(-1)),
+			impure lua_remove(L, index(Err_index))
+		)
+		; unexpected($module, $pred, 
+			"Unknown lua_trail value provided.")
+	),			 
+	F = lua_func( 
+		( impure func(L::in) = ((0)::out) is det :-
+			impure backtrack(F, L),
+			impure backtrack(F0, L)
+		)
+	).
+	
+
+trail_lua_closure(F0, LS, lua_state(L, current_id, empty_trail)) :-
 	update_trail_func(F0, LS, lua_state(L, _, F)),
-	trail_closure_on_backtrack(impure pred is det :- 
-		impure backtrack(F, L))).
+	Closure = ( impure (pred) is det :- 
+		impure backtrack(F, L)
+	),
+	trail_closure_on_backtrack(Closure).
 		
-trail_lua_closre(P, F0, LS, lua_state(L, current_id, empty_trail) :-
+trail_lua_closure(P, F0, LS, lua_state(L, current_id, empty_trail)) :-
 	update_trail_func(F0, LS, lua_state(L, _, F)),
-	trail_closure_on_backtrack(impure pred is det :- 
-		impure backtrack(F, L))).
+	Closure = ( impure pred(U) is det :-
+		impure impure_call(P, U), 
+		impure backtrack(F, L)
+	),
+	trail_closure_on_backtrack(Closure).
 	
 
-
-
-
+trail_if_newer(F, !LS) :-
 	current(!.LS) -> 
-		update_trail_func(F0, !LS)
+		update_trail_func(F, !LS)
 	;
+		trail_lua_closure(F, !LS).
+		
+
+
+
+	
 		
 	
 	
