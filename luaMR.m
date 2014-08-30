@@ -108,7 +108,7 @@
 	% Create a new Lua state.
 	%
 :- func new_state = lua_state.
-
+:- mode new_state = uo is det.
 
 
 
@@ -460,11 +460,11 @@ init_lua(!LS) :- promise_pure( impure init_lua(!.LS ^ lua)).
 ").
 
 
-ready(!LS) :- promise_pure (semipure ready(!.LS ^ lua)).
+ready(lua_state(L, I, T), lua_state(L, I, T)) :- promise_pure (semipure ready(L) ).
 
-ready(B, !LS) :- 
+ready(B, ls(L, I, T), ls(L, I, T)) :- 
 	promise_pure 
-	( semipure ready(!.LS ^ lua) -> B = yes
+	( semipure ready(L) -> B = yes
 	; B = no).
 
 :- pragma foreign_decl("C", "void luaMR_init(lua_State *);").

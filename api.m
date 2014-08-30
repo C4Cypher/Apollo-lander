@@ -679,10 +679,9 @@ lua_pcall(L, A, E) = R :-
 	
 lua_pcall(L, A) = R :-
 	impure Result = lua_pcall(L, A, 0),
-	( Result = returned_error(Error) ->
-		throw(Error)
-	; 
-		Result = returned(R)
+	( Result = returned(R) 
+	; Result = returned_error(Error), throw(Error)
+	; unexpected($module, $pred, "Invalid result value. (WTF?)")	
 	).
 	
 :- pragma foreign_proc("C", lua_cpcall(L::in, Func::in, Ptr::in) = (R::out),

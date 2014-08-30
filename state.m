@@ -60,6 +60,16 @@
 :- mode unique_state(out, out, out) = ui is det.
 :- mode unique_state(out, out, out) = mui is det.
 
+	% Abriviated forms
+:- func ls(lua, id, lua_trail) = ls.
+:- mode ls(in, in, in) = uo is det.
+:- mode ls(out, out, out) = di is det.
+:- mode ls(out, out, out) = mdi is det.
+
+:- func us(lua, id, lua_trail) = lua_state.
+:- mode us(out, out, out) = ui is det.
+:- mode us(out, out, out) = mui is det.
+
 % Access the members of a Lua state while preserving it's uniqueness.
 
 :- func lua(lua_state) = lua.
@@ -165,11 +175,45 @@ current(lua_state(_, Id, _)) :- choicepoint_newer(current_id, Id).
 	T = S->trail;
 ").
 
+ls(L, I, T) = lua_state(L, I, T).
+us(L, I, T) = unique_state(L, I, T).
 
-lua(unique_state(L, _, _)) = L.
-id(unique_state(_, I, _)) = I.
-trail(unique_state(_, _, T)) = T.
+:- pragma foreign_proc("C", lua(S::ui) = (L::out),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+").
 
+:- pragma foreign_proc("C", lua(S::mui) = (L::out),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+").
+
+:- pragma foreign_proc("C", id(S::ui) = (I::out),
+	[will_not_call_mercury, promise_pure], "
+	
+	I = S.id;
+").
+
+:- pragma foreign_proc("C", id(S::mui) = (I::out),
+	[will_not_call_mercury, promise_pure], "
+	
+	I = S.id;
+").
+
+
+:- pragma foreign_proc("C", trail(S::ui) = (T::out),
+	[will_not_call_mercury, promise_pure], "
+	
+	T = S->trail;
+").
+
+:- pragma foreign_proc("C", trail(S::mui) = (T::out),
+	[will_not_call_mercury, promise_pure], "
+	
+	T = S->trail;
+").
 
 update_lua_trail(F0, lua_state(L, C, T0), lua_state(L, C, lua_func(F))) :- 
 	F = ( impure func(L1::in) = ((0)::out) is det :-
