@@ -248,7 +248,7 @@
 	% no error handler is 
 :- impure func lua_pcall(lua, int, int, index) = lua_result.
 :- impure func lua_pcall(lua, int, index) = lua_result.
-:- impure func lua_pcall(lua, int) = int.
+:- impure func lua_pcall(lua, int) = lua_result.
 
 
 	% Call a mercury function from C
@@ -678,11 +678,7 @@ lua_pcall(L, A, E) = R :-
 	impure R = lua_pcall(L, A, multret, E).
 	
 lua_pcall(L, A) = R :-
-	impure Result = lua_pcall(L, A, 0),
-	( Result = returned(R) 
-	; Result = returned_error(Error), throw(Error)
-	; unexpected($module, $pred, "Invalid result value. (WTF?)")	
-	).
+	impure R = lua_pcall(L, A, 0).
 	
 :- pragma foreign_proc("C", lua_cpcall(L::in, Func::in, Ptr::in) = (R::out),
 	[may_call_mercury], "

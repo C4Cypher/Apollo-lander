@@ -236,8 +236,13 @@ trail_to_func(T) = F :-
 		) -> F = ( impure func(L::in) = (Ret - 1::out) is det :-
 			impure lua_pushref(L, R),
 			semipure Err_index = lua_gettop(L),
-			impure Ret = lua_pcall(L, index(-1)),
-			impure lua_remove(L, index(Err_index))
+			impure RV = lua_pcall(L, index(-1)),
+			( returned(Ret) = RV ->
+				impure lua_remove(L, index(Err_index))
+			; RV = returned_error(Err),
+				impure lua_error(L, Err)
+			)
+				
 		)
 		; unexpected($module, $pred, 
 			"Unknown lua_trail value provided.")
