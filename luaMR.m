@@ -114,6 +114,7 @@
 
 
 
+
 %-----------------------------------------------------------------------------%
 %
 % Initializing the Lua state
@@ -276,21 +277,23 @@
 :- type lua_func == (impure func(lua) = int).
 
 :- inst det_lua_func == 
-	(func(in(bound(lua))) = out(bound(int)) is det).
+	(func(in) = out(bound(int)) is det).
 	
 :- inst semidet_lua_func == 
-	(func(in(bound(lua))) = out(bound(int)) is semidet).
+	(func(in) = out is semidet).
 	
 
 :- inst dlf == det_lua_func.
 :- inst slf == semidet_lua_func.
-
 
 :- mode dfi == in(det_lua_func).
 :- mode dfo == out(det_lua_func).
 
 :- mode sfi == in(semidet_lua_func).
 :- mode sfo == out(semidet_lua_func).
+
+:- mode li == in(bound(lua)).
+:- mode lo == out(bound(lua)).
 
 :- type func_udata.
 
@@ -430,7 +433,7 @@
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
 
-:- pragma foreign_type("C", lua_state, "luaMR_lua_state").
+:- pragma foreign_type("C", lua_state, "luaMR_lua_state *").
 
 
 
