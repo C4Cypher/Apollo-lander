@@ -196,9 +196,9 @@ current_id = I :- impure I = current_choicepoint_id.
 
 null_id = null_choicepoint_id.
 
-current(L) :- choicepoint_newer(current_id, L^id).
+current(L) :- choicepoint_newer(L^id, current_id).
 
-current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(current_id, I).
+current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 
 :- pragma foreign_decl("C", "
 	typedef struct luaMR_lua_state {

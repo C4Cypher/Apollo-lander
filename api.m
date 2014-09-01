@@ -88,6 +88,10 @@
 	% Get the absolute stack position
 :- semipure func absolute(lua, index) = index.
 
+:- semipure pred posindex(lua, index).
+:- mode posindex(in, out) is nondet.
+:- mode posindex(in, out) is cc_nondet.
+
 %-----------------------------------------------------------------------------%
 %
 % Stack Manipulation
@@ -442,6 +446,13 @@ index(I) = I.
 	[will_not_call_mercury], "lua_insert(L, Index);").
 	
 :- pragma inline(lua_insert/2).
+
+posindex(L, I) :-
+		semipure I = lua_gettop(L)
+	;
+		semipure posindex(L, I0),
+		I = I0 - 1,
+		I > 0.
 
 %-----------------------------------------------------------------------------%
 %
