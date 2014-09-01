@@ -83,10 +83,16 @@
 	% The index of the global environment
 :- func globalindex = index.
 
+	% Pass an int as an index.
 :- func index(int) = index.
+:- mode index(in) = out is det.
+:- mode index(out) = in is det.
 
-	% Get the absolute stack position
-:- semipure func absolute(lua, index) = index.
+	% Pass a int as an absolute (positive) index
+:- semipure func absolute(int, lua) = index.
+:- mode absolute(in, in) = out is det.
+:- mode absolute(out, in) = in is det.
+
 
 :- semipure pred lua_posindex(lua, index).
 :- mode lua_posindex(in, out) is nondet.
@@ -109,6 +115,9 @@
 
 	% Allocate free space on the stack if needed, fail if it cannot
 :- semipure pred lua_checkstack(lua::in, int::in) is semidet.
+
+	% Throw an error if checkstack fails to allocate
+:- semipure pred det_checkstack(int::in, lua::in) is det.
 
 	% Directly push values from a different stack index
 :- impure pred 	lua_pushvalue(lua::in, index::in) is det.
@@ -139,16 +148,50 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Pushing Mercury values and vars onto the stack 
+%  Values and vars 
 %
 
 	% Push a luaMR.value onto the Lua stack
-:- impure pred push_value(lua::in, value::in) is det.
+:- impure pred push_value(value::in, lua::in) is det.
 
 	% Push a luaMR.var onto the stack
-:- impure pred push_var(lua::in, var::in) is det.
+:- impure pred push_var(var::in, lua::in) is det.
+
+	% Retreive the value at a given index. Tables and Functions will be 
+	% converted to refs.
+:- semipure func to_value(index, lua) = value.
+
+	% Retreive the value at the given index. Tables and functions will be
+	% passed by local stack index. 
+:- semipure func local_value(index, lua) = value.
+
+	% Possible valid variables.
+:- semipure pred valid_var(var, lua).
+:- mode valid_var(out, in) is multi.
+	
+	% table_value(Table, Key, Value, L)
+	% possible valid (non-nil) values assigned to a table.
+	% fails if Table is not a table.
+	%
+:- semipure pred table_value(var, value, value, lua).
+:- mode table_value(in, out, out, in) is nondet.
 
 
+:- semipure pred var_type(var::in, lua_type::out, lua::in) is det.
+
+%-----------------------------------------------------------------------------%
+%
+%  Equality 
+%
+
+	% Check to see if the values at two indexes are equal.
+:- semipure pred lua_rawequal(lua::in, index::in, index::in) is semidet. 
+
+	% Test equality on vars (no metamethods)
+:- semipure pred var_equal(var::in, var::in, lua::in) is semidet.
+
+	% Test equality on values (no metamethods)
+:- semipure pred value_equal(value::in, value::in, lua::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -395,9 +438,13 @@ index(I) = I.
 
 :- pragma inline(index/1).
 
-:- pragma foreign_proc("C", absolute(L::in, I::in) = (A::out), 
+:- pragma foreign_proc("C", absolute(I::in, L::in) = (A::out), 
 	[promise_semipure, will_not_call_mercury], "
 	A = I > 0 ? I : lua_gettop(L) + 1 + I;").
+	
+:- pragma foreign_proc("C", absolute(I::out, L::in) = (A::in), 
+	[promise_semipure, will_not_call_mercury], "
+	I = A > 0 ? I : lua_gettop(L) + 1 + I;").
 	
 :- pragma inline(absolute/2).
 	
@@ -422,9 +469,14 @@ index(I) = I.
 :- pragma inline(lua_settop/2).
 
 :- pragma foreign_proc("C",  lua_checkstack(L::in, Free::in),
-	[will_not_call_mercury, promise_semipure], "lua_checkstack(L, Free);").
+	[will_not_call_mercury, promise_semipure], 
+	"SUCCESS_INDICATOR = lua_checkstack(L, Free);").
 	
 :- pragma inline(lua_checkstack/2).
+
+det_checkstack(Free, L) :-
+	semipure lua_checkstack(L, Free) <= 
+		throw(lua_error(memory_error, "Checkstack failed").
 
 :- pragma foreign_proc("C",  lua_pushvalue(L::in, I::in),
 	[will_not_call_mercury], "lua_pushvalue(L, I);").
@@ -468,10 +520,10 @@ posindex2(Top, I) :-
 
 %-----------------------------------------------------------------------------%
 %
-% Pushing Mercury values and vars onto the stack 
+% Values and vars 
 %
 
-push_value(L, V) :-
+push_value(V, L) :-
 	require_complete_switch [V]
 	( V = nil(_),
 		impure lua_pushnil(L)
@@ -492,7 +544,7 @@ push_value(L, V) :-
 	; V = c_function(F),
 		impure lua_pushcfunction(L, F)
 	; V = var(Var),
-		impure push_var(L, Var) 
+		impure push_var(Var, L) 
 	; V = userdata(U),
 		impure lua_pushuniv(L, U)
 	; V = lua_error(E),
@@ -501,7 +553,7 @@ push_value(L, V) :-
 		impure lua_pushuserdata(L, V)
 	).
 	
-push_var(L, V) :-
+push_var(V, L) :-
 	require_complete_switch [V]
 	( V = local(I), impure lua_pushvalue(L, I)
 	; V = index(Val, Table),
@@ -509,18 +561,18 @@ push_var(L, V) :-
 		; Val = unbound -> throw(lua_error(runtime_error, 
 			"attempt to index var " ++ string(Table) ++
 			" by an unbound value."))
-		; impure push_var(L, Table), semipure lua_isnil(L, -1) -> 
+		; impure push_var(Table, L), semipure lua_isnil(L, -1) -> 
 			throw(lua_error(
 			runtime_error, "attempt to index var "
 			++ string.string(Table) ++
 			" (a nil value)."))
 		;
-			impure push_value(L, Val),
+			impure push_value(Val, L),
 			impure lua_rawget(L, -2),
 			impure lua_remove(L, -2)
 		)
 	; V = meta(Table),
-		impure push_var(L, Table), 
+		impure push_var(Table, L), 
 		( impure lua_getmetatable(L, -1) ->
 			impure lua_remove(L, -2)
 		; 
@@ -537,6 +589,158 @@ push_var(L, V) :-
 		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		" attempted to push invalid var: " ++ S))
 	).
+
+to_value(I, L) = V :-
+	semipure to_value(I, to_refvar, L) = V.
+	
+local_value(I, L) = V :-
+	semipure to_value(I, to_localvar, L) = V.
+
+
+
+:- semipure func to_value(index, (semipure func(index, lua) = var), lua) 
+	= value.
+	
+to_value(I0, ToVar, L) = V :-	
+	semipure I = absolute(I0, L),
+	semipure Type = lua_type(L, I),
+	require_complete_switch [Type]
+	( Type = none,
+		unexpected($module, $pred, "Value at given index had no type.")
+	; Type = nil_type,
+		V = nil(nil)
+	; Type = number_type,
+		semipure F = lua_tonumber(L, I),
+		V = number(F)
+	; Type = boolean_type,
+		semipure B = lua_toboolean(L, I),
+		V = boolean(B)
+	; Type = string_type,
+		semipure S = lua_tostring(L, I),
+		V = string(S)
+	; Type = lightuserdata_type,
+		semipure C = lua_tocuserdata(L, I),
+		V = lightuserdata(C)
+	; Type = function_type,
+		( semipure lua_iscfunction(L, I) ->
+			semipure F = lua_tocfunction(L, I),
+			V = c_function(F)
+		; semipure Var = semipure_apply(ToVar, I, L),
+			V = var(Var)
+		)
+	; Type = table_type,
+		semipure T = semipure_apply(ToVar, I, L),
+		V = var(T)
+	; Type = thread_type,
+		semipure T = lua_tothread(L, I),
+		V = thread(T)
+	; Type = userdata_type,
+		U = lua_touserdata(L, I),
+		V = userdata(U)
+	).
+	
+	
+:- semipure func to_localvar(index, lua) = var.
+
+to_localvar(I, _) = V :- 
+	V = local(I).
+
+:- semipure func to_refvar(index, lua) = var.
+
+to_refvar(I, L) = V :-
+	semipure R = lua_toref(L, I),
+	V = ref(R).
+	
+
+valid_var(V, L) :-
+	impure lua_newtable(L),
+	semipure Memo = lua_toref(L, -1),
+	impure lua_pop(L, 1),
+	valid_var(V, Memo, L).
+
+:- semipure pred valid_var(var, ref, lua).
+:- mode valid_var(out, in, in) is nondet.
+
+valid_var(V, Memo, L) :- 
+	require_complete_switch [V]
+	 ( V = local(I0),
+	 	semipure posindex(L, I),
+	 	require_complete_switch [I0]
+		( I0 < 0, IO = -I
+		; IO = 0, fail
+		; I0 > 0, I0 = I
+		)
+	; V = index(Val, Table),
+		impure lua_newtable(L),
+		Ref = lua_toref(L, -1),
+		
+
+table_value(Table, Key, Value, L) :-
+	semipure det_checkstack(L, 6),
+	semipure var_type(Table, table_type, L),
+	impure lua_newtable(L), % Memo set table
+	impure push_var(Table, L), 
+	impure lua_pushboolean(L, yes),
+	impure lua_rawset(L, -3), % Add the Table to the memo set table
+	semipure Last = lua_toref(L, -1),
+	impure lua_pop(L, 1).
+	semipure table_value(Table, Key, Value, Last, L).
+	 	
+:- semipure pred table_value(var, value, value, ref, lua).
+:- mode valid_table(in, out, out, in, in) is nondet.
+
+table_value(Table, Key, Value, Last, L) :-
+	impure push_var(Table, L)	% Table being iterated
+	impure lua_pushref(L, Last), 	% Last key 
+	impure lua_next(L, -2), % Pop the last key and push the next pair
+	% The stack should now look like [Table, Key, Value]
+	semipure lua_isnil(L, -2) -> 	% Is there another pair?
+		impure lua_pop(L, 3), 	% Clear the stack
+		fail			% There are no more pairs
+	; 
+		semipure Next =  lua_toref(L, -2),
+		semipure Key = to_value(-2, L),
+		semipure Value = to_value(-1, L),
+		impure lua_pop(L, 3), % Clear the stack
+	;
+		table_value(Table, Key, Value, Next, L).
+	
+	
+	
+
+var_type(V, T, L) :-
+	impure push_var(V, L),
+	semipure T = lua_type(L, -1),
+	impure lua_pop(L, 1).
+	
+%-----------------------------------------------------------------------------%
+%
+%  Equality 
+%
+
+:- pragma foreign_proc("C",  lua_rawequal(L::in, Index1::in, Index2::in), 
+	[promise_semipure, will_not_call_mercury],
+	"SUCCESS_INDICATOR = lua_rawequal(L, Index1, Index2);").
+	
+:- pragma inline(lua_rawequal/3).
+
+var_equal(V1, V2, L) :-
+	impure push_var(V1, L),
+	impure push_var(V2, L),
+	semipure lua_rawequal(L, -1, -2) ->
+		impure lua_pop(L, 2)
+	;
+		impure lua_pop(L, 2),
+		fail.	 
+		
+value_equal(V1, V2, L) :-
+	impure push_value(V1, L),
+	impure push_value(V2, L),
+	semipure lua_rawequal(L, -1, -2) ->
+		impure lua_pop(L, 2)
+	;
+		impure lua_pop(L, 2),
+		fail.	   
 
 %-----------------------------------------------------------------------------%
 %
@@ -609,8 +813,6 @@ push_var(L, V) :-
 	if(luaMR_ismruserdata(L, I))
 		luaMR_set_userdata_metatable(L, I);
 "). 
-
-:- pragma inline(lua_setmetatable/2).
 
 :- pragma foreign_proc("C", lua_newtable(L::in), 
 	[will_not_call_mercury], "lua_newtable(L);"). 

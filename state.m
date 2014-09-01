@@ -124,15 +124,6 @@
 :- mode trail(mui) = out is det.
 
 
-:- pred ls ^ pred(ls).
-:- mode ui ^ (pred(ui) is det) is det.
-:- mode mui ^ (pred(mui) is det) is det.
-:- mode mui ^ (pred(mui) is semidet) is semidet.
-:- mode mui ^ (pred(mui) is multi) is multi.
-:- mode mui ^ (pred(mui) is nondet) is nondet.
-:- mode mui ^ (pred(mui) is cc_multi) is cc_multi.
-:- mode mui ^ (pred(mui) is cc_nondet) is cc_nondet.
-
 
 	% Register a new trail function, it will be called before the existing
 	% trail_func is called.
@@ -342,8 +333,6 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	T = S->trail;
 ").
 
-
-L ^ P :- P(L).
 
 %-----------------------------------------------------------------------------%
 
