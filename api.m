@@ -88,9 +88,9 @@
 	% Get the absolute stack position
 :- semipure func absolute(lua, index) = index.
 
-:- semipure pred posindex(lua, index).
-:- mode posindex(in, out) is nondet.
-:- mode posindex(in, out) is cc_nondet.
+:- semipure pred lua_posindex(lua, index).
+:- mode lua_posindex(in, out) is nondet.
+:- mode lua_posindex(in, out) is cc_nondet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -383,10 +383,14 @@
 
 :- pragma foreign_proc("C", registryindex = (I::out),
 	[promise_pure, will_not_call_mercury], "I = LUA_REGISTRYINDEX;").
-	
+
+:- pragma inline(registryindex/0).
+
 :- pragma foreign_proc("C", globalindex = (I::out),
 	[promise_pure, will_not_call_mercury], "I = LUA_GLOBALSINDEX;").
-	
+
+:- pragma inline(globalindex/0).
+
 index(I) = I.
 
 :- pragma inline(index/1).
@@ -447,12 +451,20 @@ index(I) = I.
 	
 :- pragma inline(lua_insert/2).
 
-posindex(L, I) :-
-		semipure I = lua_gettop(L)
+lua_posindex(L, I) :-
+		semipure Top = lua_gettop(L),
+		posindex2(Top, I).
+		
+		
+:- pred posindex2(int::in, int::out) is nondet.
+
+posindex2(Top, I) :-
+	Top > 0,
+	(
+		I = Top
 	;
-		semipure posindex(L, I0),
-		I = I0 - 1,
-		I > 0.
+		posindex2(Top - 1, I)
+	).
 
 %-----------------------------------------------------------------------------%
 %
@@ -461,40 +473,38 @@ posindex(L, I) :-
 
 push_value(L, V) :-
 	require_complete_switch [V]
-	( V = nil(_) ->
+	( V = nil(_),
 		impure lua_pushnil(L)
-	; V = number(F) ->
+	; V = number(F),
 		impure lua_pushnumber(L, F)
-	; V = integer(I) ->
+	; V = integer(I),
 		impure lua_pushinteger(L, I)
-	; V = boolean(B) ->
+	; V = boolean(B),
 		impure lua_pushboolean(L, B)
-	; V = string(S) ->
+	; V = string(S),
 		impure lua_pushstring(L, S)
-	; V = lightuserdata(P) ->
+	; V = lightuserdata(P),
 		impure lua_pushlightuserdata(L, P)
-	; V = thread(L2) ->
+	; V = thread(L2),
 		(L2 = L -> impure lua_pushthread(L)
 		; error("Can only push the active thread onto the stack.")
 		)
-	; V = c_function(F) ->
+	; V = c_function(F),
 		impure lua_pushcfunction(L, F)
-	; V = var(Var) ->
+	; V = var(Var),
 		impure push_var(L, Var) 
-	; V = userdata(U) ->
+	; V = userdata(U),
 		impure lua_pushuniv(L, U)
-	; V = lua_error(E) ->
+	; V = lua_error(E),
 		impure lua_error(L, E)
-	; V = unbound ->
+	; V = unbound,
 		impure lua_pushuserdata(L, V)
-	; unexpected($module, $pred, "Attempted to push an unexpected value: "
-		++ string.string(V))
 	).
 	
 push_var(L, V) :-
 	require_complete_switch [V]
-	( V = local(I) -> impure lua_pushvalue(L, I)
-	; V = index(Val, Table) ->
+	( V = local(I), impure lua_pushvalue(L, I)
+	; V = index(Val, Table),
 		( Val = nil(_) -> impure lua_pushnil(L)
 		; Val = unbound -> throw(lua_error(runtime_error, 
 			"attempt to index var " ++ string(Table) ++
@@ -509,7 +519,7 @@ push_var(L, V) :-
 			impure lua_rawget(L, -2),
 			impure lua_remove(L, -2)
 		)
-	; V = meta(Table) ->
+	; V = meta(Table),
 		impure push_var(L, Table), 
 		( impure lua_getmetatable(L, -1) ->
 			impure lua_remove(L, -2)
@@ -517,16 +527,15 @@ push_var(L, V) :-
 			impure lua_pop(L, 1),
 			impure lua_pushnil(L)
 		)
-	; V = ref(R) -> impure lua_pushref(L, R)
-	; V = global(S) ->
+	; V = ref(R), impure lua_pushref(L, R)
+	; V = global(S), 
 		impure lua_pushvalue(L, globalindex),
 		impure lua_pushstring(L, S),
 		impure lua_rawget(L, -2),
 		impure lua_remove(L, -2)
-	; V = invalid(S) ->
+	; V = invalid(S),
 		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		" attempted to push invalid var: " ++ S))
-	; unexpected($module, $pred, "Switch on var V failed.")
 	).
 
 %-----------------------------------------------------------------------------%

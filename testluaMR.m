@@ -51,8 +51,8 @@ main(!IO) :-
 		fail
 	),
 	LS0 = ls(L2, _, _),
-	semipure I = lua_tointeger(L2, index(1)),
-	print(I, !IO).
+	semipure lua_posindex(L2, I),
+	print_cc(I, !IO).
 	
 	
 :- pragma promise_pure(main/2).
