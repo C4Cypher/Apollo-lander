@@ -21,44 +21,6 @@
 
 :- import_module trail.
 
-:- pred unique_input(pred(T), T, T).
-:- mode unique_input(pred(ui) is det, di, uo) is det.
-:- mode unique_input(pred(mui) is det, mdi, muo) is det.
-:- mode unique_input(pred(mui) is semidet, mdi, muo) is semidet.
-
-:- pred unique_input(pred(T1, T2), T1, T1, T2).
-:- mode unique_input(pred(ui, out) is det, di, uo, out) is det.
-:- mode unique_input(pred(mui, out) is det, mdi, muo, out) is det.
-:- mode unique_input(pred(mui, out) is semidet, mdi, muo, out) is semidet.
-:- mode unique_input(pred(mui, out) is multi, mdi, muo, out) is multi.
-:- mode unique_input(pred(mui, out) is nondet, mdi, muo, out) is nondet.
-:- mode unique_input(pred(mui, out) is cc_multi, mdi, muo, out) is cc_multi.
-:- mode unique_input(pred(mui, out) is cc_nondet, mdi, muo, out) is cc_nondet.
-
-:- func unique_input(func(T1) = T2, T1, T1) = T2.
-:- mode unique_input((func(ui) = out is det), di, uo) = out is det.
-:- mode unique_input((func(mui) = out is det), mdi, muo) = out is det.
-:- mode unique_input((func(mui) = out is semidet), mdi, muo) = out is semidet.
-
-:- pred ui(pred(T), T, T).
-:- mode ui(pred(ui) is det, di, uo) is det.
-:- mode ui(pred(mui) is det, mdi, muo) is det.
-:- mode ui(pred(mui) is semidet, mdi, muo) is semidet.
-
-:- pred ui(pred(T1, T2), T1, T1, T2).
-:- mode ui(pred(ui, out) is det, di, uo, out) is det.
-:- mode ui(pred(mui, out) is det, mdi, muo, out) is det.
-:- mode ui(pred(mui, out) is semidet, mdi, muo, out) is semidet.
-:- mode ui(pred(mui, out) is multi, mdi, muo, out) is multi.
-:- mode ui(pred(mui, out) is nondet, mdi, muo, out) is nondet.
-:- mode ui(pred(mui, out) is cc_multi, mdi, muo, out) is cc_multi.
-:- mode ui(pred(mui, out) is cc_nondet, mdi, muo, out) is cc_nondet.
-
-:- func ui(func(T1) = T2, T1, T1) = T2.
-:- mode ui((func(ui) = out is det), di, uo) = out is det.
-:- mode ui((func(mui) = out is det), mdi, muo) = out is det.
-:- mode ui((func(mui) = out is semidet), mdi, muo) = out is semidet.
-
 	% The various types that might be used to backtrack a Lua state
 :- type lua_trail
 	--->	lua_func(lua_func)
@@ -171,14 +133,6 @@
 #include <lauxlib.h>
 #include <lualib.h>
 ").
-
-unique_input(P, S0, S) :- P(S0), S = S0.
-unique_input(P, S0, S, O) :- P(S, O), S = S0.
-unique_input(F, S0, S) = F(S0) :- S = S0.
-
-ui(P, S0, S) :- P(S0), S = S0.
-ui(P, S0, S, O) :- P(S, O), S = S0.
-ui(F, S0, S) = F(S0) :- S = S0.
 
 
 current_id = I :- impure I = current_choicepoint_id.
