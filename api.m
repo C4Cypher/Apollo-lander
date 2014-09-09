@@ -165,9 +165,13 @@
 	% passed by local stack index. 
 :- semipure func local_value(index, lua) = value.
 
-	% Possible valid variables.
+	% A given var is valid.
 :- semipure pred valid_var(var, lua).
-:- mode valid_var(out, in) is multi.
+:- mode valid_var(in, in) is semidet.
+
+	% All of the accesable non-nil vars of a lua state
+:- semipure pred any_var(var, lua).
+:- mode any_var(out, in) is multi.
 	
 	% table_value(Table, Key, Value, L)
 	% possible valid (non-nil) values assigned to a table.
@@ -178,6 +182,7 @@
 
 
 :- semipure pred var_type(var::in, lua_type::out, lua::in) is det.
+:- semipure func var_type(var, lua) = lua_type.
 
 %-----------------------------------------------------------------------------%
 %
@@ -312,8 +317,6 @@
 	% as the only argument.  
 	% 
 :- impure func lua_cpcall(c_function, c_pointer, lua) = c_pointer.
-
-% TODO: Should lua_error/2/3 be failure?
 
 	% Throw an error from Mercury to Lua, passing the value on the stack
 	% as the error value.
@@ -652,16 +655,7 @@ to_refvar(I, L) = V :-
 	V = ref(R).
 	
 
-valid_var(V, L) :-
-	impure lua_newtable(L),
-	semipure Memo = lua_toref(-1, L),
-	impure lua_pop(1, L),
-	valid_var(V, Memo, L).
-
-:- semipure pred valid_var(var, ref, lua).
-:- mode valid_var(out, in, in) is nondet.
-
-valid_var(V, Memo, L) :- 
+valid_var(V, L) :- 
 	require_complete_switch [V]
 	 ( V = local(I0),
 	 	semipure posindex(I, L),
@@ -671,8 +665,41 @@ valid_var(V, Memo, L) :-
 		; I0 > 0, I0 = I
 		)
 	; V = index(Val, Table),
-		impure lua_newtable(L),
-		Ref = lua_toref(-1, L),
+		semipure var_type(Table, table_type, L)
+	; V = meta(Var),
+		semipure not var_type(Var, string_type, L),
+		semipure not var_type(Var, number_type, L),
+		semipure not var_type(Var, lightuserdata_type, L),
+		semipure not var_type(Var, nil_type, L)
+	; V = ref(_),
+	; V = global(_),
+	; V = invalid(_), fail
+	).
+		
+any_var(V, L) :-
+	impure lua_newtable(L),
+	semipure Memo = lua_toref(-1, L),
+	impure lua_pop(1, L),
+	any_var(V, Memo, L).
+
+:- semipure pred any_var(var, ref, lua).
+:- mode any_var(out, in, in) is multi.
+
+any_var(V, Memo, L) :- 
+	not (
+		impure lua_pushref(Memo, L),
+		impure push_var(V, L),
+		impure lua_rawget(-2, L),
+		semipure lua_tobool(-1, L) = yes ->
+			impure lua_pop(2, L)
+		; impure lua_pop(2, L), fail
+	),
+	( V = index(I), 
+		semipure posindex
+	
+	
+
+	
 		
 
 table_value(Table, Key, Value, L) :-
@@ -712,6 +739,8 @@ var_type(V, T, L) :-
 	impure push_var(V, L),
 	semipure T = lua_type(-1, L),
 	impure lua_pop(1, L).
+	
+var_type(V, L) = T :- var_type(V, T, L).
 	
 %-----------------------------------------------------------------------------%
 %
