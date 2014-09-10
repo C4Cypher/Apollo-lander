@@ -40,7 +40,12 @@
 
 :- pragma foreign_import_module("C", luaMR).
 
-main(!IO) :- true.
+main(!IO) :- 
+	L = newstate, 
+	impure init_lua(L, !IO),
+	impure lua_pushvalue(global_index, L),
+	impure 
+	
 	
 	
 	

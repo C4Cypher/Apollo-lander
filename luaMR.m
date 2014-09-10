@@ -172,6 +172,24 @@
 
 :- type vars == list(var).
 
+	% A given var is valid.
+:- semipure pred valid_var(var, lua).
+:- mode valid_var(in, in) is semidet.
+
+	% table_value(Table, Key, Value, L)
+	% all non-nil values assigned to a table.
+	% fails if Table is not a table.
+	%
+:- semipure pred table(var, value, value, lua).
+:- mode table(in, out, out, in) is nondet.
+
+	% Return the lua_type of a var
+:- semipure pred var_type(var::in, lua_type::out, lua::in) is det.
+:- semipure func var_type(var, lua) = lua_type.
+
+	% Test equality on vars (no metamethods)
+:- semipure pred var_equal(var::in, var::in, lua::in) is semidet.
+
 
 % The ref type represents a strong refrence to a Lua variable instantiated in
 % Lua, as a result, a refrenced variable will not be garbage collected by Lua
@@ -223,6 +241,8 @@
 
 :- type c_function.	% A Lua callable function defined in C
 
+	% Test equality on values (no metamethods)
+:- semipure pred value_equal(value::in, value::in, lua::in) is semidet.
 
 % The nil value
 %
@@ -540,12 +560,90 @@ void luaMR_init(lua_State * L) {
 
 
 :- type index == int.
-
-
-
-	
 	
 Var ^ T = index(value(T), Var). 
+
+valid_var(V, L) :- 
+	require_complete_switch [V]
+	 ( V = local(Local),
+	 	semipure Top = lua_gettop(L),
+	 	require_complete_switch [Local]
+		( Local < 0, Local >= -Top
+		; Local > 0, Local =< Top
+		)
+	; V = index(_, Table),
+		semipure var_type(Table, table_type, L)
+	; V = meta(Var), 
+	not 
+		( semipure var_type(Var, string_type, L)
+		; semipure var_type(Var, number_type, L)
+		; semipure var_type(Var, lightuserdata_type, L)
+		; semipure var_type(Var, nil_type, L)
+		)
+	; V = ref(_)
+	; V = global(_)
+	; V = invalid(_), fail
+	).	
+		
+
+table(Table, Key, Value, L) :-
+	semipure det_checkstack(6, L),
+	semipure var_type(Table, table_type, L),
+	impure lua_newtable(L), % Memo set table
+	impure push_var(Table, L), 
+	impure lua_pushboolean(yes, L),
+	impure lua_rawset(-3, L), % Set the next value
+	semipure Next = lua_toref(-1, L),
+	impure lua_pop(1, L),
+	semipure table(Table, Key, Value, Next, L).
+	
+:- pragma promise_semipure(table/4).
+	 	
+:- semipure pred table(var, value, value, ref, lua).
+:- mode table(in, out, out, in, in) is nondet.
+
+table(Table, Key, Value, Last, L) :-
+	impure push_var(Table, L),	% Table being iterated
+	impure lua_pushref(Last, L), 	% Last key 
+	impure lua_next(-2, L), % Pop the last key and push the next pair
+	% The stack should now look like [Table, Key, Value]
+	semipure lua_isnil(-2, L) ->	% Is there another pair?
+		impure lua_pop(3, L), 	% Clear the stack
+		fail			% There are no more pairs
+	; 
+		(
+			semipure Key = to_value(-2, L),
+			semipure Value = to_value(-1, L)
+		;
+			semipure Next =  lua_toref(-2, L),
+			semipure table(Table, Key, Value, Next, L)
+		),
+		impure lua_pop(3, L). % Clear the stack
+	
+:- pragma promise_semipure(table/5).
+	
+
+var_type(V, T, L) :-
+	impure push_var(V, L),
+	semipure T = lua_type(-1, L),
+	impure lua_pop(1, L).
+
+:- pragma promise_semipure(var_type/3).
+	
+
+var_type(V, L) = T :- semipure var_type(V, T, L).
+	
+var_equal(V1, V2, L) :-
+	impure push_var(V1, L),
+	impure push_var(V2, L),
+	semipure lua_rawequal(-1, -2, L) ->
+		impure lua_pop(2, L)
+	;
+		impure lua_pop(2, L),
+		fail.	 
+		
+:- pragma promise_semipure(var_equal/3).
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -646,6 +744,18 @@ value_of(V) = T :- value(T) = V.
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").
 
+
+
+value_equal(V1, V2, L) :-
+	impure push_value(V1, L),
+	impure push_value(V2, L),
+	semipure lua_rawequal(-1, -2, L) ->
+		impure lua_pop(2, L)
+	;
+		impure lua_pop(2, L),
+		fail.	  
+
+:- pragma promise_semipure(value_equal/3).
 
 %-----------------------------------------------------------------------------%
 %
@@ -819,8 +929,8 @@ func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
 :- impure func to_string(lua) = int.
 
 to_string(L) = 1 :- 
-	semipure lua_touserdata(L, 1) = U,
-	impure lua_pushstring(L, string.string(univ_value(U))).
+	semipure lua_touserdata(1, L) = U,
+	impure lua_pushstring(string.string(univ_value(U)), L).
 
 		
 	

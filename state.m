@@ -55,6 +55,12 @@
 :- mode lua_state(out, out, out) = di is det.
 :- mode lua_state(out, out, out) = mdi is det.
 
+	% Construct or deconstruct with io state
+:- func lua_state(lua, id, lua_trail, io) = lua_state.
+:- mode lua_state(in, in, in, di) = uo is det.
+:- mode lua_state(out, out, out, uo) = di is det.
+:- mode lua_state(out, out, out, uo) = mdi is det.
+
 	% Unique deconstructor
 	%
 :- func unique_state(lua, id, lua_trail) = lua_state.
@@ -66,6 +72,11 @@
 :- mode ls(in, in, in) = uo is det.
 :- mode ls(out, out, out) = di is det.
 :- mode ls(out, out, out) = mdi is det.
+
+:- func ls(lua, id, lua_trail, io) = ls.
+:- mode ls(in, in, in, di) = uo is det.
+:- mode ls(out, out, out, uo) = di is det.
+:- mode ls(out, out, out, uo) = mdi is det.
 
 :- func us(lua, id, lua_trail) = lua_state.
 :- mode us(out, out, out) = ui is det.
@@ -182,6 +193,33 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	T = S->trail;
 ").
 
+:- pragma foreign_proc("C", lua_state(L::in, I::in, T::in, IO::di) = (S::uo),
+	[will_not_call_mercury, promise_pure], "
+	
+	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
+	new->lua = L;
+	new->id = I;
+	new->trail = T;
+	S = new;
+").
+
+
+:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out, IO::uo) = (S::di),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+	I = S->id;
+	T = S->trail;
+").
+
+:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out, IO::uo) = (S::mdi),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+	I = S->id;
+	T = S->trail;
+").
+
 %-----------------------------------------------------------------------------%
 	
 :- pragma foreign_proc("C", unique_state(L::out, I::out, T::out) = (S::ui),
@@ -223,6 +261,34 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 ").
 
 :- pragma foreign_proc("C", ls(L::out, I::out, T::out) = (S::mdi),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+	I = S->id;
+	T = S->trail;
+").
+
+:- pragma foreign_proc("C", ls(L::in, I::in, T::in, IO::di) = (S::uo),
+	[will_not_call_mercury, promise_pure], "
+
+
+	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
+	new->lua = L;
+	new->id = I;
+	new->trail = T;
+	S = new;
+").
+
+
+:- pragma foreign_proc("C", ls(L::out, I::out, T::out, IO::uo) = (S::di),
+	[will_not_call_mercury, promise_pure], "
+	
+	L = S->lua;
+	I = S->id;
+	T = S->trail;
+").
+
+:- pragma foreign_proc("C", ls(L::out, I::out, T::out, IO::uo) = (S::mdi),
 	[will_not_call_mercury, promise_pure], "
 	
 	L = S->lua;
@@ -306,10 +372,10 @@ trail_to_func(T, L) = F :-
 	; T = empty_trail -> 
 		F = ( impure func(_::in) = (0::out) is det :- true )
 	; T = c_function(C) -> 
-		impure lua_pushcfunction(L, C),
-		semipure R = lua_toref(L, index(-1)),
+		impure lua_pushcfunction(C, L),
+		semipure R = lua_toref(index(-1), L),
 		F = ref_to_func(R),
-		impure lua_pop(L, 1)
+		impure lua_pop(1, L)
 	; T = ref(R) ->
 		F = ref_to_func(R)
 	; unexpected($module, $pred, 
@@ -323,14 +389,14 @@ trail_to_func(T, L) = F :-
 :- func ref_to_func(ref) = lua_func.
 
 ref_to_func(R) = ( impure func(L::in) = (Ret::out) is det :-
-			impure lua_pushref(L, R),
+			impure lua_pushref(R, L),
 			semipure Err_index = lua_gettop(L),
-			impure RV = lua_pcall(L, index(-1)),
+			impure RV = lua_pcall(index(-1), L),
 			( returned(Ret0) = RV ->
 				Ret = Ret0 - 1,
-				impure lua_remove(L, index(Err_index))
+				impure lua_remove(index(Err_index), L)
 			; RV = returned_error(Err) ->
-				impure lua_error(L, Err)
+				impure lua_error(Err, L)
 			; unexpected($module, $pred, "Invalid return value. (WTF?)")
 			)
 		).	
