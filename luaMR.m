@@ -107,8 +107,11 @@
 
 	% Create a new Lua state.
 	%
+:- pred new_state(ls::uo) is det.
+
 :- func new_state = lua_state.
 :- mode new_state = uo is det.
+
 
 
 
@@ -173,22 +176,20 @@
 :- type vars == list(var).
 
 	% A given var is valid.
-:- semipure pred valid_var(var, lua).
-:- mode valid_var(in, in) is semidet.
+:- pred valid_var(var, ls, ls).
+:- mode valid_var(in, mdi, muo) is semidet.
 
 	% table_value(Table, Key, Value, L)
 	% all non-nil values assigned to a table.
 	% fails if Table is not a table.
 	%
-:- semipure pred table(var, value, value, lua).
-:- mode table(in, out, out, in) is nondet.
+:- pred table(var, pred(value, value, T, T), T, T, ls, ls).
+:- mode table(in, (pred(in, in, in, out) is det), in, out, mdi, muo) is det.
 
-	% Return the lua_type of a var
-:- semipure pred var_type(var::in, lua_type::out, lua::in) is det.
-:- semipure func var_type(var, lua) = lua_type.
+
 
 	% Test equality on vars (no metamethods)
-:- semipure pred var_equal(var::in, var::in, lua::in) is semidet.
+:- pred var_equal(var::in, var::in, ls::mdi, ls::muo) is semidet.
 
 
 % The ref type represents a strong refrence to a Lua variable instantiated in
@@ -242,7 +243,7 @@
 :- type c_function.	% A Lua callable function defined in C
 
 	% Test equality on values (no metamethods)
-:- semipure pred value_equal(value::in, value::in, lua::in) is semidet.
+:- pred value_equal(value::in, value::in, ls::mdi, ls::muo) is semidet.
 
 % The nil value
 %
@@ -357,8 +358,9 @@
 	
 	% Look up the Lua type of a given variable. 
 	% 
-%:- func var_type(var, lua) = lua_type.
-%:- pred var_type(var::in, lua_type::out, ls::di, ls::uo) is det.
+:- pred var_type(var, lua_type, ls, ls).
+:- mode var_type(in, out, di, uo) is det.
+:- mode var_type(in, out, mdi, muo) is det.
 
 
 	
@@ -397,6 +399,7 @@
 :- import_module bool.
 :- import_module string.
 :- import_module require.
+:- import_module solutions.
 
 
 :- pragma require_feature_set([conservative_gc, trailing, double_prec_float]). 
@@ -459,6 +462,7 @@
 
 
 new_state = lua_state(lua_new, null_id, empty_trail).
+new_state(new_state).
 
 %-----------------------------------------------------------------------------%
 %
@@ -470,7 +474,7 @@ new_state = lua_state(lua_new, null_id, empty_trail).
 
 
 
-init_lua(!LS) :- promise_pure( impure init_lua(!.LS ^ lua)).
+init_lua(ls(L, I, T), ls(L, I, T)) :- promise_pure( impure init_lua(L)).
 
 :- impure pred init_lua(lua::in) is det.
 
@@ -563,86 +567,35 @@ void luaMR_init(lua_State * L) {
 	
 Var ^ T = index(value(T), Var). 
 
-valid_var(V, L) :- 
-	require_complete_switch [V]
-	 ( V = local(Local),
-	 	semipure Top = lua_gettop(L),
-	 	require_complete_switch [Local]
-		( Local < 0, Local >= -Top
-		; Local > 0, Local =< Top
-		)
-	; V = index(_, Table),
-		semipure var_type(Table, table_type, L)
-	; V = meta(Var), 
-	not 
-		( semipure var_type(Var, string_type, L)
-		; semipure var_type(Var, number_type, L)
-		; semipure var_type(Var, lightuserdata_type, L)
-		; semipure var_type(Var, nil_type, L)
-		)
-	; V = ref(_)
-	; V = global(_)
-	; V = invalid(_), fail
-	).	
+valid_var(V, ls(L, I, T), ls(L, I, T)) :- 
+	semipure valid_var(V, L). 
 		
+:- pragma promise_pure(valid_var/3).		
 
-table(Table, Key, Value, L) :-
-	semipure det_checkstack(6, L),
-	semipure var_type(Table, table_type, L),
-	impure lua_newtable(L), % Memo set table
-	impure push_var(Table, L), 
-	impure lua_pushboolean(yes, L),
-	impure lua_rawset(-3, L), % Set the next value
-	semipure Next = lua_toref(-1, L),
-	impure lua_pop(1, L),
-	semipure table(Table, Key, Value, Next, L).
-	
-:- pragma promise_semipure(table/4).
-	 	
-:- semipure pred table(var, value, value, ref, lua).
-:- mode table(in, out, out, in, in) is nondet.
-
-table(Table, Key, Value, Last, L) :-
-	impure push_var(Table, L),	% Table being iterated
-	impure lua_pushref(Last, L), 	% Last key 
-	impure lua_next(-2, L), % Pop the last key and push the next pair
-	% The stack should now look like [Table, Key, Value]
-	semipure lua_isnil(-2, L) ->	% Is there another pair?
-		impure lua_pop(3, L), 	% Clear the stack
-		fail			% There are no more pairs
-	; 
-		(
-			semipure Key = to_value(-2, L),
-			semipure Value = to_value(-1, L)
-		;
-			semipure Next =  lua_toref(-2, L),
-			semipure table(Table, Key, Value, Next, L)
+table(Table, Acc, !AccVar, ls(L, I, T), ls(L, I, T)) :- 
+	Pred = (pred(A::in, Lua::in, { B, C }::out) is nondet :- 
+		promise_pure 
+		semipure table(A, B, C, Lua)
 		),
-		impure lua_pop(3, L). % Clear the stack
-	
-:- pragma promise_semipure(table/5).
-	
-
-var_type(V, T, L) :-
-	impure push_var(V, L),
-	semipure T = lua_type(-1, L),
-	impure lua_pop(1, L).
-
-:- pragma promise_semipure(var_type/3).
-	
-
-var_type(V, L) = T :- semipure var_type(V, T, L).
-	
-var_equal(V1, V2, L) :-
-	impure push_var(V1, L),
-	impure push_var(V2, L),
-	semipure lua_rawequal(-1, -2, L) ->
-		impure lua_pop(2, L)
-	;
-		impure lua_pop(2, L),
-		fail.	 
+	AccPred = (pred({A, B}::in, C::in, D::out) is det :- Acc(A, B, C, D) ),
+	unsorted_aggregate(Pred(Table, L), AccPred, !AccVar).
 		
-:- pragma promise_semipure(var_equal/3).
+	
+	
+:- pragma promise_pure(table/6).
+	 	
+	
+
+var_type(V, T, ls(L, I, Tr), ls(L, I, Tr)) :-
+	semipure var_type(V, T, L).
+
+:- pragma promise_pure(var_type/4).
+	
+
+var_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
+	semipure var_equal(V1, V2, L).
+		
+:- pragma promise_pure(var_equal/4).
 
 
 %-----------------------------------------------------------------------------%
@@ -746,16 +699,10 @@ value_of(V) = T :- value(T) = V.
 
 
 
-value_equal(V1, V2, L) :-
-	impure push_value(V1, L),
-	impure push_value(V2, L),
-	semipure lua_rawequal(-1, -2, L) ->
-		impure lua_pop(2, L)
-	;
-		impure lua_pop(2, L),
-		fail.	  
+value_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
+	semipure value_equal(V1, V2, L).
 
-:- pragma promise_semipure(value_equal/3).
+:- pragma promise_pure(value_equal/4).
 
 %-----------------------------------------------------------------------------%
 %

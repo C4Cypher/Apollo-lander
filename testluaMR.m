@@ -31,7 +31,10 @@
 :- import_module string.
 :- import_module univ.
 :- import_module list.
+:- import_module pair.
+:- import_module assoc_list.
 :- import_module exception.
+:- import_module solutions.
 
 :- import_module trail.
 :- import_module luaMR.
@@ -40,18 +43,24 @@
 
 :- pragma foreign_import_module("C", luaMR).
 
-main(!IO) :- 
-	L = newstate, 
-	impure init_lua(L, !IO),
-	impure lua_pushvalue(global_index, L),
-	impure 
+main(!IO) :-
+	some [LS] (
+		new_state(LS0),
+		init_lua(LS0, LS1),
+		table(local(globalindex), pairs, [], List, LS1, _),
+		String = string.string(List),
+		print(String, !IO)
+	).
 	
 	
 	
 	
-:- pragma promise_pure(main/2).
+%:- pragma promise_pure(main/2).
 
+:- pred pairs(value::in, value::in, assoc_list(value)::in, assoc_list(value)::out) is det.
 
+pairs(K, V, List, [(K - V) | List]).
+	
 
 
 

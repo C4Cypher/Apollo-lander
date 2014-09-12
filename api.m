@@ -165,11 +165,30 @@
 	% passed by local stack index. 
 :- semipure func local_value(index, lua) = value.
 
+	% A given var is valid.
+:- semipure pred valid_var(var, lua).
+:- mode valid_var(in, in) is semidet.
+
+	% table_value(Table, Key, Value, L)
+	% all non-nil values assigned to a table.
+	% fails if Table is not a table.
+	%
+:- semipure pred table(var, value, value, lua).
+:- mode table(in, out, out, in) is nondet.
+
+	% Return the lua_type of a var
+:- semipure pred var_type(var::in, lua_type::out, lua::in) is det.
+:- semipure func var_type(var, lua) = lua_type.
+
 
 	% Check to see if the values at two indexes are equal.
 :- semipure pred lua_rawequal(index::in, index::in, lua::in) is semidet. 
 
+	% Test equality on vars (no metamethods)
+:- semipure pred var_equal(var::in, var::in, lua::in) is semidet.
 
+	% Test equality on values (no metamethods)
+:- semipure pred value_equal(value::in, value::in, lua::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -643,6 +662,100 @@ to_refvar(I, L) = V :-
 	"SUCCESS_INDICATOR = lua_rawequal(L, Index1, Index2);").
 	
 :- pragma inline(lua_rawequal/3).
+
+
+valid_var(V, L) :- 
+	require_complete_switch [V]
+	 ( V = local(Local),
+	 	semipure Top = lua_gettop(L),
+	 	require_complete_switch [Local]
+		( Local < 0, Local >= -Top
+		; Local > 0, Local =< Top
+		)
+	; V = index(_, Table),
+		semipure var_type(Table, table_type, L)
+	; V = meta(Var), 
+	not 
+		( semipure var_type(Var, string_type, L)
+		; semipure var_type(Var, number_type, L)
+		; semipure var_type(Var, lightuserdata_type, L)
+		; semipure var_type(Var, nil_type, L)
+		)
+	; V = ref(_)
+	; V = global(_)
+	; V = invalid(_), fail
+	).	
+		
+
+table(Table, Key, Value, L) :-
+	semipure det_checkstack(6, L),
+	semipure var_type(Table, table_type, L),
+	impure lua_newtable(L), % Memo set table
+	impure push_var(Table, L), 
+	impure lua_pushboolean(yes, L),
+	impure lua_rawset(-3, L), % Set the next value
+	semipure Next = lua_toref(-1, L),
+	impure lua_pop(1, L),
+	semipure table2(Table, Key, Value, Next, L).
+	
+:- pragma promise_semipure(table/4).
+	 	
+:- semipure pred table2(var, value, value, ref, lua).
+:- mode table2(in, out, out, in, in) is nondet.
+
+table2(Table, Key, Value, Last, L) :-
+	impure push_var(Table, L),	% Table being iterated
+	impure lua_pushref(Last, L), 	% Last key 
+	impure lua_next(-2, L), % Pop the last key and push the next pair
+	% The stack should now look like [Table, Key, Value]
+	semipure lua_isnil(-2, L) ->	% Is there another pair?
+		impure lua_pop(3, L), 	% Clear the stack
+		fail			% There are no more pairs
+	; 
+		(
+			semipure Key = to_value(-2, L),
+			semipure Value = to_value(-1, L)
+		;
+			semipure Next =  lua_toref(-2, L),
+			semipure table2(Table, Key, Value, Next, L)
+		),
+		impure lua_pop(3, L). % Clear the stack
+	
+:- pragma promise_semipure(table2/5).
+	
+
+var_type(V, T, L) :-
+	impure push_var(V, L),
+	semipure T = lua_type(-1, L),
+	impure lua_pop(1, L).
+
+:- pragma promise_semipure(var_type/3).
+	
+
+var_type(V, L) = T :- semipure var_type(V, T, L).
+	
+var_equal(V1, V2, L) :-
+	impure push_var(V1, L),
+	impure push_var(V2, L),
+	semipure lua_rawequal(-1, -2, L) ->
+		impure lua_pop(2, L)
+	;
+		impure lua_pop(2, L),
+		fail.	 
+		
+:- pragma promise_semipure(var_equal/3).
+
+value_equal(V1, V2, L) :-
+	impure push_value(V1, L),
+	impure push_value(V2, L),
+	semipure lua_rawequal(-1, -2, L) ->
+		impure lua_pop(2, L)
+	;
+		impure lua_pop(2, L),
+		fail.	  
+
+:- pragma promise_semipure(value_equal/3).
+
 
 %-----------------------------------------------------------------------------%
 %

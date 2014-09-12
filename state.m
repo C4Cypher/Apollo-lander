@@ -193,7 +193,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	T = S->trail;
 ").
 
-:- pragma foreign_proc("C", lua_state(L::in, I::in, T::in, IO::di) = (S::uo),
+:- pragma foreign_proc("C", lua_state(L::in, I::in, T::in, _IO::di) = (S::uo),
 	[will_not_call_mercury, promise_pure], "
 	
 	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
@@ -204,7 +204,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 ").
 
 
-:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out, IO::uo) = (S::di),
+:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out, _IO::uo) = (S::di),
 	[will_not_call_mercury, promise_pure], "
 	
 	L = S->lua;
@@ -212,7 +212,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	T = S->trail;
 ").
 
-:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out, IO::uo) = (S::mdi),
+:- pragma foreign_proc("C", lua_state(L::out, I::out, T::out, _IO::uo) = (S::mdi),
 	[will_not_call_mercury, promise_pure], "
 	
 	L = S->lua;
@@ -268,7 +268,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	T = S->trail;
 ").
 
-:- pragma foreign_proc("C", ls(L::in, I::in, T::in, IO::di) = (S::uo),
+:- pragma foreign_proc("C", ls(L::in, I::in, T::in, _IO::di) = (S::uo),
 	[will_not_call_mercury, promise_pure], "
 
 
@@ -280,7 +280,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 ").
 
 
-:- pragma foreign_proc("C", ls(L::out, I::out, T::out, IO::uo) = (S::di),
+:- pragma foreign_proc("C", ls(L::out, I::out, T::out, _IO::uo) = (S::di),
 	[will_not_call_mercury, promise_pure], "
 	
 	L = S->lua;
@@ -288,7 +288,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	T = S->trail;
 ").
 
-:- pragma foreign_proc("C", ls(L::out, I::out, T::out, IO::uo) = (S::mdi),
+:- pragma foreign_proc("C", ls(L::out, I::out, T::out, _IO::uo) = (S::mdi),
 	[will_not_call_mercury, promise_pure], "
 	
 	L = S->lua;
