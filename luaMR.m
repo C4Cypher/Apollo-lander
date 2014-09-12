@@ -83,14 +83,23 @@
 
 %-----------------------------------------------------------------------------%
 %
-% The Lua State 
+% The Lua State in an impure context
 %
 
 	% A refrence to the Lua VM as defined by the lua_State type in lua.h
 	%
 :- type lua.
 
-:- type lua_state == lua.	
+
+%-----------------------------------------------------------------------------%
+%
+% The Lua State as a mutable state variable
+%
+
+	% A refrence to the Lua state meant to be passed in a safe, 
+	% declarative manner. 
+	%
+:- type lua_state. 	
 
 	% Abbriviations for lua_state.
 	%
@@ -422,9 +431,6 @@
 
 #define LUA_MR_MODULES ""LUA_MR_MODULES""
 #define LUA_MR_READY ""LUA_MR_READY""
-#define LUA_MR_CHOICEPOINT_ID ""LUA_MR_CHOICEPOINT_ID""
-#define LUA_MR_STATE_ID ""LUA_MR_STATE_ID"
-#define LUA_MR_TRAIL ""LUA_MR_TRAIL""
 
 /* metatable values*/
 #define LUA_MR_TYPE ""__mercury_type""
@@ -450,6 +456,9 @@
 
 :- pragma foreign_type("C", lua, "lua_State *",
 	[can_pass_as_mercury_type]).
+
+:- pragma foreign_type("C", lua_state, "luaMR_lua_state *").
+
 
 
 new_state = lua_state(lua_new, null_id, empty_trail).
