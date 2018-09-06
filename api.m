@@ -173,8 +173,8 @@
 	% all non-nil values assigned to a table.
 	% fails if Table is not a table.
 	%
-:- semipure pred table(var, value, value, lua).
-:- mode table(in, out, out, in) is nondet.
+:- semipure pred table_value(var, value, value, lua).
+:- mode table_value(in, out, out, in) is nondet.
 
 	% Return the lua_type of a var
 :- semipure pred var_type(var::in, lua_type::out, lua::in) is det.
@@ -687,7 +687,7 @@ valid_var(V, L) :-
 	).	
 		
 
-table(Table, Key, Value, L) :-
+table_value(Table, Key, Value, L) :-
 	semipure det_checkstack(6, L),
 	semipure var_type(Table, table_type, L),
 	impure lua_newtable(L), % Memo set table
@@ -696,14 +696,14 @@ table(Table, Key, Value, L) :-
 	impure lua_rawset(-3, L), % Set the next value
 	semipure Next = lua_toref(-1, L),
 	impure lua_pop(1, L),
-	semipure table2(Table, Key, Value, Next, L).
+	semipure table_value2(Table, Key, Value, Next, L).
 	
-:- pragma promise_semipure(table/4).
+:- pragma promise_semipure(table_value/4).
 	 	
-:- semipure pred table2(var, value, value, ref, lua).
+:- semipure pred table_value2(var, value, value, ref, lua).
 :- mode table2(in, out, out, in, in) is nondet.
 
-table2(Table, Key, Value, Last, L) :-
+table_value2(Table, Key, Value, Last, L) :-
 	impure push_var(Table, L),	% Table being iterated
 	impure lua_pushref(Last, L), 	% Last key 
 	impure lua_next(-2, L), % Pop the last key and push the next pair
@@ -717,11 +717,11 @@ table2(Table, Key, Value, Last, L) :-
 			semipure Value = to_value(-1, L)
 		;
 			semipure Next =  lua_toref(-2, L),
-			semipure table2(Table, Key, Value, Next, L)
+			semipure table_value2(Table, Key, Value, Next, L)
 		),
 		impure lua_pop(3, L). % Clear the stack
 	
-:- pragma promise_semipure(table2/5).
+:- pragma promise_semipure(table_value2/5).
 	
 
 var_type(V, T, L) :-
