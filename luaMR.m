@@ -169,7 +169,9 @@
 
 
 
-	% Var ^ T = Var ^ index(value(T)).
+	% Var ^ T = index(value(T), Var).
+	% Assuming Var is a Table.  If Var is NOT a table, Lua may respond with a runtime error when
+	% it gets passed a variable constructed in this manner.
 	%
 :- func var ^ T = var. 
 
@@ -179,12 +181,20 @@
 :- pred valid_var(var, ls, ls).
 :- mode valid_var(in, mdi, muo) is semidet.
 
-	% table_value(Table, Key, Value, L)
+
+/* 	This stuff is old and I think I see what I was thinking here, but I need to work in the mercury 
+	semantics (vars and values) that I'm building not direct table access. At least not at first.
+	
+	% [old] table(Table, Key, Value, L)
 	% all non-nil values assigned to a table.
 	% fails if Table is not a table.
 	%
-:- pred table(var, pred(value, value, T, T), T, T, ls, ls).
-:- mode table(in, (pred(in, in, in, out) is det), in, out, mdi, muo) is det.
+%:- semipure pred table(var, var, var	
+	
+%:- pred table(var, pred(value, value, T, T), T, T, ls, ls). 			I need to work out semantics for VARS not tables
+%:- mode table(in, (pred(in, in, in, out) is det), in, out, mdi, muo) is det.
+
+*/
 
 
 
@@ -230,6 +240,9 @@
 	
 :- type values == list(value).
 
+	% values are ground data types that can be cast back and forth from mercury types without
+	% help from the Lua runtime
+	%
 :- func value(T) = value.
 :- mode value(in) = out is det.
 :- mode value(unused) = out is det.
@@ -572,6 +585,9 @@ valid_var(V, ls(L, I, T), ls(L, I, T)) :-
 		
 :- pragma promise_pure(valid_var/3).		
 
+
+/* Yeah no, I'll have to revisit this later
+
 table(Table, Acc, !AccVar, ls(L, I, T), ls(L, I, T)) :- 
 	Pred = (pred(A::in, Lua::in, { B, C }::out) is nondet :- 
 		promise_pure 
@@ -579,6 +595,8 @@ table(Table, Acc, !AccVar, ls(L, I, T), ls(L, I, T)) :-
 		),
 	AccPred = (pred({A, B}::in, C::in, D::out) is det :- Acc(A, B, C, D) ),
 	unsorted_aggregate(Pred(Table, L), AccPred, !AccVar).
+	
+*/
 		
 	
 	
