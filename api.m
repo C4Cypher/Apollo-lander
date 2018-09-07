@@ -701,7 +701,7 @@ table_value(Table, Key, Value, L) :-
 :- pragma promise_semipure(table_value/4).
 	 	
 :- semipure pred table_value2(var, value, value, ref, lua).
-:- mode table2(in, out, out, in, in) is nondet.
+:- mode table_value2(in, out, out, in, in) is nondet.
 
 table_value2(Table, Key, Value, Last, L) :-
 	impure push_var(Table, L),	% Table being iterated
