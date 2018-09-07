@@ -48,8 +48,8 @@ main(!IO) :-
 		new_state(LS0),
 		init_lua(LS0, LS1),
 		%table(local(globalindex), pairs, [], List, LS1, _), Suddenly the table mess makes more sense, starting over
-		String = string.string(List),
-		print(String, !IO)
+		%String = string.string(List),
+		print("Hello World", !IO)
 	).
 	
 	
