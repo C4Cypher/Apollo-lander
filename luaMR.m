@@ -596,11 +596,9 @@ table(Table, Acc, !AccVar, ls(L, I, T), ls(L, I, T)) :-
 	AccPred = (pred({A, B}::in, C::in, D::out) is det :- Acc(A, B, C, D) ),
 	unsorted_aggregate(Pred(Table, L), AccPred, !AccVar).
 	
-*/
-		
-	
-	
 :- pragma promise_pure(table/6).
+
+*/
 	 	
 	
 
