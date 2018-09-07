@@ -539,8 +539,8 @@ void luaMR_init(lua_State * L) {
 
 	/* Add loader to package.loaders */
 	lua_getglobal(L, ""package""); 
-	lua_getfield(L, -1, ""loaders""); 
-	const int length = luaMR_len(L, 1);
+	lua_getfield(L, -1, ""loaders"");
+	/*const*/ int length = luaMR_len(L, 1);
 	lua_pushinteger(L, length + 1); 
 	lua_pushcfunction(L, luaMR_loader); 
 	lua_settable(L, -3);
