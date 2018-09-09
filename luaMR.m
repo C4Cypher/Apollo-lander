@@ -513,7 +513,10 @@ ready(B, ls(L, I, T), ls(L, I, T)) :-
 :- pragma foreign_decl("C", "int luaMR_ready(lua_State *);").
 
 :- pragma foreign_code("C", "
-void luaMR_init(lua_State * L) {
+void luaMR_init(lua_State * L) 
+{
+	
+	int length;
 	
 #ifdef BEFORE_502
 	
@@ -536,10 +539,10 @@ void luaMR_init(lua_State * L) {
 	lua_newtable(L);
 	luaMR_setregistry(L, LUA_MR_MODULES);
 	
-
 	/* Add loader to package.loaders */
 	lua_getglobal(L, ""package""); 
-	lua_getfield(L, -1, ""loaders""); const int length = luaMR_len(L, 1);
+  lua_getfield(L, -1, ""loaders""); 
+  length = luaMR_len(L, 1);
 	lua_pushinteger(L, length + 1); 
 	lua_pushcfunction(L, luaMR_loader); 
 	lua_settable(L, -3);
@@ -557,11 +560,13 @@ void luaMR_init(lua_State * L) {
 :- pragma foreign_code("C", "
 	/* Check to see if Lua has already been initialized. */
 	int luaMR_ready(lua_State * L) {
+    int ready;
+	
 		lua_checkstack(L, 1);
 		lua_pushvalue(L, LUA_REGISTRYINDEX);
 		lua_pushstring(L, LUA_MR_READY);
 		lua_gettable(L, -2);
-		int ready = lua_toboolean(L, 1);
+		ready = lua_toboolean(L, 1);
 		lua_remove(L, 1);
 		return ready;
 	}
@@ -624,20 +629,21 @@ var_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 
 :- pragma foreign_decl("C", "
 
-	typedef int * luaMR_Ref;
+	typedef int luaMR_Ref;
 	
-	luaMR_Ref luaMR_newref(lua_State *, int);
-	void luaMR_pushref(lua_State *, luaMR_Ref);
-	void luaMR_finalizeref(lua_State *, luaMR_Ref);
+	luaMR_Ref * luaMR_newref(lua_State *, int);
+	void luaMR_pushref(lua_State *, luaMR_Ref *);
+	void luaMR_finalizeref(lua_State *, luaMR_Ref *);
 ").
 
 :- pragma foreign_code("C",
 "
 
 /* Creates a new refrence from the stack */
-luaMR_Ref luaMR_newref(lua_State * L, int index) {
+luaMR_Ref * luaMR_newref(lua_State * L, int index) {
+  luaMR_Ref *new_ref;
 	lua_pushvalue(L, index);
-	luaMR_Ref new_ref = MR_GC_NEW(int);
+	new_ref = MR_GC_NEW(int);
 	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 	MR_GC_register_finalizer(new_ref, 
 		(GC_finalization_proc)luaMR_finalizeref, L);
@@ -646,7 +652,7 @@ luaMR_Ref luaMR_newref(lua_State * L, int index) {
 
 
 /* Push a refrence onto the provided stack */
-void luaMR_pushref(lua_State * L, luaMR_Ref ref) {
+void luaMR_pushref(lua_State * L, luaMR_Ref * ref) {
 	if (*ref == LUA_REFNIL) {
 		lua_pushnil(L);
 	}
@@ -656,7 +662,7 @@ void luaMR_pushref(lua_State * L, luaMR_Ref ref) {
 }
 
 /* Remove Lua's refrence to the var in the registry */
-void luaMR_finalizeref(lua_State * L, luaMR_Ref ref) {
+void luaMR_finalizeref(lua_State * L, luaMR_Ref * ref) {
 	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
 }
 
