@@ -13,7 +13,7 @@ MAIN_TARGET = testluaMR
 
 # Debugging Flags
 #MCFLAGS += --debug --stack-segments
-MCFLAGS += --target-debug
+#MCFLAGS += --target-debug
 #MGNUCFLAGS += --c-debug
 
 
@@ -29,18 +29,15 @@ MCFLAGS += --libgrades-exclude erlang
 MCFLAGS += --libgrades-exclude csharp
 MCFLAGS += --libgrades-include trseg
 
-
+# We've switched to GCC!
+MGNUCFLAGS += -std=c99
 
 # I have no GD clue why Mercury stuffs created libs in a temp folder and
 # Doesn't bother to include the damn directory when creating the executable
 MCFLAGS += --library-directory C:\Users\C4Cypher\AppData\Local\Temp
 
-#Okay, what
-#LINK : fatal error LNK1181: cannot open input file 
-#'C:\mercury-14.01-vs2013\lib\mercury\lib\hlc.gc.trseglibmer_std.lib'
-MCFLAGS += --library  "C:\mercury-14.01-vs2013\lib\mercury\lib\hlc.gc.trseg\libmer_std.lib"
-
-MCFLAGS += --library "C:\dev\Apollo-lander\Lua\lua5.1.lib"
+# Trying to get cl to link the executable properly
+MCFLAGS += --library C:\dev\Apollo-lander\Lua\lua5.1.lib
 
 # For Fun
 #MCFLAGS += --auto-comments

@@ -629,19 +629,19 @@ var_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 
 :- pragma foreign_decl("C", "
 
-	typedef int luaMR_Ref;
+	typedef int * luaMR_Ref;
 	
-	luaMR_Ref * luaMR_newref(lua_State *, int);
-	void luaMR_pushref(lua_State *, luaMR_Ref *);
-	void luaMR_finalizeref(lua_State *, luaMR_Ref *);
+	luaMR_Ref luaMR_newref(lua_State *, int);
+	void luaMR_pushref(lua_State *, luaMR_Ref);
+	void luaMR_finalizeref(lua_State *, luaMR_Ref);
 ").
 
 :- pragma foreign_code("C",
 "
 
 /* Creates a new refrence from the stack */
-luaMR_Ref * luaMR_newref(lua_State * L, int index) {
-  luaMR_Ref *new_ref;
+luaMR_Ref luaMR_newref(lua_State * L, int index) {
+  luaMR_Ref new_ref;
 	lua_pushvalue(L, index);
 	new_ref = MR_GC_NEW(int);
 	*new_ref = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -652,7 +652,7 @@ luaMR_Ref * luaMR_newref(lua_State * L, int index) {
 
 
 /* Push a refrence onto the provided stack */
-void luaMR_pushref(lua_State * L, luaMR_Ref * ref) {
+void luaMR_pushref(lua_State * L, luaMR_Ref ref) {
 	if (*ref == LUA_REFNIL) {
 		lua_pushnil(L);
 	}
@@ -662,7 +662,7 @@ void luaMR_pushref(lua_State * L, luaMR_Ref * ref) {
 }
 
 /* Remove Lua's refrence to the var in the registry */
-void luaMR_finalizeref(lua_State * L, luaMR_Ref * ref) {
+void luaMR_finalizeref(lua_State * L, luaMR_Ref ref) {
 	luaL_unref(L, LUA_REGISTRYINDEX, *ref);
 }
 
