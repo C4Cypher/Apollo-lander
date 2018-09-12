@@ -182,22 +182,6 @@
 :- mode valid_var(in, mdi, muo) is semidet.
 
 
-/* 	This stuff is old and I think I see what I was thinking here, but I need to work in the mercury 
-	semantics (vars and values) that I'm building not direct table access. At least not at first.
-	
-	% [old] table(Table, Key, Value, L)
-	% all non-nil values assigned to a table.
-	% fails if Table is not a table.
-	%
-%:- semipure pred table(var, var, var	
-	
-%:- pred table(var, pred(value, value, T, T), T, T, ls, ls). 			I need to work out semantics for VARS not tables
-%:- mode table(in, (pred(in, in, in, out) is det), in, out, mdi, muo) is det.
-
-*/
-
-
-
 	% Test equality on vars (no metamethods)
 :- pred var_equal(var::in, var::in, ls::mdi, ls::muo) is semidet.
 
@@ -240,8 +224,8 @@
 	
 :- type values == list(value).
 
-	% values are ground data types that can be cast back and forth from mercury types without
-	% help from the Lua runtime
+	% values are ground data types that can be cast back and forth from mercury 
+  % types without help from the Lua runtime
 	%
 :- func value(T) = value.
 :- mode value(in) = out is det.
@@ -285,7 +269,11 @@
 
 :- type nil ---> nil.
 
-
+  % Retreive the value of a var in Lua
+  %
+:- pred get(var, value, ls, ls).
+:- mode get(in, out, di, uo) is det.
+:- mode get(in, out, mdi, muo) is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -724,6 +712,25 @@ value_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 	semipure value_equal(V1, V2, L).
 
 :- pragma promise_pure(value_equal/4).
+
+%-----------------------------------------------------------------------------%
+%
+% Get
+%
+
+
+  % Retreive the value of a var in Lua
+  %
+%:- pred get(var, value, ls, ls).
+%:- mode get(in, out, di, uo) is det.
+%:- mode get(in, out, mdi, muo) is det.
+
+get(Var,Value,ls(L, I, T), ls(L, I, T)) :-
+  impure push_var(Var, L),
+  semipure Value = to_value(-1, L),
+  impure lua_pop(1, L).
+
+:- pragma promise_pure(get/4).
 
 %-----------------------------------------------------------------------------%
 %

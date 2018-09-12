@@ -44,13 +44,11 @@
 :- pragma foreign_import_module("C", luaMR).
 
 main(!IO) :-
-	some [LS] (
-		new_state(LS0),
-		init_lua(LS0, LS1),
-		%table(local(globalindex), pairs, [], List, LS1, _), Suddenly the table mess makes more sense, starting over
-		%String = string.string(List),
-		print("Hello World", !IO)
-	).
+	new_state(LS0),
+	init_lua(LS0, LS1),
+	Var = global("_VERSION"),
+	(get(Var, string(String), LS1, _) -> Version = String ; Version = "NOT A STRING!"),
+	print(Version, !IO).
 	
 	
 	
