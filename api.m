@@ -406,6 +406,8 @@
 :- import_module exception.
 :- import_module solutions.
 
+:- pragma foreign_import_module("C", luaMR).
+
 :- pragma foreign_decl("C", "
 #include <lua.h>
 #include <lauxlib.h>
@@ -909,7 +911,7 @@ lua_pcall(A, R, E, L) = Result :-
 		= (Result::out),
 	[may_call_mercury], " Result = lua_pcall(L, Args, Ret, Err);").
 	
-:- pragma inline(lua_pcall/4).
+%:- pragma inline(lua_pcall/4).
 	
 lua_pcall(A, E, L) = R :-
 	impure R = lua_pcall(A, multret, E, L).

@@ -415,7 +415,7 @@
 :- import_module solutions.
 
 
-:- pragma require_feature_set([conservative_gc, trailing, double_prec_float]). 
+:- pragma require_feature_set([conservative_gc, trailing]). 
 
 :- pragma foreign_decl("C", 
 "

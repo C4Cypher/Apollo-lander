@@ -16,7 +16,6 @@ MAIN_TARGET = testluaMR
 #MCFLAGS += --target-debug
 #MGNUCFLAGS += --c-debug
 
-
 MCFLAGS += --intermodule-optimization
 MCFLAGS += --no-inform-inferred
 MCFLAGS += --no-warn-det-decls-too-lax
@@ -29,18 +28,12 @@ MCFLAGS += --libgrades-exclude erlang
 MCFLAGS += --libgrades-exclude csharp
 MCFLAGS += --libgrades-include trseg
 
-# We've switched to GCC!
-MGNUCFLAGS += -std=c99
-
-# I have no GD clue why Mercury stuffs created libs in a temp folder and
-# Doesn't bother to include the damn directory when creating the executable
-MCFLAGS += --library-directory C:\Users\C4Cypher\AppData\Local\Temp
-
-# Trying to get cl to link the executable properly
-MCFLAGS += --library C:\dev\Apollo-lander\Lua\lua5.1.lib
+# This is to compile and link properly in cygwin 
+#(don't ask how long it to figure out)
+MCFLAGS += -llua-5.1
 
 # For Fun
 #MCFLAGS += --auto-comments
-
+                                          
 #MCFLAGS += --use-grade-subdirs
 
