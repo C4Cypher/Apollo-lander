@@ -47,17 +47,12 @@ main(!IO) :-
 	new_state(LS0),
 	init_lua(LS0, LS1),
 	Var = global("_VERSION"),
-	(get(Var, string(String), LS1, _) -> Version = String ; Version = "NOT A STRING!"),
+	(get(Var, string(String), LS1, _) -> 
+    Version = String ; Version = "NOT A STRING!"),
 	print(Version, !IO).
 	
 	
 	
-	
-%:- pragma promise_pure(main/2).
-
-:- pred pairs(value::in, value::in, assoc_list(value)::in, assoc_list(value)::out) is det.
-
-pairs(K, V, List, [(K - V) | List]).
 	
 
 

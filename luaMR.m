@@ -270,10 +270,16 @@
 :- type nil ---> nil.
 
   % Retreive the value of a var in Lua
+  % Note to avoid causing side-effects, these functions will not trigger
+  % metatables.
   %
 :- pred get(var, value, ls, ls).
 :- mode get(in, out, di, uo) is det.
 :- mode get(in, out, mdi, muo) is det.
+
+:- func get(var, ls, ls) = value.
+:- mode get(in, di, uo) = out is det.
+:- mode get(in, mdi, muo) = out is det.
 
 %-----------------------------------------------------------------------------%
 %
@@ -362,6 +368,10 @@
 :- pred var_type(var, lua_type, ls, ls).
 :- mode var_type(in, out, di, uo) is det.
 :- mode var_type(in, out, mdi, muo) is det.
+
+:- func var_type(var, ls, ls) = lua_type.
+:- mode var_type(in, di, uo) = out is det.
+:- mode var_type(in, mdi, muo) = out is det.
 
 
 	
@@ -489,7 +499,8 @@ init_lua(ls(L, I, T), ls(L, I, T)) :- promise_pure( impure init_lua(L)).
 ").
 
 
-ready(lua_state(L, I, T), lua_state(L, I, T)) :- promise_pure (semipure ready(L) ).
+ready(lua_state(L, I, T), lua_state(L, I, T)) :- 
+  promise_pure (semipure ready(L) ).
 
 ready(B, ls(L, I, T), ls(L, I, T)) :- 
 	promise_pure 
@@ -598,6 +609,8 @@ var_type(V, T, ls(L, I, Tr), ls(L, I, Tr)) :-
 	semipure var_type(V, T, L).
 
 :- pragma promise_pure(var_type/4).
+
+var_type(V, !L) = T :- var_type(V, T, !L).
 	
 
 var_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
@@ -731,6 +744,8 @@ get(Var,Value,ls(L, I, T), ls(L, I, T)) :-
   impure lua_pop(1, L).
 
 :- pragma promise_pure(get/4).
+
+get(Var, !L) = Value :- get(Var, Value, !L). 
 
 %-----------------------------------------------------------------------------%
 %
