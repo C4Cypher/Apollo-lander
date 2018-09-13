@@ -555,8 +555,6 @@ push_value(V, L) :-
 		impure lua_pushuniv(U, L)
 	; V = lua_error(E),
 		impure lua_error(E, L)
-	; V = unbound,
-		impure lua_pushuserdata(V, L)
 	).
 	
 push_var(V, L) :-
@@ -564,9 +562,6 @@ push_var(V, L) :-
 	( V = local(I), impure lua_pushvalue(I, L)
 	; V = index(Val, Table),
 		( Val = nil(_) -> impure lua_pushnil(L)
-		; Val = unbound -> throw(lua_error(runtime_error, 
-			"attempt to index var " ++ string(Table) ++
-			" by an unbound value."))
 		; impure push_var(Table, L), semipure lua_isnil(-1, L) -> 
 			throw(lua_error(
 			runtime_error, "attempt to index var "

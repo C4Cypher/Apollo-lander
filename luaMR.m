@@ -142,7 +142,7 @@
 
 %-----------------------------------------------------------------------------%
 %
-% Lua variables
+% Lua variables and values
 %
 
 
@@ -198,11 +198,6 @@
 %:- func ref(var) = ref.
 
 
-%-----------------------------------------------------------------------------%
-%
-% Lua values
-%
-
 	% A union of all of the types that can be natively passed to and from
 	% Lua.
 	%
@@ -217,11 +212,8 @@
 	;	c_function(c_function) % A Lua callable function pointer
 	;	var(var)	% A Lua variable
 	;	userdata(univ)	% opaque type in Lua for handling foreign data
-	;	unbound		% Represents an unbound variable
 	;	lua_error(lua_error). 
-	
-:- inst unbound == bound(unbound).
-	
+		
 :- type values == list(value).
 
 	% values are ground data types that can be cast back and forth from mercury 
@@ -229,12 +221,10 @@
 	%
 :- func value(T) = value.
 :- mode value(in) = out is det.
-:- mode value(unused) = out is det.
 :- mode value(out) = in is semidet.
 
 :- func value_of(value) = T.
 :- mode value_of(in) = out is semidet.
-:- mode value_of(out) = unused is det.
 :- mode value_of(out) = in is det.
 
 :- type c_function.	% A Lua callable function defined in C
@@ -280,6 +270,17 @@
 :- func get(var, ls, ls) = value.
 :- mode get(in, di, uo) = out is det.
 :- mode get(in, mdi, muo) = out is det.
+
+  % Change the value of a var in Lua
+  % Although these calls are considered pure due to the passing of the lua_state
+  % Mercury can not backtrack through these or other calls that modify the 
+  % Lua state.
+  %
+:- pred set(var, value, ls, ls).
+:- mode set(in, in, di, uo) is det.
+:- mode set(in, in, mdi, uo) is det.
+
+ 
 
 %-----------------------------------------------------------------------------%
 %
@@ -373,7 +374,6 @@
 :- mode var_type(in, di, uo) = out is det.
 :- mode var_type(in, mdi, muo) = out is det.
 
-
 	
 
 %-----------------------------------------------------------------------------%
@@ -411,6 +411,7 @@
 :- import_module string.
 :- import_module require.
 :- import_module solutions.
+:- import_module exception.
 
 
 :- pragma require_feature_set([conservative_gc, trailing]). 
@@ -691,9 +692,7 @@ value(T::in) = (
 	; dynamic_cast(T, U:univ) -> userdata(U)
 	; userdata(univ(T))
 	)::out).
-	
-value(_::unused) = ((unbound)::out).
-	
+		
 
 value(T::out) = (V::in) :-
 	require_complete_switch [V]
@@ -708,8 +707,9 @@ value(T::out) = (V::in) :-
 	; V = var(Var) -> dynamic_cast(Var, T)
 	; V = userdata(U) -> dynamic_cast(U, T)
 	; V = lua_error(E) -> dynamic_cast(E, T)
-	; some [Some] V = userdata(univ(Some)) -> dynamic_cast(Some, T)
-	; V = unbound, fail
+	; V = userdata(univ(U)) -> dynamic_cast(U, T)
+	; unexpected($module, $pred, 
+		"Impossible value passed.")
 	).
 
 :- pragma promise_pure(value/1).
@@ -728,7 +728,7 @@ value_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 
 %-----------------------------------------------------------------------------%
 %
-% Get
+% Get and Set
 %
 
 
@@ -745,7 +745,53 @@ get(Var,Value,ls(L, I, T), ls(L, I, T)) :-
 
 :- pragma promise_pure(get/4).
 
-get(Var, !L) = Value :- get(Var, Value, !L). 
+get(Var, !L) = Value :- get(Var, Value, !L).
+
+  % Change the value of a var in Lua
+  % Although these calls are considered pure due to the passing of the lua_state
+  % Mercury can not backtrack through these or other calls that modify the 
+  % Lua state.
+  %
+%:- pred set(var, value, ls, ls).
+%:- mode set(in, in, di, uo) is det.
+%:- mode set(in, in, mdi, uo) is det.
+
+set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
+	require_complete_switch [V]
+    V = local(I) -> 
+    impure push_value(Value, L),
+    impure lua_replace(I, L)
+	; V = index(Key, Table) ->
+		impure push_var(Table,L),
+		impure push_value(Key, L),
+		impure push_value(Value, L),
+		impure lua_rawset(-3, L),
+		impure lua_pop(1, L)
+	; V = meta(Table) ->
+		impure push_var(Table, L), 
+		impure push_value(Value, L),
+		impure lua_setmetatable(-2, L),
+		impure lua_pop(1, L)
+	; V = ref(R) ->
+    (dynamic_cast(R, I:int) -> 
+      impure lua_pushinteger(I, L),
+      impure push_value(Value, L),
+      impure lua_rawset(registryindex, L)
+    ;
+      throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+		  " attempted to set invalid ref."))
+     )       
+	; V = global(S) -> 
+		impure lua_pushstring(S, L),
+		impure push_value(Value, L),
+		impure lua_rawset(globalindex, L)
+	; V = invalid(S) ->
+		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+		" attempted to set invalid var: " ++ S))
+  ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+		" attempted to set impossible var."))  .
+
+:- pragma promise_pure(set/4).    
 
 %-----------------------------------------------------------------------------%
 %
