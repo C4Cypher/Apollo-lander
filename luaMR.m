@@ -90,6 +90,10 @@
 	%
 :- type lua.
 
+:- mode li == in(bound(lua)).
+:- mode lo == out(bound(lua)).
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -108,6 +112,10 @@
 	% Create a new Lua state.
 	%
 :- pred new_state(ls::uo) is det.
+
+%:- pred new_state(io::di, ls:uo) is det.
+
+%:- pred end_lua(ls::di,io::uo) is det.
 
 :- func new_state = lua_state.
 :- mode new_state = uo is det.
@@ -170,8 +178,8 @@
 
 
 	% Var ^ T = index(value(T), Var).
-	% Assuming Var is a Table.  If Var is NOT a table, Lua may respond with a runtime error when
-	% it gets passed a variable constructed in this manner.
+	% Assuming Var is a Table.  If Var is NOT a table, Lua may respond with a 
+  % runtime error when it gets passed a variable constructed in this manner.
 	%
 :- func var ^ T = var. 
 
@@ -280,18 +288,52 @@
 :- mode set(in, in, di, uo) is det.
 :- mode set(in, in, mdi, uo) is det.
 
+  % Create a new variable local to the environment initial value will be nil
+  %
+:- pred local(var ls, ls).
+:- mode local(out, di, uo).
+
+:- func local(ls, ls) = var.
+:- mode local(di, uo) = out is det.
+
+  % The number of arguments passed to the local Lua environment,
+  % 
+:- pred arg_count(int, ls, ls).
+:- mode arg_count(out, ls, ls) is det.
+
+:- func arg_count(ls, ls) = int.
+:- mode arg_count(di, uo) = out is det.
+
+  % The arguments passed to the local Lua environment as a list.
+  % 
+:- pred args(vars, ls, ls).
+:- mode args(out, di, uo) is det.
+
+:- func args(ls, ls) = vars.
+:- func args(di, uo) = out is det.
+
+
 %-----------------------------------------------------------------------------%
 %
 % Lua tables
 %	
 
+  % Create new Lua table and pass it as a local.
+  %
+:- func local_table(ls, ls) = var.
+:= mode local_table(di, uo) = out is det.
+
+:- pred local_table(var, ls, ls).
+:- pred local_table(out, di, uo) is det. 
+
+
   % Create new Lua table and pass it to Mercury as a refrence
   %
-:- func new_table(ls, ls) = var.
-:- mode new_table(di, uo) = out is det.
+:- func ref_table(ls, ls) = var.
+:- mode ref_table(di, uo) = out is det.
 
-:- pred new_table(var, ls, ls).
-:- mode new_table(out, di, uo) is det.
+:- pred ref_table(var, ls, ls).
+:- mode ref_table(out, di, uo) is det.
  
 %-----------------------------------------------------------------------------%
 %
@@ -306,14 +348,23 @@
 %	io::di, io::uo) is det.
 
 
-:- type lua_func.
+%-----------------------------------------------------------------------------%
+%
+% Lua functions
+%	
 
-:- func lua_func(func(vars, ls, ls) = vars) = lua_func.
-:- mode lua_func(func(in, di, uo) = out is det) = out is det.
-:- mode lua_func(func(in, mdi, muo) = out is det) = out is det.
+	% This is the type signature for predicates that can be cast as
+	% Lua functions, vars is the list of returned values [] if none.
+	%
+:- type mr_func
+  --->  func(ls, ls) = vars.
 
+:- inst det_mr_func == (pred(di,uo) = out is det.)
+	
+:- inst dmf == det_mr_func.
 
-
+:- mode dfi == in(det_mr_func).
+:- mode dfo == out(det_mr_func).
 
 %-----------------------------------------------------------------------------%
 %
