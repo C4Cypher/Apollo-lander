@@ -72,6 +72,11 @@ lua.m
 -----
 
 A library to facilitate the writing of Mercury modules that are callable from Lua.
+
+api.m
+----
+
+Primitive (semipure and impure) bindings directly to the Lua C api.
 	
 	
 		
