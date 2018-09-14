@@ -272,6 +272,45 @@
 
 %-----------------------------------------------------------------------------%
 %
+% Lua functions
+%	
+
+	% This is the type signature for predicates that can be cast as
+	% Lua functions
+	%
+:- type lua_func == (impure func(lua) = int).
+
+:- inst det_lua_func == 
+	(func(in) = out(bound(int)) is det).
+	
+:- inst semidet_lua_func == 
+	(func(in) = out is semidet).
+	
+
+:- inst dlf == det_lua_func.
+
+:- mode dfi == in(det_lua_func).
+:- mode dfo == out(det_lua_func).
+
+:- mode li == in(bound(lua)).
+:- mode lo == out(bound(lua)).
+
+:- func func_udata(lua_func) = func_udata.
+:- mode func_udata(dfi) = dfuo is det.
+:- mode func_udata(dfo) = dfui is det.
+
+:- type func_udata
+	--->	det_func(lua_func).
+
+:- inst dfu ---> det_func(det_lua_func).
+
+:- mode dfui == in(dfu).
+:- mode dfuo == out(dfu).
+
+
+
+%-----------------------------------------------------------------------------%
+%
 % Function constructors, deconstructors, and calls 
 %
 
@@ -390,9 +429,7 @@
 :- impure pred lua_pushboolean(bool::in, lua::in) is det.
 :- impure pred lua_pushthread(lua::in) is det.
 :- impure func lua_pushthread(lua) = bool.
-:- impure pred lua_pushfunc(lua_func, lua).
-:- mode lua_pushfunc(dfi, in) is det.
-:- mode lua_pushfunc(sfi, in) is det.
+:- impure pred lua_pushfunc(lua_func::dfi, lua::in) is det.
 :- impure pred lua_pushcfunction(c_function::in, lua::in) is det.
 :- impure pred lua_pushcclosure(c_function::in, int::in, lua::in) is det.
 :- impure pred lua_pushref(ref::in, lua::in) is det.
@@ -864,10 +901,13 @@ value_equal(V1, V2, L) :-
 	
 :- pragma inline(lua_setupvalue/2).
 
+
 %-----------------------------------------------------------------------------%
 %
 % Function constructors, deconstructors, and calls 
 %
+
+
 
 :- pragma foreign_proc("C", lua_loadstring(S::in, L::in) = (Success::out),
 	[may_call_mercury], "Success = luaL_loadstring(L, S);").

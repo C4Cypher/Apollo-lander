@@ -280,8 +280,19 @@
 :- mode set(in, in, di, uo) is det.
 :- mode set(in, in, mdi, uo) is det.
 
- 
+%-----------------------------------------------------------------------------%
+%
+% Lua tables
+%	
 
+  % Create new Lua table and pass it to Mercury as a refrence
+  %
+:- func new_table(ls, ls) = var.
+:- mode new_table(di, uo) = out is det.
+
+:- pred new_table(var, ls, ls).
+:- mode new_table(out, di, uo) is det.
+ 
 %-----------------------------------------------------------------------------%
 %
 % Lua modules
@@ -295,56 +306,13 @@
 %	io::di, io::uo) is det.
 
 
-%-----------------------------------------------------------------------------%
-%
-% Lua functions
-%	
+:- type lua_func.
 
-	% This is the type signature for predicates that can be cast as
-	% Lua functions
-	%
-:- type lua_func == (impure func(lua) = int).
-
-:- inst det_lua_func == 
-	(func(in) = out(bound(int)) is det).
-	
-:- inst semidet_lua_func == 
-	(func(in) = out is semidet).
-	
-
-:- inst dlf == det_lua_func.
-:- inst slf == semidet_lua_func.
-
-:- mode dfi == in(det_lua_func).
-:- mode dfo == out(det_lua_func).
-
-:- mode sfi == in(semidet_lua_func).
-:- mode sfo == out(semidet_lua_func).
-
-:- mode li == in(bound(lua)).
-:- mode lo == out(bound(lua)).
-
-:- type func_udata.
-
-:- func func_udata(lua_func) = func_udata.
-:- mode func_udata(dfi) = dfuo is det.
-:- mode func_udata(sfi) = sfuo is det.
-:- mode func_udata(dfo) = dfui is det.
-:- mode func_udata(sfo) = sfui is det.
+:- func lua_func(func(vars, ls, ls) = vars) = lua_func.
+:- mode lua_func(func(in, di, uo) = out is det) = out is det.
+:- mode lua_func(func(in, mdi, muo) = out is det) = out is det.
 
 
-:- type func_udata
-	--->	det_func(lua_func)
-	;	semidet_func(lua_func).
-
-:- inst dfu ---> det_func(det_lua_func).
-:- inst sfu ---> semidet_func(semidet_lua_func).
-
-:- mode dfui == in(dfu).
-:- mode dfuo == out(dfu).
-
-:- mode sfui == in(sfu).
-:- mode sfuo == out(sfu).
 
 
 %-----------------------------------------------------------------------------%
@@ -726,6 +694,8 @@ value_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 
 :- pragma promise_pure(value_equal/4).
 
+:- type lua_func == luaMR.api.lua_func.
+
 %-----------------------------------------------------------------------------%
 %
 % Get and Set
@@ -791,7 +761,27 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
   ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		" attempted to set impossible var."))  .
 
-:- pragma promise_pure(set/4).    
+:- pragma promise_pure(set/4).
+
+%-----------------------------------------------------------------------------%
+%
+% Lua tables
+%	
+
+  % Create new Lua table and pass it to Mercury as a refrence
+  %
+%:- func new_table(ls, ls) = var.
+%:- mode new_table(di, uo) = out is det.
+
+new_table(ls(L, I, T), ls(L, I, T)) = ref(Ref) :-
+  impure lua_newtable(L),
+  semipure Ref = lua_toref(-1, L),
+  impure lua_pop(1, L).
+  
+:- pragma promise_pure(new_table/2).
+  
+new_table(Var, L1, L2) :- Var = new_table(L1, L2).
+      
 
 %-----------------------------------------------------------------------------%
 %
