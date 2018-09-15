@@ -303,6 +303,21 @@
 	%
 :- impure func mr_call(lua) = int.
 
+
+  % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
+  % to pass a higher order predicate value.
+  %
+:- type pred_udata	--->	mr_pred(mr_pred).
+
+:- inst pred_udata == mr_pred(mr_pred).
+:- mode pui = in(pred_udata).
+:- mode puo = out(pred_udata).
+
+:- func pred_udata(mr_pred) = pred_udata.
+:- mode pred_udata(mri) = puo is det.
+:- mode pred_udata(mro) = pui is det.
+
+
 :- type lua_result
 	--->	returned(int)
 	;	returned_error(lua_error).
@@ -975,7 +990,26 @@ mr_callpred(L, R) :-
 	
 lua_error(T, L) :-
 	impure lua_pushuserdata(T, L),
-	impure lua_error(L). 
+	impure lua_error(L).
+  
+  
+  % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
+  % to pass a higher order predicate value.
+  %
+%:- type pred_udata	--->	mr_pred(lua_func).
+
+%:- inst pred_udata == mr_pred(mr_pred).
+%:- mode pui = in(pred_udata).
+%:- mode puo = out(pred_udata).
+
+%:- func pred_udata(mr_pred) = pred_udata.
+%:- mode pred_udata(mri) = puo is det.
+%:- mode pred_udata(mro) = pui is det.
+
+
+pred_udata(P::mri) = (U::puo) :- U = mr_pred(P).
+pred_udata(P::mro) = (U::pui) :- U = mr_pred(P).
+ 
 	
 
 %-----------------------------------------------------------------------------%

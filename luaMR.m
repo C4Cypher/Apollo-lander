@@ -356,18 +356,7 @@
 :- mode mri = in(mr_pred).
 :- mode mro = out(mr_pred).
 
-  % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
-  % to pass a higher order predicate value.
-  %
-:- type pred_udata	--->	mr_pred(mr_pred).
 
-:- inst pred_udata == mr_pred(mr_pred).
-:- mode pui = in(pred_udata).
-:- mode puo = out(pred_udata).
-
-:- func pred_udata(mr_pred) = pred_udata.
-:- mode pred_udata(mri) = puo is det.
-:- mode pred_udata(mro) = pui is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -749,7 +738,6 @@ value_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 
 :- pragma promise_pure(value_equal/4).
 
-:- type lua_func == luaMR.api.lua_func.
 
 %-----------------------------------------------------------------------------%
 %
@@ -1010,26 +998,11 @@ register_module(Name, Func, L, !IO) :-
 %:- mode mri = in(mr_pred).
 %:- mode mro = out(mr_pred.)
 
-  % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
-  % to pass a higher order predicate value.
-  %
-%:- type pred_udata	--->	mr_pred(lua_func).
 
-%:- inst pred_udata == mr_pred(mr_pred).
-%:- mode pui = in(pred_udata).
-%:- mode puo = out(pred_udata).
-
-%:- func pred_udata(mr_pred) = pred_udata.
-%:- mode pred_udata(mri) = puo is det.
-%:- mode pred_udata(mro) = pui is det.
-
-
-pred_udata(P::mri) = (U::puo) :- U = mr_pred(P).
-pred_udata(P::mro) = (U::pui) :- U = mr_pred(P).
 	
 
 
-
+        
 %-----------------------------------------------------------------------------%
 %
 % Lua Types
