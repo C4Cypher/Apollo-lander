@@ -296,22 +296,6 @@
 :- func local(ls, ls) = var.
 :- mode local(di, uo) = out is det.
 
-  % The number of arguments passed to the local Lua environment,
-  % 
-:- pred arg_count(int, ls, ls).
-:- mode arg_count(out, di, uo) is det.
-
-:- func arg_count(ls, ls) = int.
-:- mode arg_count(di, uo) = out is det.
-
-  % The arguments passed to the local Lua environment as a list.
-  % 
-:- pred args(vars, ls, ls).
-:- mode args(out, di, uo) is det.
-
-:- func args(ls, ls) = vars.
-:- func args(di, uo) = out is det.
-
 
 %-----------------------------------------------------------------------------%
 %
@@ -353,18 +337,36 @@
 % Lua functions
 %	
 
-	% This is the type signature for predicates that can be cast as
-	% Lua functions, vars is the list of returned values [] if none.
+
+
+	% This is the type signature for mercury predicates that can be called as
+	% Lua functions.
 	%
-:- type mr_func
-  --->  func(ls, ls) = vars.
+:- type mr_pred == (pred(ls, ls, int)).
 
-:- inst det_mr_func == (pred(di,uo) = out is det).
-	
-:- inst dmf == det_mr_func.
+:- inst mr_pred == (pred(di, uo, out) is det).
 
-:- mode dfi == in(det_mr_func).
-:- mode dfo == out(det_mr_func).
+:- mode mri = in(mr_pred).
+:- mode mro = out(mr_pred.)
+
+  % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
+  % to pass a higher order predicate value.
+  %
+:- type pred_udata	--->	mr_pred(lua_func).
+
+:- inst pred_udata == mr_pred(mr_pred).
+
+:- mode pui = in(pred_udata).
+:- mode puo = out(pred_udata).
+
+:- func pred_udata(mr_pred) = pred_udata.
+:- mode func_udata(mri) = out is det.
+:- mode func_udata(mro) = in is det.
+
+
+
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -996,6 +998,33 @@ register_module(Name, Func, L, !IO) :-
 % Lua functions
 %
 
+	% This is the type signature for mercury predicates that can be called as
+	% Lua functions.
+	%
+%:- type mr_pred == (pred(ls, ls, int)).
+
+%:- inst mr_pred == (pred(di, uo, out) is det).
+
+%:- mode mri = in(mr_pred).
+%:- mode mro = out(mr_pred.)
+
+  % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
+  % to pass a higher order predicate value.
+  %
+%:- type pred_udata	--->	mr_pred(lua_func).
+
+%:- inst pred_udata == mr_pred(mr_pred).
+%:- mode pui = in(pred_udata).
+%:- mode puo = out(pred_udata).
+
+%:- func pred_udata(mr_pred) = pred_udata.
+%:- mode pred_udata(mri) = puo is det.
+%:- mode pred_udata(mro) = pui is det.
+
+
+pred_udata(P::mri) = (U::puo) :- U = mr_pred(P).
+pred_udata(P::mro) = (U::pui) :- U = mr_pred(P).
+	
 
 
 
