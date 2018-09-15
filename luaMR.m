@@ -290,7 +290,7 @@
 
   % Create a new variable local to the environment initial value will be nil
   %
-:- pred local(var ls, ls).
+:- pred local(var, ls, ls).
 :- mode local(out, di, uo).
 
 :- func local(ls, ls) = var.
@@ -321,7 +321,7 @@
   % Create new Lua table and pass it as a local.
   %
 :- func local_table(ls, ls) = var.
-:= mode local_table(di, uo) = out is det.
+:- mode local_table(di, uo) = out is det.
 
 :- pred local_table(var, ls, ls).
 :- pred local_table(out, di, uo) is det. 
@@ -359,7 +359,7 @@
 :- type mr_func
   --->  func(ls, ls) = vars.
 
-:- inst det_mr_func == (pred(di,uo) = out is det.)
+:- inst det_mr_func == (pred(di,uo) = out is det).
 	
 :- inst dmf == det_mr_func.
 
@@ -819,19 +819,39 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
 % Lua tables
 %	
 
+  % Create new Lua table and pass it as a local.
+  %
+%:- func local_table(ls, ls) = var.
+%:= mode local_table(di, uo) = out is det.
+
+%:- pred local_table(var, ls, ls).
+%:- pred local_table(out, di, uo) is det.
+
+local_table(index(I), ls(L, Ix, T), ls(L, Ix, T)) :-
+  impure lua_newtable(L), 
+  semipure I = absolute(-1, L).
+  
+:- pragma promise_pure(local_table/3).
+
+local_table(!L) = V :- local_table(V, !L). 
+
+
   % Create new Lua table and pass it to Mercury as a refrence
   %
-%:- func new_table(ls, ls) = var.
-%:- mode new_table(di, uo) = out is det.
+%:- func ref_table(ls, ls) = var.
+%:- mode ref_table(di, uo) = out is det.
 
-new_table(ls(L, I, T), ls(L, I, T)) = ref(Ref) :-
+%:- pred ref_table(var, ls, ls).
+%:- mode ref_table(out, di, uo) is det.
+
+ref_table(ref(Ref), ls(L, I, T), ls(L, I, T)):-
   impure lua_newtable(L),
   semipure Ref = lua_toref(-1, L),
   impure lua_pop(1, L).
   
-:- pragma promise_pure(new_table/2).
-  
-new_table(Var, L1, L2) :- Var = new_table(L1, L2).
+:- pragma promise_pure(ref_table/3).
+          
+ref_table(!L) = V :- ref_table(V, !L).
       
 
 %-----------------------------------------------------------------------------%
@@ -951,12 +971,7 @@ register_module(Name, Func, L, !IO) :-
 % Lua functions
 %
 
-func_udata(F::dfi) = (U::dfuo) :- U = det_func(F).
-func_udata(F::dfo) = (U::dfui) :- U = det_func(F).
-func_udata(F::sfi) = (U::sfuo) :- U = semidet_func(F).
-func_udata(F::sfo) = (U::sfui) :- U = semidet_func(F).
-	
-:- pragma promise_pure(func_udata/1).
+
 
 
 %-----------------------------------------------------------------------------%
