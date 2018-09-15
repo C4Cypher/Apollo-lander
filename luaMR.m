@@ -267,9 +267,7 @@
 
 :- type nil ---> nil.
 
-  % Retreive the value of a var in Lua
-  % Note to avoid causing side-effects, these functions will not trigger
-  % metatables.
+  % Retreive the value of a var in Lua without triggering metatables.  
   %
 :- pred get(var, value, ls, ls).
 :- mode get(in, out, di, uo) is det.
@@ -280,18 +278,26 @@
 :- mode get(in, mdi, muo) = out is det.
 
   % Change the value of a var in Lua
-  % Although these calls are considered pure due to the passing of the lua_state
-  % Mercury can not backtrack through these or other calls that modify the 
-  % Lua state.
+  % Although these calls are considered pure due to the passing of the 
+  % lua_state. Mercury can not backtrack through these or other calls 
+  % that modify the Lua state.
   %
 :- pred set(var, value, ls, ls).
 :- mode set(in, in, di, uo) is det.
-:- mode set(in, in, mdi, uo) is det.
+
+  %TODO: Implement rawset in a manner that BOTH does not impact metatables
+  % and is backtrackable via trailing.
+%:- pred rawset(var, value, ls, ls).
+%:- mode rawset(in, in, di, uo) is det.
+%:- mode rawset(in, in, mdi, muo) is det.  
+
+  % Change the value of a var in Lua, making sure to not trigger metatables.
+  %
 
   % Create a new variable local to the environment initial value will be nil
   %
 :- pred local(var, ls, ls).
-:- mode local(out, di, uo).
+:- mode local(out, di, uo) is det.
 
 :- func local(ls, ls) = var.
 :- mode local(di, uo) = out is det.
@@ -340,19 +346,20 @@
 
 
 	% This is the type signature for mercury predicates that can be called as
-	% Lua functions.
+	% Lua functions.  Unless you're familiar with the calls in luaMR.api, please
+	% use the provided constructor functions to create mr_pred values.
 	%
-:- type mr_pred == (pred(ls, ls, int)).
+:- type mr_pred == (pred(lua, int)).
 
-:- inst mr_pred == (pred(di, uo, out) is det).
+:- inst mr_pred == (pred(in, out) is det).
 
 :- mode mri = in(mr_pred).
-:- mode mro = out(mr_pred.)
+:- mode mro = out(mr_pred).
 
   % It is MUCH easier to pass a normal Mercury type to C and Lua than it is
   % to pass a higher order predicate value.
   %
-:- type pred_udata	--->	mr_pred(lua_func).
+:- type pred_udata	--->	mr_pred(mr_pred).
 
 :- inst pred_udata == mr_pred(mr_pred).
 :- mode pui = in(pred_udata).
@@ -361,6 +368,7 @@
 :- func pred_udata(mr_pred) = pred_udata.
 :- mode pred_udata(mri) = puo is det.
 :- mode pred_udata(mro) = pui is det.
+
 
 %-----------------------------------------------------------------------------%
 %

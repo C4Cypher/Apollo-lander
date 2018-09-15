@@ -394,7 +394,7 @@
 :- impure pred lua_pushboolean(bool::in, lua::in) is det.
 :- impure pred lua_pushthread(lua::in) is det.
 :- impure func lua_pushthread(lua) = bool.
-:- impure pred lua_pushfunc(lua_func::dfi, lua::in) is det.
+:- impure pred lua_pushpred(mr_pred::mpi, lua::in) is det.
 :- impure pred lua_pushcfunction(c_function::in, lua::in) is det.
 :- impure pred lua_pushcclosure(c_function::in, int::in, lua::in) is det.
 :- impure pred lua_pushref(ref::in, lua::in) is det.
@@ -952,10 +952,9 @@ mr_call(L) = R :-
 mr_callpred(L, R) :- 
 	impure lua_getupvalue(1, L),
 	semipure lua_touserdata(-1, L) = U,
-	U = univ(FU) ->
-		require_complete_switch [FU]
-		( FU = det_func(F) ; FU = semidet_func(F) ),
-		impure R = impure_apply(F, L)	
+	U = univ(PU) ->
+		PU = mr_pred(P),
+		call(P, L, R).	
 	; 
 		error( 
 		"Called Mercury function without valid func upvalue.").
@@ -1269,8 +1268,8 @@ lua_pushuserdata(V, L) :-
 	
 :- pragma inline(lua_pushboolean/2).
 
-lua_pushfunc(V, L) :- 
-	impure lua_pushuserdata(func_udata(V), L),
+lua_pushpred(V, L) :- 
+	impure lua_pushuserdata(pred_udata(V), L),
 	impure lua_pushcclosure(mr_call_ptr, 1, L).
 	
 
