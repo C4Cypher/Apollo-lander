@@ -355,18 +355,12 @@
 :- type pred_udata	--->	mr_pred(lua_func).
 
 :- inst pred_udata == mr_pred(mr_pred).
-
 :- mode pui = in(pred_udata).
 :- mode puo = out(pred_udata).
 
 :- func pred_udata(mr_pred) = pred_udata.
-:- mode func_udata(mri) = out is det.
-:- mode func_udata(mro) = in is det.
-
-
-
-
-
+:- mode pred_udata(mri) = puo is det.
+:- mode pred_udata(mro) = pui is det.
 
 %-----------------------------------------------------------------------------%
 %
