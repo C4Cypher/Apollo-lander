@@ -808,27 +808,20 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
 
   % Create a new variable local to the environment initial value will be nil
   %
-%:- pred local(var, ls, ls).
-%:- mode local(out, di, uo).
+:- pred local(var, ls, ls).
+:- mode local(out, di, uo).
 
-%:- func local(ls, ls) = var.
-%:- mode local(di, uo) = out is det.
+local(index(I), ls(L, Ix, T), ls(L, Ix, T)) :- 
+  semipure Top = lua_gettop(L),
+  I = Top + 1,
+  impure lua_settop(I, L).  
 
-  % The number of arguments passed to the local Lua environment,
-  % 
-%:- pred arg_count(int, ls, ls).
-%:- mode arg_count(out, di, uo) is det.
+:- func local(ls, ls) = var.
+:- mode local(di, uo) = out is det.
 
-%:- func arg_count(ls, ls) = int.
-%:- mode arg_count(di, uo) = out is det.
+local(L!) = V :- local(V, L!).
 
-  % The arguments passed to the local Lua environment as a list.
-  % 
-%:- pred args(vars, ls, ls).
-%:- mode args(out, di, uo) is det.
 
-%:- func args(ls, ls) = vars.
-%:- func args(di, uo) = out is det.
 
 
 %-----------------------------------------------------------------------------%
