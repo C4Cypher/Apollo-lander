@@ -299,7 +299,7 @@
   % The number of arguments passed to the local Lua environment,
   % 
 :- pred arg_count(int, ls, ls).
-:- mode arg_count(out, ls, ls) is det.
+:- mode arg_count(out, di, uo) is det.
 
 :- func arg_count(ls, ls) = int.
 :- mode arg_count(di, uo) = out is det.
@@ -728,7 +728,7 @@ value(T::out) = (V::in) :-
 	; V = lua_error(E) -> dynamic_cast(E, T)
 	; V = userdata(univ(U)) -> dynamic_cast(U, T)
 	; unexpected($module, $pred, 
-		"Impossible value passed.")
+		"Impossible value passed: " ++ V)
 	).
 
 :- pragma promise_pure(value/1).
@@ -813,6 +813,31 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
 		" attempted to set impossible var."))  .
 
 :- pragma promise_pure(set/4).
+
+  % Create a new variable local to the environment initial value will be nil
+  %
+%:- pred local(var, ls, ls).
+%:- mode local(out, di, uo).
+
+%:- func local(ls, ls) = var.
+%:- mode local(di, uo) = out is det.
+
+  % The number of arguments passed to the local Lua environment,
+  % 
+%:- pred arg_count(int, ls, ls).
+%:- mode arg_count(out, di, uo) is det.
+
+%:- func arg_count(ls, ls) = int.
+%:- mode arg_count(di, uo) = out is det.
+
+  % The arguments passed to the local Lua environment as a list.
+  % 
+%:- pred args(vars, ls, ls).
+%:- mode args(out, di, uo) is det.
+
+%:- func args(ls, ls) = vars.
+%:- func args(di, uo) = out is det.
+
 
 %-----------------------------------------------------------------------------%
 %
