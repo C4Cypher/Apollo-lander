@@ -100,39 +100,39 @@
 
 	% Register a new trail function, it will be called before the existing
 	% trail_func is called.
-:- pred update_lua_trail(lua_func, ls, ls).
+:- pred update_lua_trail(mr_pred, ls, ls).
 :- mode update_lua_trail(in, di, muo) is det.
 :- mode update_lua_trail(in, mdi, muo) is det.
 
 	% Register the trail_func of a lua_state on the trail, update the
 	% choicepoint ID, and reset the trail func.
-:- impure pred trail_lua_closure(lua_func, ls, ls).
-:- mode trail_lua_closure(dfi, di, muo) is det.
-:- mode trail_lua_closure(dfi, mdi, muo) is det.
+:- impure pred trail_lua_closure(mr_pred, ls, ls).
+:- mode trail_lua_closure(mpi, di, muo) is det.
+:- mode trail_lua_closure(mpi, mdi, muo) is det.
 
 
 	% If the current id is newer, trail as normally, however, if it isn't
 	% Just update the trail_func.
 	%
-:- impure pred trail_if_newer(lua_func, ls, ls).
-:- mode trail_if_newer(dfi, di, muo) is det.
-:- mode trail_if_newer(dfi, mdi, muo) is det.
+:- impure pred trail_if_newer(mr_pred, ls, ls).
+:- mode trail_if_newer(mpi, di, muo) is det.
+:- mode trail_if_newer(mpi, mdi, muo) is det.
 
 
 	% Predicates that can be used to register a trail_func with the trail.
 	% The latter form will only backtrack on undo, exception or retry.
 	%
-:- impure pred backtrack(lua_func, lua).
-:- mode backtrack(dfi, in) is det.
+:- impure pred backtrack(mr_pred, lua).
+:- mode backtrack(mpi, in) is det.
 
-:- impure func backtrack(lua_func, lua_func, lua) = int.
-:- mode backtrack(dfi, dfi, in) = out is det.
+:- impure func backtrack(mr_pred, mr_pred, lua) = int.
+:- mode backtrack(mpi, mpi, in) = out is det.
 
-:- func get_backtrack(lua_func, lua) = (impure (pred)).
-:- mode get_backtrack(dfi, in) = out((pred) is det) is det.
+:- func get_backtrack(mr_pred, lua) = (impure (pred)).
+:- mode get_backtrack(mpi, in) = out((pred) is det) is det.
 
-:- func trail_to_func(lua_trail, lua) = lua_func.
-:- mode trail_to_func(in, in) = dfo is det.
+:- func trail_to_func(lua_trail, lua) = mr_pred.
+:- mode trail_to_func(in, in) = mpo is det.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%

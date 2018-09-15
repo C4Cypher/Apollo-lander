@@ -325,17 +325,6 @@
 :- pred ref_table(var, ls, ls).
 :- mode ref_table(out, di, uo) is det.
  
-%-----------------------------------------------------------------------------%
-%
-% Lua modules
-%	
-
-	% register_module(Module, L, !IO).
-	%
-	% Register a module in Lua.
-	%
-%:- pred register_module(string::in, lua_func::in, lua::in,
-%	io::di, io::uo) is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -357,6 +346,41 @@
 :- mode mro = out(mr_pred).
 
 
+  % Accepts a Mercury function that takes a list of lua variables and 
+  % returns a list of lua variables. If a semidet function fails, then
+  % the pred will return nil to lua.
+  %
+:- func make_lua_pred(func(vars, ls, ls) = vars) = mr_pred.
+:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is cc_multi)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is cc_nondet)) = mpo.
+
+  % Acceps a Mercury function that takes a list of variables and returns
+  % one Lua variable. In Lua, the function will return nil on failure, or
+  % if the function finds multiple solutions, they will all be returned
+  %
+:- func make_nondet_lua_pred(func(vars, ls, ls) = var) = mr_pred.
+:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is multi)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is nondet)) = mpo.
+
+
+
+
+
+%-----------------------------------------------------------------------------%
+%
+% Lua modules
+%	
+
+	% register_module(Module, L, !IO).
+	%
+	% Register a module in Lua.
+	%
+%:- pred register_module(string::in, lua_func::in, lua::in,
+%	io::di, io::uo) is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -862,7 +886,55 @@ ref_table(ref(Ref), ls(L, I, T), ls(L, I, T)):-
 :- pragma promise_pure(ref_table/3).
           
 ref_table(!L) = V :- ref_table(V, !L).
-      
+
+%-----------------------------------------------------------------------------%
+%
+% Functions
+%
+
+
+  % Accepts a Mercury function that takes a list of lua variables and 
+  % returns a list of lua variables. If a semidet function fails, then
+  % the pred will return nil to lua.
+  %
+%:- func make_lua_pred(func(vars, ls, ls) = vars) = mr_pred.
+%:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
+%:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
+%:- mode make_lua_pred(in(func(in, di, uo) = out is cc_multi)) = mpo.
+%:- mode make_lua_pred(in(func(in, di, uo) = out is cc_nondet)) = mpo.
+
+
+make_lua_pred(Func) = (promise_pure pred(L::in, Returned::out) :- 
+  semipure Top = lua_gettop(L),
+  Args = get_args(Top, []),
+  some [IO] Return = apply(Func, Args, ls(L, current_ID, IO), _) =>
+  impure return_args(Return, Returned, L) ; Returned = 0).
+
+:- semipure func get_args(index, vars) = vars.
+
+get_args(I, Old) = New :-
+    I = 1, New = [index(1) | Old ]         
+  ;
+    I > 1, New = get_args(I - 1, [index(I) | Old ]). 
+     
+
+:- impure pred reutrn_args(vars::in, int::out, lua::in).
+
+return_args([], 0, _).
+    
+return_args([Var | Rest], Count + 1, L) :-
+  impure push_var(Var, L),
+  impure return_args(Rest, Count, L).
+
+  % Acceps a Mercury function that takes a list of variables and returns
+  % one Lua variable. In Lua, the function will return nil on failure, or
+  % if the function finds multiple solutions, they will all be returned
+  %
+:- func make_nondet_lua_pred(func(vars, ls, ls) = var) = mr_pred.
+:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is multi)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is nondet)) = mpo.      
 
 %-----------------------------------------------------------------------------%
 %
