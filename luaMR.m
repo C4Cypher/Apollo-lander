@@ -816,12 +816,12 @@ local(index(I), ls(L, Ix, T), ls(L, Ix, T)) :-
   I = Top + 1,
   impure lua_settop(I, L).  
 
+:- pragma promise_pure(local/2).)
+
 :- func local(ls, ls) = var.
 :- mode local(di, uo) = out is det.
 
 local(L!) = V :- local(V, L!).
-
-
 
 
 %-----------------------------------------------------------------------------%
