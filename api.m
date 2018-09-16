@@ -309,9 +309,9 @@
   %
 :- type pred_udata	--->	mr_pred(mr_pred).
 
-:- inst pred_udata == mr_pred(mr_pred).
-:- mode pui = in(pred_udata).
-:- mode puo = out(pred_udata).
+:- inst pred_udata == bound(mr_pred(mr_pred)).
+:- mode pui == (free >> bound(mr_pred(mr_pred))).
+:- mode puo == (bound(mr_pred(mr_pred)) >> bound(mr_pred(mr_pred))).
 
 :- func pred_udata(mr_pred) = pred_udata.
 :- mode pred_udata(mri) = puo is det.
@@ -409,7 +409,7 @@
 :- impure pred lua_pushboolean(bool::in, lua::in) is det.
 :- impure pred lua_pushthread(lua::in) is det.
 :- impure func lua_pushthread(lua) = bool.
-:- impure pred lua_pushpred(mr_pred::mpi, lua::in) is det.
+:- impure pred lua_pushpred(mr_pred::mri, lua::in) is det.
 :- impure pred lua_pushcfunction(c_function::in, lua::in) is det.
 :- impure pred lua_pushcclosure(c_function::in, int::in, lua::in) is det.
 :- impure pred lua_pushref(ref::in, lua::in) is det.
@@ -960,16 +960,17 @@ mr_call(L) = R :-
 		impure lua_pushuserdata(Ex, L),
 		R = 2
 	).
-		
+
+:- mode fix_mr_pred == (free >> mr_pred).
 
 :- pred mr_callpred(lua::in, int::out) is semidet.
 	
 mr_callpred(L, R) :- 
 	impure lua_getupvalue(1, L),
 	semipure lua_touserdata(-1, L) = U,
-	U = univ(PU) ->
-		PU = mr_pred(P),
-		call(P, L, R).	
+	U = univ(PU:pred_udata),
+		PU = pred_udata(P) ->
+		impure call(P, L, R)	
 	; 
 		error( 
 		"Called Mercury function without valid func upvalue.").
@@ -1007,8 +1008,9 @@ lua_error(T, L) :-
 %:- mode pred_udata(mro) = pui is det.
 
 
-pred_udata(P::mri) = (U::puo) :- U = mr_pred(P).
-pred_udata(P::mro) = (U::pui) :- U = mr_pred(P).
+pred_udata(P) = U :- U = mr_pred(P).
+
+:- pragma promise_pure(pred_udata/1).
  
 	
 

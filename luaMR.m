@@ -314,7 +314,7 @@
 :- mode local_table(di, uo) = out is det.
 
 :- pred local_table(var, ls, ls).
-:- pred local_table(out, di, uo) is det. 
+:- mode local_table(out, di, uo) is det. 
 
 
   % Create new Lua table and pass it to Mercury as a refrence
@@ -338,12 +338,12 @@
 	% Lua functions.  Unless you're familiar with the calls in luaMR.api, please
 	% use the provided constructor functions to create mr_pred values.
 	%
-:- type mr_pred == (pred(lua, int)).
+:- type mr_pred == (impure pred(lua, int)).
 
 :- inst mr_pred == (pred(in, out) is det).
 
-:- mode mri = in(mr_pred).
-:- mode mro = out(mr_pred).
+:- mode mri == in(mr_pred).
+:- mode mro == out(mr_pred).
 
 
   % Accepts a Mercury function that takes a list of lua variables and 
@@ -351,20 +351,20 @@
   % the pred will return nil to lua.
   %
 :- func make_lua_pred(func(vars, ls, ls) = vars) = mr_pred.
-:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is cc_multi)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is cc_nondet)) = mpo.
+:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mro is det.
+:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mro is det.
 
   % Acceps a Mercury function that takes a list of variables and returns
   % one Lua variable. In Lua, the function will return nil on failure, or
   % if the function finds multiple solutions, they will all be returned
   %
-:- func make_nondet_lua_pred(pred(vars, ls, ls, var)) = mr_pred.
-:- mode make_lua_pred(in(pred(in, di, uo, out) is det)) = mpo.
-:- mode make_lua_pred(in(pred(in, di, uo, out) is semidet)) = mpo.
-:- mode make_lua_pred(in(pred(in, di, uo, out) is multi)) = mpo.
-:- mode make_lua_pred(in(pred(in, di, uo, out) is nondet)) = mpo.
+:- func make_nondet_lua_pred(func(vars, ls, ls) = var) = mr_pred.
+:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is det)) = mro is det.
+:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is semidet)) 
+  = mro is det.
+:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is multi)) = mro is det.
+:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is nondet)) 
+  = mro is det.
 
 
 
@@ -745,7 +745,7 @@ value(T::out) = (V::in) :-
 	; V = lua_error(E) -> dynamic_cast(E, T)
 	; V = userdata(univ(U)) -> dynamic_cast(U, T)
 	; unexpected($module, $pred, 
-		"Impossible value passed: " ++ V)
+		"Impossible value passed.")
 	).
 
 :- pragma promise_pure(value/1).
@@ -832,18 +832,18 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
 
   % Create a new variable local to the environment initial value will be nil
   %
-:- pred local(var, ls, ls).
-:- mode local(out, di, uo).
+%:- pred local(var, ls, ls).
+%:- mode local(out, di, uo).
 
-local(index(I), ls(L, Ix, T), ls(L, Ix, T)) :- 
+local(local(I), ls(L, Ix, T), ls(L, Ix, T)) :- 
   semipure Top = lua_gettop(L),
   I = Top + 1,
   impure lua_settop(I, L).  
 
-:- pragma promise_pure(local/2).
+:- pragma promise_pure(local/3).
 
-:- func local(ls, ls) = var.
-:- mode local(di, uo) = out is det.
+%:- func local(ls, ls) = var.
+%:- mode local(di, uo) = out is det.
 
 local(L1, L2) = V :- local(V, L1, L2).
 
@@ -861,7 +861,7 @@ local(L1, L2) = V :- local(V, L1, L2).
 %:- pred local_table(var, ls, ls).
 %:- pred local_table(out, di, uo) is det.
 
-local_table(index(I), ls(L, Ix, T), ls(L, Ix, T)) :-
+local_table(local(I), ls(L, Ix, T), ls(L, Ix, T)) :-
   impure lua_newtable(L), 
   semipure I = absolute(-1, L).
   
@@ -892,6 +892,25 @@ ref_table(!L) = V :- ref_table(V, !L).
 % Functions
 %
 
+:- semipure func get_args(index, vars) = vars.
+
+ get_args(I, Old) = New :-
+    I = 1 -> New = [local(1) | Old ]         
+  ;
+    semipure get_args(I - 1, [local(I) | Old ]) = New. 
+     
+                                                            
+:- impure pred return_args(vars::in, int::out, lua::in) is det.
+    
+ return_args(List, Count, L) :-
+  List = [] ->
+    Count = 0
+  ; List = [Var | Rest] ->
+    impure push_var(Var, L),
+    impure return_args(Rest, Old, L),                
+    Count = Old + 1
+  ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+		  " Invalid list of vars.")).
 
   % Accepts a Mercury function that takes a list of lua variables and 
   % returns a list of lua variables. If a semidet function fails, then
@@ -904,43 +923,32 @@ ref_table(!L) = V :- ref_table(V, !L).
 %:- mode make_lua_pred(in(func(in, di, uo) = out is cc_nondet)) = mpo.
 
 
-make_lua_pred(Func) = (promise_pure pred(L::in, Returned::out) :- 
-  semipure Top = lua_gettop(L),
-  some [IO] Return = apply(Func,  get_args(Top, []), ls(L, current_ID, IO), _) 
-  =>        
-    impure return_args(Return, Returned, L) 
-  ; Returned = 0).
-  
+make_lua_pred(Func) = (impure pred(L::in, Returned::out) is det :-  
+    semipure Top = lua_gettop(L),
+    semipure Args = get_args(Top, []),
+    LS = ls(L, current_id, empty_trail),
+    Return = Func(Args, LS, _) ->        
+      impure return_args(Return, Returned, L)
+    ; Returned = 0
+  ). 
+
+    
+ 
 %:- func make_nondet_lua_pred(pred(vars, ls, ls, var)) = mr_pred.
 %:- mode make_lua_pred(in(pred(in, di, uo, out) is det)) = mpo.
 %:- mode make_lua_pred(in(pred(in, di, uo, out) is semidet)) = mpo.
 %:- mode make_lua_pred(in(pred(in, di, uo, out) is multi)) = mpo.
 %:- mode make_lua_pred(in(pred(in, di, uo, out) is nondet)) = mpo.
 
-make_nondet_lua_pred(Pred) = (promise_pure pred(L::in, Returned:out) :-
-  semipure Top = lua_gettop(L),
-  some [IO] Return = solutions(
-      Pred(get_args(Top, []), ls(L, current_ID, IO), _)
-    ) 
-  =>        
-    impure return_args(Return, Returned, L) 
-  ; Returned = 0).
+make_nondet_lua_pred(Func) = (impure pred(L::in, Returned::out) is det :-
+  semipure Top = lua_gettop(L),  
+  semipure Args = get_args(Top, []),    
+  Pred = (pred(Out::out) is nondet :- 
+    Out = Func(Args, ls(L, current_id, empty_trail), _)),
+  Return:vars = solutions(Pred),        
+  impure return_args(Return, Returned, L)).
 
-:- semipure func get_args(index, vars) = vars.
 
-get_args(I, Old) = New :-
-    I = 1, New = [index(1) | Old ]         
-  ;
-    I > 1, New = get_args(I - 1, [index(I) | Old ]). 
-     
-
-:- impure pred reutrn_args(vars::in, int::out, lua::in).
-
-return_args([], 0, _).
-    
-return_args([Var | Rest], Count + 1, L) :-
-  impure push_var(Var, L),
-  impure return_args(Rest, Count, L).
 
     
 
