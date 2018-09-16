@@ -360,11 +360,11 @@
   % one Lua variable. In Lua, the function will return nil on failure, or
   % if the function finds multiple solutions, they will all be returned
   %
-:- func make_nondet_lua_pred(func(vars, ls, ls) = var) = mr_pred.
-:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is multi)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is nondet)) = mpo.
+:- func make_nondet_lua_pred(pred(vars, ls, ls, var)) = mr_pred.
+:- mode make_lua_pred(in(pred(in, di, uo, out) is det)) = mpo.
+:- mode make_lua_pred(in(pred(in, di, uo, out) is semidet)) = mpo.
+:- mode make_lua_pred(in(pred(in, di, uo, out) is multi)) = mpo.
+:- mode make_lua_pred(in(pred(in, di, uo, out) is nondet)) = mpo.
 
 
 
@@ -840,12 +840,12 @@ local(index(I), ls(L, Ix, T), ls(L, Ix, T)) :-
   I = Top + 1,
   impure lua_settop(I, L).  
 
-:- pragma promise_pure(local/2).)
+:- pragma promise_pure(local/2).
 
 :- func local(ls, ls) = var.
 :- mode local(di, uo) = out is det.
 
-local(L!) = V :- local(V, L!).
+local(L1, L2) = V :- local(V, L1, L2).
 
 
 %-----------------------------------------------------------------------------%
@@ -906,9 +906,25 @@ ref_table(!L) = V :- ref_table(V, !L).
 
 make_lua_pred(Func) = (promise_pure pred(L::in, Returned::out) :- 
   semipure Top = lua_gettop(L),
-  Args = get_args(Top, []),
-  some [IO] Return = apply(Func, Args, ls(L, current_ID, IO), _) =>
-  impure return_args(Return, Returned, L) ; Returned = 0).
+  some [IO] Return = apply(Func,  get_args(Top, []), ls(L, current_ID, IO), _) 
+  =>        
+    impure return_args(Return, Returned, L) 
+  ; Returned = 0).
+  
+%:- func make_nondet_lua_pred(pred(vars, ls, ls, var)) = mr_pred.
+%:- mode make_lua_pred(in(pred(in, di, uo, out) is det)) = mpo.
+%:- mode make_lua_pred(in(pred(in, di, uo, out) is semidet)) = mpo.
+%:- mode make_lua_pred(in(pred(in, di, uo, out) is multi)) = mpo.
+%:- mode make_lua_pred(in(pred(in, di, uo, out) is nondet)) = mpo.
+
+make_nondet_lua_pred(Pred) = (promise_pure pred(L::in, Returned:out) :-
+  semipure Top = lua_gettop(L),
+  some [IO] Return = solutions(
+      Pred(get_args(Top, []), ls(L, current_ID, IO), _)
+    ) 
+  =>        
+    impure return_args(Return, Returned, L) 
+  ; Returned = 0).
 
 :- semipure func get_args(index, vars) = vars.
 
@@ -926,15 +942,7 @@ return_args([Var | Rest], Count + 1, L) :-
   impure push_var(Var, L),
   impure return_args(Rest, Count, L).
 
-  % Acceps a Mercury function that takes a list of variables and returns
-  % one Lua variable. In Lua, the function will return nil on failure, or
-  % if the function finds multiple solutions, they will all be returned
-  %
-:- func make_nondet_lua_pred(func(vars, ls, ls) = var) = mr_pred.
-:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is multi)) = mpo.
-:- mode make_lua_pred(in(func(in, di, uo) = out is nondet)) = mpo.      
+    
 
 %-----------------------------------------------------------------------------%
 %
