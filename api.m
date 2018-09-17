@@ -968,7 +968,7 @@ mr_callpred(L, R) :-
 	semipure lua_touserdata(-1, L) = U,
 	U = univ(PU:func_udata),
 		PU = func_udata(F) ->
-		impure apply(F, L) = R	
+		impure impure_apply(F, L) = R	
 	; 
 		error( 
 		"Called Mercury function without valid func upvalue.").
@@ -1008,7 +1008,7 @@ lua_error(T, L) :-
 
 func_udata(F) = U :- U = mr_func(F).
 
-:- pragma promise_pure(func_udata/1).
+%:- pragma promise_pure(func_udata/1).
  
 	
 

@@ -134,8 +134,8 @@
 :- func get_backtrack(mr_func, lua) = (impure (pred)).
 :- mode get_backtrack(mri, in) = out((pred) is det) is det.
 
-:- func trail_to_pred(lua_trail, lua) = mr_func.
-:- mode trail_to_pred(in, in) = mro is det.
+:- func trail_to_func(lua_trail, lua) = mr_func.
+:- mode trail_to_func(in, in) = mro is det.
 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
@@ -360,38 +360,37 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 %-----------------------------------------------------------------------------%
 
 update_lua_trail(F0, ls(L, I, T0), LS) :-
-	F1 = trail_to_pred(T0, L),
+	F1 = trail_to_func(T0, L),
 	F = backtrack(F0, F1),
 	T = mr_func(F),
 	LS = ls(L, I, T).
 
 
-trail_to_pred(T, L) = P :-
+trail_to_func(T, L) = F :-
 	require_complete_switch [T] some [R]
-	( T = mr_func(F0) -> P = 
-		( impure pred(L1::in, Ret::out) is det :- 
-			impure F0(L1, Ret) 
-		)
+	( T = mr_func(F0) -> F = 
+		( impure func(L1) = Ret is det :- 
+			impure impure_apply(F0, L1) = Ret)
 	; T = empty_trail -> 
-		P = ( impure pred(_::in, 0::out) is det :- true )
+		F = ( impure func(_) = 0 is det :- true )
 	; T = c_function(C) -> 
 		impure lua_pushcfunction(C, L),
 		semipure R = lua_toref(index(-1), L),
-		P = ref_to_func(R),
+		F = ref_to_func(R),
 		impure lua_pop(1, L)
 	; T = ref(R) ->
-		P = ref_to_func(R)
+		F = ref_to_func(R)
 	; unexpected($module, $pred, 
 			"Unknown lua_trail value provided.")
 	).
 	
 
-:- pragma promise_pure(trail_to_pred/2).
+:- pragma promise_pure(trail_to_func/2).
 
 	
 :- func ref_to_func(ref) = mr_func.
 
-ref_to_func(R) = ( impure pred(L::in, Ret::out) is det :-
+ref_to_func(R) = ( impure func(L) = Ret is det :-
 			impure lua_pushref(R, L),
 			semipure Err_index = lua_gettop(L),
 			impure RV = lua_pcall(index(-1), L),
@@ -423,7 +422,7 @@ trail_if_newer(F, !L) :-
 
 %-----------------------------------------------------------------------------%		
 
-backtrack(F, L) :- impure F(L,_).
+backtrack(F, L) :- impure impure_apply(F, L) = _.
 
 backtrack(F0, F1, L) = 0 :-
 	impure backtrack(F0, L),	 
