@@ -23,7 +23,7 @@
 
 	% The various types that might be used to backtrack a Lua state
 :- type lua_trail
-	--->	mr_pred(mr_pred)
+	--->	mr_func(mr_func)
 	;	c_function(c_function)
 	;	ref(ref)
 	;	empty_trail.
@@ -100,13 +100,13 @@
 
 	% Register a new trail function, it will be called before the existing
 	% trail_func is called.
-:- pred update_lua_trail(mr_pred, ls, ls).
+:- pred update_lua_trail(mr_func, ls, ls).
 :- mode update_lua_trail(in, di, muo) is det.
 :- mode update_lua_trail(in, mdi, muo) is det.
 
 	% Register the trail_func of a lua_state on the trail, update the
 	% choicepoint ID, and reset the trail func.
-:- impure pred trail_lua_closure(mr_pred, ls, ls).
+:- impure pred trail_lua_closure(mr_func, ls, ls).
 :- mode trail_lua_closure(mri, di, muo) is det.
 :- mode trail_lua_closure(mri, mdi, muo) is det.
 
@@ -114,7 +114,7 @@
 	% If the current id is newer, trail as normally, however, if it isn't
 	% Just update the trail_func.
 	%
-:- impure pred trail_if_newer(mr_pred, ls, ls).
+:- impure pred trail_if_newer(mr_func, ls, ls).
 :- mode trail_if_newer(mri, di, muo) is det.
 :- mode trail_if_newer(mri, mdi, muo) is det.
 
@@ -122,19 +122,19 @@
 	% Predicates that can be used to register a trail_func with the trail.
 	% The latter form will only backtrack on undo, exception or retry.
 	%
-:- impure pred backtrack(mr_pred, lua).
+:- impure pred backtrack(mr_func, lua).
 :- mode backtrack(mri, in) is det.
 
-:- impure func backtrack(mr_pred, mr_pred, lua) = int.
+:- impure func backtrack(mr_func, mr_func, lua) = int.
 :- mode backtrack(mri, mri, in) = out is det.
 
-:- impure pred backtrack(mr_pred, mr_pred, lua, int).
+:- impure pred backtrack(mr_func, mr_func, lua, int).
 :- mode backtrack(mri, mri, in, out) is det.
 
-:- func get_backtrack(mr_pred, lua) = (impure (pred)).
+:- func get_backtrack(mr_func, lua) = (impure (pred)).
 :- mode get_backtrack(mri, in) = out((pred) is det) is det.
 
-:- func trail_to_pred(lua_trail, lua) = mr_pred.
+:- func trail_to_pred(lua_trail, lua) = mr_func.
 :- mode trail_to_pred(in, in) = mro is det.
 
 %-----------------------------------------------------------------------------%
@@ -362,13 +362,13 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 update_lua_trail(F0, ls(L, I, T0), LS) :-
 	F1 = trail_to_pred(T0, L),
 	F = backtrack(F0, F1),
-	T = mr_pred(F),
+	T = mr_func(F),
 	LS = ls(L, I, T).
 
 
 trail_to_pred(T, L) = P :-
 	require_complete_switch [T] some [R]
-	( T = mr_pred(F0) -> P = 
+	( T = mr_func(F0) -> P = 
 		( impure pred(L1::in, Ret::out) is det :- 
 			impure F0(L1, Ret) 
 		)
@@ -389,7 +389,7 @@ trail_to_pred(T, L) = P :-
 :- pragma promise_pure(trail_to_pred/2).
 
 	
-:- func ref_to_func(ref) = mr_pred.
+:- func ref_to_func(ref) = mr_func.
 
 ref_to_func(R) = ( impure pred(L::in, Ret::out) is det :-
 			impure lua_pushref(R, L),
@@ -408,7 +408,7 @@ ref_to_func(R) = ( impure pred(L::in, Ret::out) is det :-
 
 trail_lua_closure(F0, LS, lua_state(L, current_id, empty_trail)) :-
 	update_lua_trail(F0, LS, lua_state(L, _, T)),
-	( T = mr_pred(F), P = get_backtrack(F, L) ->
+	( T = mr_func(F), P = get_backtrack(F, L) ->
 		impure trail_closure_on_backtrack(P)
 	; unexpected($module, $pred, 
 	"Previous call to update_lua_trail did not convert trail to a func.")

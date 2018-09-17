@@ -338,32 +338,32 @@
 	% Lua functions.  Unless you're familiar with the calls in luaMR.api, please
 	% use the provided constructor functions to create mr_pred values.
 	%
-:- type mr_pred == (impure pred(lua, int)).
+:- type mr_func == (impure func(lua)= int).
 
-:- inst mr_pred == (pred(in, out) is det).
+:- inst mr_func == (func(in) = out is det).
 
-:- mode mri == in(mr_pred).
-:- mode mro == out(mr_pred).
+:- mode mri == in(mr_func).
+:- mode mro == out(mr_func).
 
 
   % Accepts a Mercury function that takes a list of lua variables and 
   % returns a list of lua variables. If a semidet function fails, then
   % the pred will return nil to lua.
   %
-:- func make_lua_pred(func(vars, ls, ls) = vars) = mr_pred.
-:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mro is det.
-:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mro is det.
+:- func make_lua_func(func(vars, ls, ls) = vars) = mr_func.
+:- mode make_lua_func(in(func(in, di, uo) = out is det)) = mro is det.
+:- mode make_lua_func(in(func(in, di, uo) = out is semidet)) = mro is det.
 
   % Acceps a Mercury function that takes a list of variables and returns
   % one Lua variable. In Lua, the function will return nil on failure, or
   % if the function finds multiple solutions, they will all be returned
   %
-:- func make_nondet_lua_pred(func(vars, ls, ls) = var) = mr_pred.
-:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is det)) = mro is det.
-:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is semidet)) 
+:- func make_nondet_lua_func(func(vars, ls, ls) = var) = mr_func.
+:- mode make_nondet_lua_func(in(func(in, di, uo) = out is det)) = mro is det.
+:- mode make_nondet_lua_func(in(func(in, di, uo) = out is semidet)) 
   = mro is det.
-:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is multi)) = mro is det.
-:- mode make_nondet_lua_pred(in(func(in, di, uo) = out is nondet)) 
+:- mode make_nondet_lua_func(in(func(in, di, uo) = out is multi)) = mro is det.
+:- mode make_nondet_lua_func(in(func(in, di, uo) = out is nondet)) 
   = mro is det.
 
 
@@ -916,14 +916,14 @@ ref_table(!L) = V :- ref_table(V, !L).
   % returns a list of lua variables. If a semidet function fails, then
   % the pred will return nil to lua.
   %
-%:- func make_lua_pred(func(vars, ls, ls) = vars) = mr_pred.
-%:- mode make_lua_pred(in(func(in, di, uo) = out is det)) = mpo.
-%:- mode make_lua_pred(in(func(in, di, uo) = out is semidet)) = mpo.
-%:- mode make_lua_pred(in(func(in, di, uo) = out is cc_multi)) = mpo.
-%:- mode make_lua_pred(in(func(in, di, uo) = out is cc_nondet)) = mpo.
+%:- func make_lua_func(func(vars, ls, ls) = vars) = mr_func.
+%:- mode make_lua_func(in(func(in, di, uo) = out is det)) = mpo.
+%:- mode make_lua_func(in(func(in, di, uo) = out is semidet)) = mpo.
+%:- mode make_lua_func(in(func(in, di, uo) = out is cc_multi)) = mpo.
+%:- mode make_lua_func(in(func(in, di, uo) = out is cc_nondet)) = mpo.
 
 
-make_lua_pred(Func) = (impure pred(L::in, Returned::out) is det :-  
+make_lua_func(Func) = (impure func(L) = Returned is det :-  
     semipure Top = lua_gettop(L),
     semipure Args = get_args(Top, []),
     LS = ls(L, current_id, empty_trail),
@@ -934,13 +934,13 @@ make_lua_pred(Func) = (impure pred(L::in, Returned::out) is det :-
 
     
  
-%:- func make_nondet_lua_pred(pred(vars, ls, ls, var)) = mr_pred.
-%:- mode make_lua_pred(in(pred(in, di, uo, out) is det)) = mpo.
-%:- mode make_lua_pred(in(pred(in, di, uo, out) is semidet)) = mpo.
-%:- mode make_lua_pred(in(pred(in, di, uo, out) is multi)) = mpo.
-%:- mode make_lua_pred(in(pred(in, di, uo, out) is nondet)) = mpo.
+%:- func make_nondet_lua_func(pred(vars, ls, ls, var)) = mr_func.
+%:- mode make_lua_func(in(pred(in, di, uo, out) is det)) = mpo.
+%:- mode make_lua_func(in(pred(in, di, uo, out) is semidet)) = mpo.
+%:- mode make_lua_func(in(pred(in, di, uo, out) is multi)) = mpo.
+%:- mode make_lua_func(in(pred(in, di, uo, out) is nondet)) = mpo.
 
-make_nondet_lua_pred(Func) = (impure pred(L::in, Returned::out) is det :-
+make_nondet_lua_func(Func) = (impure func(L) = Returned is det :-
   semipure Top = lua_gettop(L),  
   semipure Args = get_args(Top, []),    
   Pred = (pred(Out::out) is nondet :- 
@@ -1072,12 +1072,12 @@ register_module(Name, Func, L, !IO) :-
 	% This is the type signature for mercury predicates that can be called as
 	% Lua functions.
 	%
-%:- type mr_pred == (pred(ls, ls, int)).
+%:- type mr_func == (pred(ls, ls, int)).
 
-%:- inst mr_pred == (pred(di, uo, out) is det).
+%:- inst mr_func == (pred(di, uo, out) is det).
 
-%:- mode mri = in(mr_pred).
-%:- mode mro = out(mr_pred.)
+%:- mode mri = in(mr_func).
+%:- mode mro = out(mr_func.)
 
 
 	
