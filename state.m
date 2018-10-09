@@ -101,13 +101,13 @@
 	% Register a new trail function, it will be called before the existing
 	% trail_func is called.
 :- pred update_lua_trail(mr_func, ls, ls).
-:- mode update_lua_trail(in, di, muo) is det.
+:- mode update_lua_trail(in, di, uo) is det.
 :- mode update_lua_trail(in, mdi, muo) is det.
 
 	% Register the trail_func of a lua_state on the trail, update the
 	% choicepoint ID, and reset the trail func.
 :- impure pred trail_lua_closure(mr_func, ls, ls).
-:- mode trail_lua_closure(mri, di, muo) is det.
+:- mode trail_lua_closure(mri, di, uo) is det.
 :- mode trail_lua_closure(mri, mdi, muo) is det.
 
 

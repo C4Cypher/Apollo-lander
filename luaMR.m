@@ -113,10 +113,6 @@
 	%
 :- pred new_state(ls::uo) is det.
 
-%:- pred new_state(io::di, ls:uo) is det.
-
-%:- pred end_lua(ls::di,io::uo) is det.
-
 :- func new_state = lua_state.
 :- mode new_state = uo is det.
 
@@ -295,12 +291,15 @@
   %
 
   % Create a new variable local to the environment initial value will be nil
+  % value is trailed and will be undone on backtrack.
   %
 :- pred local(var, ls, ls).
 :- mode local(out, di, uo) is det.
+:- mode local(out, mdi, muo) is det.
 
 :- func local(ls, ls) = var.
 :- mode local(di, uo) = out is det.
+:- mode local(mdi, muo) = out is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -510,6 +509,7 @@
 
 
 new_state = lua_state(lua_new, null_id, empty_trail).
+
 new_state(new_state).
 
 %-----------------------------------------------------------------------------%
@@ -835,10 +835,15 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
 %:- pred local(var, ls, ls).
 %:- mode local(out, di, uo).
 
-local(local(I), ls(L, Ix, T), ls(L, Ix, T)) :- 
+local(local(I), ls(L, Ix, T), LSout) :- 
   semipure Top = lua_gettop(L),
   I = Top + 1,
-  impure lua_settop(I, L).  
+  impure lua_settop(I, L),
+  update_lua_trail(pop_one, ls(L, Ix, T), LSout).
+      
+:- impure func pop_one(lua) = int is det.
+
+pop_one(L) = 0 :- impure lua_pop(1, L).   
 
 :- pragma promise_pure(local/3).
 

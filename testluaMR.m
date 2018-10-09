@@ -44,10 +44,10 @@
 :- pragma foreign_import_module("C", luaMR).
 
 main(!IO) :-
-	new_state(LS0),
-	init_lua(LS0, LS1),
+	new_state(L0),
+	init_lua(L0, L1),
 	Var = global("_VERSION"),
-	(get(Var, string(String), LS1, _) -> 
+	(get(Var, string(String), L1, _) -> 
     Version = String ; Version = "NOT A STRING!"),
 	print(Version, !IO).
 	
