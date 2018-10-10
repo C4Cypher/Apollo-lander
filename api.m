@@ -154,12 +154,28 @@
 	% Push a luaMR.value onto the Lua stack
 :- impure pred push_value(value::in, lua::in) is det.
 
+  % Push a list of values onto the stack, and return the number of values
+:- impure pred push_values(values::in, int::out, lua::in) is det.
+
+:- impure func push_values(values, lua) = int is det.    
+
 	% Push a luaMR.var onto the stack
 :- impure pred push_var(var::in, lua::in) is det.
+
+  % Push a list of variables onto the stack, and return the number of variabls
+:- impure pred push_vars(vars::in, int::out, lua::in) is det.
+
+:- impure func push_vars(vars, lua) = int is det.    
 
 	% Retreive the value at a given index. Tables and Functions will be 
 	% converted to refs.
 :- semipure func to_value(index, lua) = value.
+
+  % Retreive the first N values on the top of the stack in a list
+:- semipure pred to_values(int, values, lua).
+:- mode to_values(in, out, in) is det.
+
+:- semipure func to_values(int, lua) = values is det.
 
 	% Retreive the value at the given index. Tables and functions will be
 	% passed by local stack index. 
@@ -297,6 +313,10 @@
 :- impure func lua_pcall(int, int, index, lua) = lua_result.
 :- impure func lua_pcall(int, index, lua) = lua_result.
 :- impure func lua_pcall(int, lua) = lua_result.
+
+
+  % Utility function that returns the value Lua defines in C: LUA_MULTRET
+:- func multret = int.
 
 
 	% Call a mercury function from C
@@ -607,6 +627,36 @@ push_var(V, L) :-
 		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		" attempted to push invalid var: " ++ S))
 	).
+	
+  % Push a list of values onto the stack, and return the number of values
+%:- impure pred push_values(values::in, int::out, lua::in) is det.
+%
+%:- impure func push_vars(values, lua) = int is det.    
+
+push_values(Values, Count, L) :-
+  Values = [] -> Count = 0 ;
+  Values = [ Value | Rest ] ->
+  impure push_value(Value, L),
+  impure push_values(Rest, CountRest, L),
+  Count = CountRest + 1;
+  unexpected($module, "invalid list of variables)").
+  
+push_values(Values, L) = Count :- impure push_values(Values, Count, L).
+	
+  % Push a list of variables onto the stack, and return the number of variabls
+%:- impure pred push_vars(vars::in, int::out, lua::in) is det.
+%
+%:- impure func push_vars(vars, lua) = int is det.    
+
+push_vars(Vars, Count, L) :-
+  Vars = [] -> Count = 0 ;
+  Vars = [ Var | Rest ] ->
+  impure push_var(Var, L),
+  impure push_vars(Rest, CountRest, L),
+  Count = CountRest + 1 ;
+  unexpected($module, "invalid list of variables)").
+  
+push_vars(Vars, L) = Count :- impure push_vars(Vars, Count, L).
 
 to_value(I, L) = V :-
 	semipure to_value(I, to_refvar, L) = V.
@@ -657,6 +707,20 @@ to_value(I0, ToVar, L) = V :-
 		V = userdata(U)
 	).
 	
+  % Retreive the first N values on the top of the stack in a list
+%:- semipure pred to_values(int, values, lua).
+%:- mode to_values(in, out, in) is det.
+%
+%:- semipure func to_values(int, lua) = values is det.
+
+to_values(Number, Values, L) :-
+  Number = 0 -> Values = [] ;
+  semipure Index = absolute(-Number, L),
+  semipure to_value(Index, L) = Val,
+  semipure Rest = to_values(Number -1, L),
+  Values = [ Val | Rest ].
+  
+to_values(Number, L) = Values :- semipure to_values(Number, Values, L).	
 	
 :- semipure func to_localvar(index, lua) = var.
 
@@ -940,7 +1004,7 @@ lua_pcall(A, L) = R :-
 	").
 
 
-:- func multret = int.
+
 
 :- pragma foreign_proc("C", multret = (M::out),
 	[promise_pure, will_not_call_mercury], "M = LUA_MULTRET;").

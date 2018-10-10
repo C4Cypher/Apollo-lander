@@ -34,6 +34,7 @@
 :- import_module pair.
 :- import_module assoc_list.
 :- import_module exception.
+:- import_module require.
 :- import_module solutions.
 
 :- import_module trail.
@@ -45,11 +46,8 @@
 
 main(!IO) :-
 	new_state(L0),
-	init_lua(L0, L1),
-	Var = global("_VERSION"),
-	(get(Var, string(String), L1, _) -> 
-    Version = String ; Version = "NOT A STRING!"),
-	print(Version, !IO).
+  HelloLua = string_to_func("print ""Hello World!""", L0, L1),
+  call_lua_func(HelloLua, [], _, L1, _).
 	
 	
 	

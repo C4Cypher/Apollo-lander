@@ -291,7 +291,8 @@
   %
 
   % Create a new variable local to the environment initial value will be nil
-  % value is trailed and will be undone on backtrack.
+  % if the lua state is mostly unique the variable is trailed and will be 
+  % undone on backtrack.
   %
 :- pred local(var, ls, ls).
 :- mode local(out, di, uo) is det.
@@ -364,6 +365,28 @@
 :- mode make_nondet_lua_func(in(func(in, di, uo) = out is multi)) = mro is det.
 :- mode make_nondet_lua_func(in(func(in, di, uo) = out is nondet)) 
   = mro is det.
+
+
+  % Accepts a string chunk of lua code and compiles it to a lua function, 
+  % passing it by refrence. If the compile fails, a refrecnce to a lua_error    
+  % userdata object will be returned instead.
+  %  
+:- pred string_to_func(string, var, ls, ls) is det.
+:- mode string_to_func(in, out, di, uo) is det.
+
+:- func string_to_func(string, ls, ls) = var.
+:- mode string_to_func(in, di, uo) = out is det.
+
+  % Calls a lua variable as if it were a function, this may be unsafe if the
+  % variable is not a function or does not have a __call metamethod defined
+  %
+:- pred call_lua_func(var, values, values, ls, ls).
+:- mode call_lua_func(in, in, out, di, uo) is det.
+
+:- func call_lua_func(var, values, ls, ls) = values.
+:- mode call_lua_func(in, in, di, uo) = out is det.
+
+
 
 
 
@@ -835,7 +858,12 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
 %:- pred local(var, ls, ls).
 %:- mode local(out, di, uo).
 
-local(local(I), ls(L, Ix, T), LSout) :- 
+local(local(I)::out, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :- 
+  semipure Top = lua_gettop(L),
+  I = Top + 1,
+  impure lua_settop(I, L).
+  
+local(local(I)::out, ls(L, Ix, T)::mdi, LSout::muo) :- 
   semipure Top = lua_gettop(L),
   I = Top + 1,
   impure lua_settop(I, L),
@@ -953,9 +981,54 @@ make_nondet_lua_func(Func) = (impure func(L) = Returned is det :-
   Return:vars = solutions(Pred),        
   impure return_args(Return, Returned, L)).
 
+  % Accepts a string chunk of lua code and compiles it to a lua function, 
+  % passing it by refrence. If the compile fails, a refrecnce to a lua_error    
+  % userdata object will be returned instead.
+  %  
+%:- pred string_to_func(string, var, ls, ls) is det.
+%:- mode string_to_func(in, out, di, uo) is det.
+%
+%:- func string_to_func(string, ls, ls) = var is det.
+%:- mode string_to_func(in, di, uo) = out is det.
+
+string_to_func(Chunk, Var, ls(L, Ix, T), ls(L, Ix, T)) :-
+  impure lua_loadstring(Chunk, L) = _,
+  semipure I = lua_gettop(L),
+  semipure Ref = lua_toref(I, L),
+  Var = ref(Ref),
+  impure lua_pop(1, L).
+   
+
+:- pragma promise_pure(string_to_func/4).
+
+string_to_func(Chunk, L1, L2) = Var :- string_to_func(Chunk, Var, L1, L2).
 
 
-    
+  % Calls a lua variable as if it were a function, this may be unsafe if the
+  % variable is not a function or does not have a __call metamethod defined
+  %
+%:- pred call_lua_func(var, vars, vars, ls, ls) is det.
+%:- mode call_lua_func(in, in, out, di, uo).
+%
+%:- func call_lua_func(var, vars, ls, ls) = vars is det.
+%:- mode call_lua_func(in, di, uo) = out is det.
+
+call_lua_func(Var, Arg_List, Ret_List, ls(L, Ix, T), ls(L, Ix, T)) :-
+  semipure TopBefore = lua_gettop(L),
+  impure push_var(Var, L), % push the function onto the stack 
+  impure push_values(Arg_List, Args, L), % push arguments onto the stack
+  impure lua_call(Args, multret, L),
+  semipure TopAfter = lua_gettop(L),
+  Returned = TopAfter - TopBefore - 1,
+  ( Returned = 0 -> Ret_List = [] ; semipure to_values(Returned, Ret_List, L)),
+  impure lua_settop(TopBefore, L).
+
+:- pragma promise_pure(call_lua_func/5).
+  
+call_lua_func(Var, Arg_list, !L) = Ret_List :- 
+  call_lua_func(Var, Arg_list, Ret_List, !L).  
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -1069,20 +1142,6 @@ register_module(Name, Func, L, !IO) :-
 ").
 
 
-%-----------------------------------------------------------------------------%
-%
-% Lua functions
-%
-
-	% This is the type signature for mercury predicates that can be called as
-	% Lua functions.
-	%
-%:- type mr_func == (pred(ls, ls, int)).
-
-%:- inst mr_func == (pred(di, uo, out) is det).
-
-%:- mode mri = in(mr_func).
-%:- mode mro = out(mr_func.)
 
 
 	
