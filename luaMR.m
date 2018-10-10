@@ -1019,7 +1019,7 @@ call_lua_func(Var, Arg_List, Ret_List, ls(L, Ix, T), ls(L, Ix, T)) :-
   impure push_values(Arg_List, Args, L), % push arguments onto the stack
   impure lua_call(Args, multret, L),
   semipure TopAfter = lua_gettop(L),
-  Returned = TopAfter - TopBefore - 1,
+  Returned = TopAfter + 1 - TopBefore,
   ( Returned = 0 -> Ret_List = [] ; semipure to_values(Returned, Ret_List, L)),
   impure lua_settop(TopBefore, L).
 
