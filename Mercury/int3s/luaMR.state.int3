@@ -1,5 +1,0 @@
-:- module (luaMR.state).
-:- interface.
-:- type id.
-:- type lua_trail.
-:- type_representation(id, is_eqv_to(choicepoint_id)).

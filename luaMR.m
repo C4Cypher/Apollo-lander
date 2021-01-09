@@ -74,9 +74,12 @@
 :- import_module int.
 :- import_module bool.
 :- import_module string.
+:- import_module char.
 :- import_module list.
+:- use_module map.
 :- import_module univ.
-
+:- import_module type_desc.
+:- import_module require.
 
 %-----------------------------------------------------------------------------%
 %
@@ -196,10 +199,6 @@
 
 :- type ref.
 
-% The index type is used to directly refrence variables on the Lua stack
-
-:- type index.
-
 %:- func ref(var) = ref.
 
 
@@ -226,9 +225,10 @@
 	%
 :- func value(T) = value.
 :- mode value(in) = out is det.
-:- mode value(out) = in is cc_nondet.
+:- mode value(out) = in is semidet.
 
 :- func value_of(value) = T.
+:- mode value_of(in) = out is semidet.
 :- mode value_of(out) = in is det.
 
 :- type c_function.	% A Lua callable function defined in C
@@ -371,7 +371,7 @@
   % passing it by refrence. If the compile fails, a refrecnce to a lua_error    
   % userdata object will be returned instead.
   %  
-:- pred string_to_func(string, var, ls, ls).
+:- pred string_to_func(string, var, ls, ls) is det.
 :- mode string_to_func(in, out, di, uo) is det.
 
 :- func string_to_func(string, ls, ls) = var.
@@ -462,11 +462,14 @@
 :- pragma foreign_import_module("C", luaMR.api).
 :- pragma foreign_import_module("C", luaMR.state).
 
-:- import_module char.
+:- import_module type_desc.
+:- import_module int.
+:- import_module float.
+:- import_module bool.
+:- import_module string.
+:- import_module require.
 :- import_module solutions.
 :- import_module exception.
-:- import_module type_desc.
-:- import_module require.
 
 
 :- pragma require_feature_set([conservative_gc, trailing]). 
@@ -752,37 +755,21 @@ value(T::in) = (
 
 value(T::out) = (V::in) :-
 	require_complete_switch [V]
-	( V = nil(N) ,  dynamic_cast(N, T)
-	; V = number(F) , dynamic_cast(F, T)
-	; V = integer(I) , dynamic_cast(I, T)
-	; V = boolean(B) , dynamic_cast(B, T)
-	; V = string(S) , dynamic_cast(S, T)
-	; V = lightuserdata(P) , dynamic_cast(P, T)
-	; V = thread(L) , dynamic_cast(L, T)
-	; V = c_function(F) , dynamic_cast(F, T)
-	; V = var(Var) , dynamic_cast(Var, T)
-	; V = userdata(U) , dynamic_cast(U, T)
-	; V = lua_error(E) , dynamic_cast(E, T)
-	; V = userdata(univ(U)) , dynamic_cast(U, T)
+	( V = nil(N) ->  dynamic_cast(N, T)
+	; V = number(F) -> dynamic_cast(F, T)
+	; V = integer(I) -> dynamic_cast(I, T)
+	; V = boolean(B) -> dynamic_cast(B, T)
+	; V = string(S) -> dynamic_cast(S, T)
+	; V = lightuserdata(P) -> dynamic_cast(P, T)
+	; V = thread(L) -> dynamic_cast(L, T)
+	; V = c_function(F) -> dynamic_cast(F, T)
+	; V = var(Var) -> dynamic_cast(Var, T)
+	; V = userdata(U) -> dynamic_cast(U, T)
+	; V = lua_error(E) -> dynamic_cast(E, T)
+	; V = userdata(univ(U)) -> dynamic_cast(U, T)
+	; unexpected($module, $pred, 
+		"Impossible value passed.")
 	).
-	
-
-%value(T::out) = (V::in) :-
-%	require_complete_switch [V]
-%	( V = nil(N) ->  dynamic_cast(N, T)
-%	; V = number(F) -> dynamic_cast(F, T)
-%	; V = integer(I) -> dynamic_cast(I, T)
-%	; V = boolean(B) -> dynamic_cast(B, T)
-%	; V = string(S) -> dynamic_cast(S, T)
-%	; V = lightuserdata(P) -> dynamic_cast(P, T)
-%	; V = thread(L) -> dynamic_cast(L, T)
-%	; V = c_function(F) -> dynamic_cast(F, T)
-%	; V = var(Var) -> dynamic_cast(Var, T)
-%	; V = userdata(U) -> dynamic_cast(U, T)
-%	; V = lua_error(E) -> dynamic_cast(E, T)
-%	; V = userdata(univ(U)) -> dynamic_cast(U, T)
-%	; unexpected($module, $pred, "Impossible value passed.")
-%	).
 
 :- pragma promise_pure(value/1).
 
@@ -830,7 +817,8 @@ get(Var, !L) = Value :- get(Var, Value, !L).
 %:- mode set(in, in, mdi, uo) is det.
 
 set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
-	V = local(I) -> 
+	require_complete_switch [V]
+    V = local(I) -> 
     impure push_value(Value, L),
     impure lua_replace(I, L)
 	; V = index(Key, Table) ->
@@ -852,7 +840,7 @@ set(V, Value, ls(L, Ix, T), ls(L, Ix, T)) :-
     ;
       throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		  " attempted to set invalid ref."))
-    )       
+     )       
 	; V = global(S) -> 
 		impure lua_pushstring(S, L),
 		impure push_value(Value, L),
