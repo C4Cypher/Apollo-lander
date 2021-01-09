@@ -1,0 +1,192 @@
+:- module (luaMR.api).
+:- interface.
+:- pragma foreign_import_module("C", (luaMR.api)).
+:- type func_udata
+    --->    mr_func(luaMR.mr_func).
+:- type lua_result
+    --->    returned(int)
+    ;       returned_error(luaMR.lua_error).
+:- type status
+    --->    ready 
+    ;       yield 
+    ;       runtime_error 
+    ;       syntax_error 
+    ;       memory_error 
+    ;       unhandled_error .
+:- inst (func_udata) == bound(mr_func((luaMR.mr_func))).
+:- mode (pui) == builtin.in(((luaMR.api).func_udata)).
+:- mode (puo) == builtin.out(((luaMR.api).func_udata)).
+:- semipure func absolute(int, luaMR.lua) = luaMR.index.
+:- mode absolute((builtin.in), (builtin.in)) = (builtin.out) is det.
+:- mode absolute((builtin.out), (builtin.in)) = (builtin.in) is det.
+:- semipure pred det_checkstack(int, luaMR.lua).
+:- mode det_checkstack((builtin.in), (builtin.in)) is det.
+:- func func_udata(luaMR.mr_func) = luaMR.api.func_udata.
+:- mode func_udata((luaMR.mri)) = ((luaMR.api).puo) is det.
+:- mode func_udata((luaMR.mro)) = ((luaMR.api).pui) is det.
+:- func globalindex = luaMR.index.
+:- func index(int) = luaMR.index.
+:- mode index((builtin.in)) = (builtin.out) is det.
+:- mode index((builtin.out)) = (builtin.in) is det.
+:- semipure func local_value(luaMR.index, luaMR.lua) = luaMR.value.
+:- impure pred lua_call(int, int, luaMR.lua).
+:- mode lua_call((builtin.in), (builtin.in), (builtin.in)) is det.
+:- impure func lua_call(int, luaMR.lua) = int.
+:- semipure pred lua_checkstack(int, luaMR.lua).
+:- mode lua_checkstack((builtin.in), (builtin.in)) is semidet.
+:- impure pred lua_close(luaMR.lua).
+:- mode lua_close((builtin.in)) is det.
+:- impure func lua_cpcall(luaMR.c_function, builtin.c_pointer, luaMR.lua) = builtin.c_pointer.
+:- impure pred lua_error(luaMR.lua).
+:- mode lua_error((builtin.in)) is erroneous.
+:- impure pred lua_error(T, luaMR.lua).
+:- mode lua_error((builtin.in), (builtin.in)) is erroneous.
+:- impure pred lua_getfield(luaMR.index, string, luaMR.lua).
+:- mode lua_getfield((builtin.in), (builtin.in), (builtin.in)) is det.
+:- impure pred lua_getmetatable(luaMR.index, luaMR.lua).
+:- mode lua_getmetatable((builtin.in), (builtin.in)) is semidet.
+:- impure pred lua_getregistry(string, luaMR.lua).
+:- mode lua_getregistry((builtin.in), (builtin.in)) is det.
+:- impure pred lua_gettable(luaMR.index, luaMR.lua).
+:- mode lua_gettable((builtin.in), (builtin.in)) is det.
+:- semipure func lua_gettop(luaMR.lua) = int.
+:- impure pred lua_getupvalue(int, luaMR.lua).
+:- mode lua_getupvalue((builtin.in), (builtin.in)) is semidet.
+:- impure pred lua_insert(luaMR.index, luaMR.lua).
+:- mode lua_insert((builtin.in), (builtin.in)) is det.
+:- semipure pred lua_isboolean(luaMR.index, luaMR.lua).
+:- mode lua_isboolean((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_iscfunction(luaMR.index, luaMR.lua).
+:- mode lua_iscfunction((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isfunction(luaMR.index, luaMR.lua).
+:- mode lua_isfunction((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isinteger(luaMR.index, luaMR.lua).
+:- mode lua_isinteger((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_islightuserdata(luaMR.index, luaMR.lua).
+:- mode lua_islightuserdata((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_ismruserdata(luaMR.index, luaMR.lua).
+:- mode lua_ismruserdata((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isnil(luaMR.index, luaMR.lua).
+:- mode lua_isnil((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isnumber(luaMR.index, luaMR.lua).
+:- mode lua_isnumber((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isstring(luaMR.index, luaMR.lua).
+:- mode lua_isstring((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_istable(luaMR.index, luaMR.lua).
+:- mode lua_istable((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isthread(luaMR.index, luaMR.lua).
+:- mode lua_isthread((builtin.in), (builtin.in)) is semidet.
+:- semipure pred lua_isuserdata(luaMR.index, luaMR.lua).
+:- mode lua_isuserdata((builtin.in), (builtin.in)) is semidet.
+:- impure func lua_loadstring(string, luaMR.lua) = luaMR.api.status is det.
+:- func lua_new = luaMR.lua.
+:- impure pred lua_newtable(luaMR.lua).
+:- mode lua_newtable((builtin.in)) is det.
+:- impure pred lua_next(luaMR.index, luaMR.lua).
+:- mode lua_next((builtin.in), (builtin.in)) is det.
+:- impure func lua_pcall(int, luaMR.lua) = luaMR.api.lua_result.
+:- impure func lua_pcall(int, luaMR.index, luaMR.lua) = luaMR.api.lua_result.
+:- impure func lua_pcall(int, int, luaMR.index, luaMR.lua) = luaMR.api.lua_result.
+:- impure pred lua_pop(int, luaMR.lua).
+:- mode lua_pop((builtin.in), (builtin.in)) is det.
+:- semipure pred lua_posindex(luaMR.index, luaMR.lua).
+:- mode lua_posindex((builtin.out), (builtin.in)) is nondet.
+:- mode lua_posindex((builtin.out), (builtin.in)) is cc_nondet.
+:- impure pred lua_pushboolean(bool.bool, luaMR.lua).
+:- mode lua_pushboolean((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushcclosure(luaMR.c_function, int, luaMR.lua).
+:- mode lua_pushcclosure((builtin.in), (builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushcfunction(luaMR.c_function, luaMR.lua).
+:- mode lua_pushcfunction((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushinteger(int, luaMR.lua).
+:- mode lua_pushinteger((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushlightuserdata(builtin.c_pointer, luaMR.lua).
+:- mode lua_pushlightuserdata((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushnil(luaMR.lua).
+:- mode lua_pushnil((builtin.in)) is det.
+:- impure pred lua_pushnumber(float, luaMR.lua).
+:- mode lua_pushnumber((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushpred(luaMR.mr_func, luaMR.lua).
+:- mode lua_pushpred((luaMR.mri), (builtin.in)) is det.
+:- impure pred lua_pushref(luaMR.ref, luaMR.lua).
+:- mode lua_pushref((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushstring(string, luaMR.lua).
+:- mode lua_pushstring((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushthread(luaMR.lua).
+:- mode lua_pushthread((builtin.in)) is det.
+:- impure func lua_pushthread(luaMR.lua) = bool.bool.
+:- impure pred lua_pushuniv(univ.univ, luaMR.lua).
+:- mode lua_pushuniv((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushuserdata(T, luaMR.lua).
+:- mode lua_pushuserdata((builtin.in), (builtin.in)) is det.
+:- impure pred lua_pushvalue(luaMR.index, luaMR.lua).
+:- mode lua_pushvalue((builtin.in), (builtin.in)) is det.
+:- semipure pred lua_rawequal(luaMR.index, luaMR.index, luaMR.lua).
+:- mode lua_rawequal((builtin.in), (builtin.in), (builtin.in)) is semidet.
+:- impure pred lua_rawget(luaMR.index, luaMR.lua).
+:- mode lua_rawget((builtin.in), (builtin.in)) is det.
+:- impure pred lua_rawgeti(luaMR.index, int, luaMR.lua).
+:- mode lua_rawgeti((builtin.in), (builtin.in), (builtin.in)) is det.
+:- impure pred lua_rawset(luaMR.index, luaMR.lua).
+:- mode lua_rawset((builtin.in), (builtin.in)) is det.
+:- impure pred lua_rawseti(luaMR.index, int, luaMR.lua).
+:- mode lua_rawseti((builtin.in), (builtin.in), (builtin.in)) is det.
+:- impure pred lua_remove(luaMR.index, luaMR.lua).
+:- mode lua_remove((builtin.in), (builtin.in)) is det.
+:- impure pred lua_replace(luaMR.index, luaMR.lua).
+:- mode lua_replace((builtin.in), (builtin.in)) is det.
+:- impure pred lua_setfield(luaMR.index, string, luaMR.lua).
+:- mode lua_setfield((builtin.in), (builtin.in), (builtin.in)) is det.
+:- impure pred lua_setmetatable(luaMR.index, luaMR.lua).
+:- mode lua_setmetatable((builtin.in), (builtin.in)) is det.
+:- impure pred lua_setregistry(string, luaMR.lua).
+:- mode lua_setregistry((builtin.in), (builtin.in)) is det.
+:- impure pred lua_settable(luaMR.index, luaMR.lua).
+:- mode lua_settable((builtin.in), (builtin.in)) is det.
+:- impure pred lua_settop(int, luaMR.lua).
+:- mode lua_settop((builtin.in), (builtin.in)) is det.
+:- impure pred lua_setupvalue(int, luaMR.lua).
+:- mode lua_setupvalue((builtin.in), (builtin.in)) is det.
+:- semipure func lua_status(luaMR.lua) = luaMR.api.status.
+:- semipure func lua_toboolean(luaMR.index, luaMR.lua) = bool.bool.
+:- semipure func lua_tocfunction(luaMR.index, luaMR.lua) = luaMR.c_function.
+:- semipure func lua_tocuserdata(luaMR.index, luaMR.lua) = builtin.c_pointer.
+:- semipure func lua_tointeger(luaMR.index, luaMR.lua) = int.
+:- semipure func lua_tonumber(luaMR.index, luaMR.lua) = float.
+:- semipure func lua_toref(luaMR.index, luaMR.lua) = luaMR.ref.
+:- semipure func lua_tostring(luaMR.index, luaMR.lua) = string.
+:- semipure func lua_tothread(luaMR.index, luaMR.lua) = luaMR.lua.
+:- semipure func lua_touserdata(luaMR.index, luaMR.lua) = univ.univ.
+:- semipure func lua_type(luaMR.index, luaMR.lua) = luaMR.lua_type.
+:- semipure func lua_typename(luaMR.index, luaMR.lua) = string.
+:- impure func mr_call(luaMR.lua) = int.
+:- func multret = int.
+:- impure pred push_value(luaMR.value, luaMR.lua).
+:- mode push_value((builtin.in), (builtin.in)) is det.
+:- impure pred push_values(luaMR.values, int, luaMR.lua).
+:- mode push_values((builtin.in), (builtin.out), (builtin.in)) is det.
+:- impure func push_values(luaMR.values, luaMR.lua) = int is det.
+:- impure pred push_var(luaMR.var, luaMR.lua).
+:- mode push_var((builtin.in), (builtin.in)) is det.
+:- impure pred push_vars(luaMR.vars, int, luaMR.lua).
+:- mode push_vars((builtin.in), (builtin.out), (builtin.in)) is det.
+:- impure func push_vars(luaMR.vars, luaMR.lua) = int is det.
+:- func registryindex = luaMR.index.
+:- semipure pred table_value(luaMR.var, luaMR.value, luaMR.value, luaMR.lua).
+:- mode table_value((builtin.in), (builtin.out), (builtin.out), (builtin.in)) is nondet.
+:- semipure func to_value(luaMR.index, luaMR.lua) = luaMR.value.
+:- semipure pred to_values(int, luaMR.values, luaMR.lua).
+:- mode to_values((builtin.in), (builtin.out), (builtin.in)) is det.
+:- semipure func to_values(int, luaMR.lua) = luaMR.values is det.
+:- semipure pred valid_var(luaMR.var, luaMR.lua).
+:- mode valid_var((builtin.in), (builtin.in)) is semidet.
+:- semipure pred value_equal(luaMR.value, luaMR.value, luaMR.lua).
+:- mode value_equal((builtin.in), (builtin.in), (builtin.in)) is semidet.
+:- semipure pred var_equal(luaMR.var, luaMR.var, luaMR.lua).
+:- mode var_equal((builtin.in), (builtin.in), (builtin.in)) is semidet.
+:- semipure pred var_type(luaMR.var, luaMR.lua_type, luaMR.lua).
+:- mode var_type((builtin.in), (builtin.out), (builtin.in)) is det.
+:- semipure func var_type(luaMR.var, luaMR.lua) = luaMR.lua_type.
+:- implementation.
+:- pragma foreign_import_module("C", luaMR).
+:- pragma foreign_enum("C", ((luaMR.api).status)/0, [ready - "0", yield - "LUA_YIELD", runtime_error - "LUA_ERRRUN", syntax_error - "LUA_ERRSYNTAX", memory_error - "LUA_ERRMEM", unhandled_error - "LUA_ERRERR"]).

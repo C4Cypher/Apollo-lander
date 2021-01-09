@@ -1,0 +1,2 @@
+luaMR.api.m:749: Error: the goal inside the require_complete_switch [Local]
+luaMR.api.m:749:   scope is not a switch on `Local'.

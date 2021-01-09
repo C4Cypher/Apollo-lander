@@ -1,0 +1,13 @@
+module(1, "trail.m",
+	trail,
+	{},
+	{builtin, io, private_builtin},
+	{builtin, exception, io, list, private_builtin, string, (string.format), (string.parse_util)},
+	{},
+	{},
+	{},
+	{"C"},
+	{"C" - trail},
+	contains_foreign_export,
+	no_main
+).
