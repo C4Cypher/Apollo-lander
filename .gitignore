@@ -1,6 +1,10 @@
 
 *.err
-Mercury/date3s/luaMR.date3
+Mercury/
 *.date3
 *.int3
 *.module_dep
+*.mh
+*.c_date
+*.date0
+*.date

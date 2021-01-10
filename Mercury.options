@@ -9,7 +9,7 @@
 # MCFLAGS += --flag
 # MCFLAGS-module += --flag
 
-MAIN_TARGET = testluaMR
+MAIN_TARGET = test.exe
 
 # Debugging Flags
 #MCFLAGS += --debug --stack-segments
