@@ -1,0 +1,6 @@
+
+*.err
+Mercury/date3s/luaMR.date3
+*.date3
+*.int3
+*.module_dep
