@@ -1,0 +1,19 @@
+:- module (luaMR.api).
+:- interface.
+:- type func_udata
+    --->    mr_func(luaMR.mr_func).
+:- type lua_result
+    --->    returned(int)
+    ;       returned_error(luaMR.lua_error).
+:- type status
+    --->    ready 
+    ;       yield 
+    ;       runtime_error 
+    ;       syntax_error 
+    ;       memory_error 
+    ;       unhandled_error .
+:- inst (func_udata) == bound(mr_func((luaMR.mr_func))).
+:- mode (pui) == builtin.in(((luaMR.api).func_udata)).
+:- mode (puo) == builtin.out(((luaMR.api).func_udata)).
+:- type_representation(func_udata, du_repn(notag("mr_func", luaMR.mr_func,  no_c_j_cs_e))).
+:- type_representation(status, du_repn(enum("ready", "yield", ["runtime_error", "syntax_error", "memory_error", "unhandled_error"],  c_j_cs_e(foreign_enum(["0", "LUA_YIELD", "LUA_ERRRUN", "LUA_ERRSYNTAX", "LUA_ERRMEM", "LUA_ERRERR"]), no_foreign, no_foreign, no_foreign)))).

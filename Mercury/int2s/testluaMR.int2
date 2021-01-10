@@ -1,0 +1,2 @@
+:- module testluaMR.
+:- interface.

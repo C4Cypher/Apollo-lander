@@ -1,0 +1,65 @@
+:- module (luaMR.state).
+:- interface.
+:- use_module trail.
+:- type id == trail.choicepoint_id.
+:- type lua_trail
+    --->    mr_func(luaMR.mr_func)
+    ;       c_function(luaMR.c_function)
+    ;       ref(luaMR.ref)
+    ;       empty_trail .
+:- impure pred backtrack(luaMR.mr_func, luaMR.lua).
+:- mode backtrack((luaMR.mri), (builtin.in)) is det.
+:- impure pred backtrack(luaMR.mr_func, luaMR.mr_func, luaMR.lua, int).
+:- mode backtrack((luaMR.mri), (luaMR.mri), (builtin.in), (builtin.out)) is det.
+:- impure func backtrack(luaMR.mr_func, luaMR.mr_func, luaMR.lua) = int.
+:- mode backtrack((luaMR.mri), (luaMR.mri), (builtin.in)) = (builtin.out) is det.
+:- pred current(luaMR.lua_state).
+:- mode current((builtin.mui)) is semidet.
+:- pred current(luaMR.lua_state, luaMR.lua_state).
+:- mode current((builtin.mdi), (builtin.muo)) is semidet.
+:- func current_id = luaMR.state.id.
+:- func get_backtrack(luaMR.mr_func, luaMR.lua) = (impure (pred)).
+:- mode get_backtrack((luaMR.mri), (builtin.in)) = builtin.out(((pred) is det)) is det.
+:- func id(luaMR.lua_state) = luaMR.state.id.
+:- mode id((builtin.ui)) = (builtin.out) is det.
+:- mode id((builtin.mui)) = (builtin.out) is det.
+:- func ls(luaMR.lua, luaMR.state.id, luaMR.state.lua_trail) = luaMR.ls.
+:- mode ls((builtin.in), (builtin.in), (builtin.in)) = (builtin.uo) is det.
+:- mode ls((builtin.out), (builtin.out), (builtin.out)) = (builtin.di) is det.
+:- mode ls((builtin.out), (builtin.out), (builtin.out)) = (builtin.mdi) is det.
+:- func ls(luaMR.lua, luaMR.state.id, luaMR.state.lua_trail, io.io) = luaMR.ls.
+:- mode ls((builtin.in), (builtin.in), (builtin.in), (builtin.di)) = (builtin.uo) is det.
+:- mode ls((builtin.out), (builtin.out), (builtin.out), (builtin.uo)) = (builtin.di) is det.
+:- mode ls((builtin.out), (builtin.out), (builtin.out), (builtin.uo)) = (builtin.mdi) is det.
+:- func lua(luaMR.lua_state) = luaMR.lua.
+:- mode lua((builtin.ui)) = (builtin.out) is det.
+:- mode lua((builtin.mui)) = (builtin.out) is det.
+:- func lua_state(luaMR.lua, luaMR.state.id, luaMR.state.lua_trail) = luaMR.lua_state.
+:- mode lua_state((builtin.in), (builtin.in), (builtin.in)) = (builtin.uo) is det.
+:- mode lua_state((builtin.out), (builtin.out), (builtin.out)) = (builtin.di) is det.
+:- mode lua_state((builtin.out), (builtin.out), (builtin.out)) = (builtin.mdi) is det.
+:- func lua_state(luaMR.lua, luaMR.state.id, luaMR.state.lua_trail, io.io) = luaMR.lua_state.
+:- mode lua_state((builtin.in), (builtin.in), (builtin.in), (builtin.di)) = (builtin.uo) is det.
+:- mode lua_state((builtin.out), (builtin.out), (builtin.out), (builtin.uo)) = (builtin.di) is det.
+:- mode lua_state((builtin.out), (builtin.out), (builtin.out), (builtin.uo)) = (builtin.mdi) is det.
+:- func null_id = luaMR.state.id.
+:- func trail(luaMR.lua_state) = luaMR.state.lua_trail.
+:- mode trail((builtin.ui)) = (builtin.out) is det.
+:- mode trail((builtin.mui)) = (builtin.out) is det.
+:- impure pred trail_if_newer(luaMR.mr_func, luaMR.ls, luaMR.ls).
+:- mode trail_if_newer((luaMR.mri), (builtin.di), (builtin.muo)) is det.
+:- mode trail_if_newer((luaMR.mri), (builtin.mdi), (builtin.muo)) is det.
+:- impure pred trail_lua_closure(luaMR.mr_func, luaMR.ls, luaMR.ls).
+:- mode trail_lua_closure((luaMR.mri), (builtin.di), (builtin.uo)) is det.
+:- mode trail_lua_closure((luaMR.mri), (builtin.mdi), (builtin.muo)) is det.
+:- func trail_to_func(luaMR.state.lua_trail, luaMR.lua) = luaMR.mr_func.
+:- mode trail_to_func((builtin.in), (builtin.in)) = (luaMR.mro) is det.
+:- func unique_state(luaMR.lua, luaMR.state.id, luaMR.state.lua_trail) = luaMR.lua_state.
+:- mode unique_state((builtin.out), (builtin.out), (builtin.out)) = (builtin.ui) is det.
+:- mode unique_state((builtin.out), (builtin.out), (builtin.out)) = (builtin.mui) is det.
+:- pred update_lua_trail(luaMR.mr_func, luaMR.ls, luaMR.ls).
+:- mode update_lua_trail((builtin.in), (builtin.di), (builtin.uo)) is det.
+:- mode update_lua_trail((builtin.in), (builtin.mdi), (builtin.muo)) is det.
+:- func us(luaMR.lua, luaMR.state.id, luaMR.state.lua_trail) = luaMR.lua_state.
+:- mode us((builtin.out), (builtin.out), (builtin.out)) = (builtin.ui) is det.
+:- mode us((builtin.out), (builtin.out), (builtin.out)) = (builtin.mui) is det.

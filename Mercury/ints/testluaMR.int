@@ -1,0 +1,7 @@
+:- module testluaMR.
+:- interface.
+:- use_module io.
+:- pred main(io.io, io.io).
+:- mode main((builtin.di), (builtin.uo)) is cc_multi.
+:- implementation.
+:- pragma foreign_import_module("C", luaMR).

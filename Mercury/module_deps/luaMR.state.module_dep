@@ -1,0 +1,13 @@
+module(1, "luaMR.state.m",
+	(luaMR.state),
+	{luaMR},
+	{builtin, private_builtin, trail},
+	{builtin, private_builtin, trail},
+	{},
+	{},
+	{},
+	{"C"},
+	{"C" - (luaMR.state)},
+	no_foreign_export,
+	no_main
+).

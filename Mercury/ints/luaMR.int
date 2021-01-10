@@ -1,0 +1,147 @@
+:- module luaMR.
+:- interface.
+:- include_module (luaMR.api).
+:- include_module (luaMR.state).
+:- use_module bool.
+:- use_module float.
+:- use_module int.
+:- use_module io.
+:- use_module list.
+:- use_module string.
+:- use_module univ.
+:- pragma foreign_import_module("C", luaMR).
+:- type c_function.
+:- type error_type
+    --->    no_error 
+    ;       runtime_error 
+    ;       syntax_error 
+    ;       memory_error 
+    ;       unhandled_error .
+:- type index.
+:- type ls == luaMR.lua_state.
+:- type lua.
+:- type lua_error
+    --->    lua_error(luaMR.error_type, string).
+:- type lua_state.
+:- type lua_type
+    --->    none 
+    ;       nil_type 
+    ;       number_type 
+    ;       boolean_type 
+    ;       string_type 
+    ;       lightuserdata_type 
+    ;       function_type 
+    ;       table_type 
+    ;       thread_type 
+    ;       userdata_type .
+:- type mr_func == (impure ((func luaMR.lua) = int)).
+:- type nil
+    --->    nil .
+:- type ref.
+:- type value
+    --->    nil(luaMR.nil)
+    ;       number(float)
+    ;       integer(int)
+    ;       boolean(bool.bool)
+    ;       string(string)
+    ;       lightuserdata(builtin.c_pointer)
+    ;       thread(luaMR.lua)
+    ;       c_function(luaMR.c_function)
+    ;       var(luaMR.var)
+    ;       userdata(univ.univ)
+    ;       lua_error(luaMR.lua_error).
+:- type values == list.list(luaMR.value).
+:- type var
+    --->    local(luaMR.index)
+    ;       index(luaMR.value, luaMR.var)
+    ;       meta(luaMR.var)
+    ;       ref(luaMR.ref)
+    ;       global(string)
+    ;       invalid(string).
+:- type vars == list.list(luaMR.var).
+:- inst (mr_func) == (func((builtin.in)) = (builtin.out) is det).
+:- mode (li) == builtin.in(bound(lua)).
+:- mode (lo) == builtin.out(bound(lua)).
+:- mode (mri) == builtin.in((luaMR.mr_func)).
+:- mode (mro) == builtin.out((luaMR.mr_func)).
+:- func ^(luaMR.var, T) = luaMR.var.
+:- pred call_lua_func(luaMR.var, luaMR.values, luaMR.values, luaMR.ls, luaMR.ls).
+:- mode call_lua_func((builtin.in), (builtin.in), (builtin.out), (builtin.di), (builtin.uo)) is det.
+:- func call_lua_func(luaMR.var, luaMR.values, luaMR.ls, luaMR.ls) = luaMR.values.
+:- mode call_lua_func((builtin.in), (builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- pred get(luaMR.var, luaMR.value, luaMR.ls, luaMR.ls).
+:- mode get((builtin.in), (builtin.out), (builtin.di), (builtin.uo)) is det.
+:- mode get((builtin.in), (builtin.out), (builtin.mdi), (builtin.muo)) is det.
+:- func get(luaMR.var, luaMR.ls, luaMR.ls) = luaMR.value.
+:- mode get((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- mode get((builtin.in), (builtin.mdi), (builtin.muo)) = (builtin.out) is det.
+:- pred init_lua(luaMR.lua_state, luaMR.lua_state).
+:- mode init_lua((builtin.di), (builtin.uo)) is det.
+:- pred init_lua(luaMR.lua, io.io, io.io).
+:- mode init_lua((builtin.in), (builtin.di), (builtin.uo)) is det.
+:- pred local(luaMR.var, luaMR.ls, luaMR.ls).
+:- mode local((builtin.out), (builtin.di), (builtin.uo)) is det.
+:- mode local((builtin.out), (builtin.mdi), (builtin.muo)) is det.
+:- func local(luaMR.ls, luaMR.ls) = luaMR.var.
+:- mode local((builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- mode local((builtin.mdi), (builtin.muo)) = (builtin.out) is det.
+:- pred local_table(luaMR.var, luaMR.ls, luaMR.ls).
+:- mode local_table((builtin.out), (builtin.di), (builtin.uo)) is det.
+:- func local_table(luaMR.ls, luaMR.ls) = luaMR.var.
+:- mode local_table((builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- func make_lua_func((func(luaMR.vars, luaMR.ls, luaMR.ls) = luaMR.vars)) = luaMR.mr_func.
+:- mode make_lua_func(builtin.in((func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is det))) = (luaMR.mro) is det.
+:- mode make_lua_func(builtin.in((func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is semidet))) = (luaMR.mro) is det.
+:- func make_nondet_lua_func((func(luaMR.vars, luaMR.ls, luaMR.ls) = luaMR.var)) = luaMR.mr_func.
+:- mode make_nondet_lua_func(builtin.in((func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is det))) = (luaMR.mro) is det.
+:- mode make_nondet_lua_func(builtin.in((func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is semidet))) = (luaMR.mro) is det.
+:- mode make_nondet_lua_func(builtin.in((func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is multi))) = (luaMR.mro) is det.
+:- mode make_nondet_lua_func(builtin.in((func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is nondet))) = (luaMR.mro) is det.
+:- pred new_state(luaMR.ls).
+:- mode new_state((builtin.uo)) is det.
+:- func new_state = luaMR.lua_state.
+:- mode new_state = (builtin.uo) is det.
+:- semipure pred ready(luaMR.lua).
+:- mode ready((builtin.in)) is semidet.
+:- pred ready(luaMR.ls, luaMR.ls).
+:- mode ready((builtin.mdi), (builtin.muo)) is semidet.
+:- pred ready(bool.bool, luaMR.ls, luaMR.ls).
+:- mode ready((builtin.out), (builtin.di), (builtin.uo)) is det.
+:- mode ready((builtin.out), (builtin.mdi), (builtin.muo)) is det.
+:- pred ref_table(luaMR.var, luaMR.ls, luaMR.ls).
+:- mode ref_table((builtin.out), (builtin.di), (builtin.uo)) is det.
+:- func ref_table(luaMR.ls, luaMR.ls) = luaMR.var.
+:- mode ref_table((builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- pred set(luaMR.var, luaMR.value, luaMR.ls, luaMR.ls).
+:- mode set((builtin.in), (builtin.in), (builtin.di), (builtin.uo)) is det.
+:- pred string_to_func(string, luaMR.var, luaMR.ls, luaMR.ls).
+:- mode string_to_func((builtin.in), (builtin.out), (builtin.di), (builtin.uo)) is det.
+:- func string_to_func(string, luaMR.ls, luaMR.ls) = luaMR.var.
+:- mode string_to_func((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- pred valid_var(luaMR.var, luaMR.ls, luaMR.ls).
+:- mode valid_var((builtin.in), (builtin.mdi), (builtin.muo)) is semidet.
+:- func value(T) = luaMR.value.
+:- mode value((builtin.in)) = (builtin.out) is det.
+:- mode value((builtin.out)) = (builtin.in) is cc_nondet.
+:- pred value_equal(luaMR.value, luaMR.value, luaMR.ls, luaMR.ls).
+:- mode value_equal((builtin.in), (builtin.in), (builtin.mdi), (builtin.muo)) is semidet.
+:- func value_of(luaMR.value) = T.
+:- mode value_of((builtin.out)) = (builtin.in) is det.
+:- pred var_equal(luaMR.var, luaMR.var, luaMR.ls, luaMR.ls).
+:- mode var_equal((builtin.in), (builtin.in), (builtin.mdi), (builtin.muo)) is semidet.
+:- pred var_type(luaMR.var, luaMR.lua_type, luaMR.ls, luaMR.ls).
+:- mode var_type((builtin.in), (builtin.out), (builtin.di), (builtin.uo)) is det.
+:- mode var_type((builtin.in), (builtin.out), (builtin.mdi), (builtin.muo)) is det.
+:- func var_type(luaMR.var, luaMR.ls, luaMR.ls) = luaMR.lua_type.
+:- mode var_type((builtin.in), (builtin.di), (builtin.uo)) = (builtin.out) is det.
+:- mode var_type((builtin.in), (builtin.mdi), (builtin.muo)) = (builtin.out) is det.
+:- implementation.
+:- pragma foreign_import_module("C", (luaMR.api)).
+:- pragma foreign_import_module("C", (luaMR.state)).
+:- pragma foreign_type(c, c_function, "lua_CFunction").
+:- type index == int.
+:- pragma foreign_type(c, lua, "lua_State *", [can_pass_as_mercury_type]).
+:- pragma foreign_type(c, lua_state, "luaMR_lua_state *").
+:- pragma foreign_type(c, ref, "luaMR_Ref", [can_pass_as_mercury_type]).
+:- pragma foreign_enum("C", (luaMR.error_type)/0, [no_error - "0", runtime_error - "LUA_ERRRUN", syntax_error - "LUA_ERRSYNTAX", memory_error - "LUA_ERRMEM", unhandled_error - "LUA_ERRERR"]).
+:- pragma foreign_enum("C", (luaMR.lua_type)/0, [none - "LUA_TNONE", nil_type - "LUA_TNIL", boolean_type - "LUA_TBOOLEAN", lightuserdata_type - "LUA_TLIGHTUSERDATA", number_type - "LUA_TNUMBER", string_type - "LUA_TSTRING", table_type - "LUA_TTABLE", function_type - "LUA_TFUNCTION", userdata_type - "LUA_TUSERDATA", thread_type - "LUA_TTHREAD"]).

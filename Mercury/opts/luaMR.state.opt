@@ -1,0 +1,199 @@
+:- module (luaMR.state).
+:- use_module bool.
+:- use_module builtin.
+:- use_module char.
+:- use_module exception.
+:- use_module float.
+:- use_module int.
+:- use_module io.
+:- use_module list.
+:- use_module private_builtin.
+:- use_module require.
+:- use_module solutions.
+:- use_module string.
+:- use_module trail.
+:- use_module type_desc.
+:- use_module univ.
+:- use_module (luaMR.api).
+:- use_module (luaMR.state).
+
+:- pragma foreign_import_module("C", array).
+:- pragma foreign_import_module("C", bitmap).
+:- pragma foreign_import_module("C", io).
+:- pragma foreign_import_module("C", luaMR).
+:- pragma foreign_import_module("C", stm_builtin).
+:- pragma foreign_import_module("C", store).
+:- pragma foreign_import_module("C", string).
+:- pragma foreign_import_module("C", time).
+:- pragma foreign_import_module("C", trail).
+:- pragma foreign_import_module("C", (luaMR.api)).
+:- pragma foreign_import_module("C", (luaMR.state)).
+:- pragma foreign_import_module("C#", array).
+:- pragma foreign_import_module("C#", bitmap).
+:- pragma foreign_import_module("C#", io).
+:- pragma foreign_import_module("C#", rtti_implementation).
+:- pragma foreign_import_module("C#", store).
+:- pragma foreign_import_module("C#", string).
+:- pragma foreign_import_module("Java", array).
+:- pragma foreign_import_module("Java", bitmap).
+:- pragma foreign_import_module("Java", io).
+:- pragma foreign_import_module("Java", rtti_implementation).
+:- pragma foreign_import_module("Java", store).
+:- pragma foreign_import_module("Java", string).
+:- pragma foreign_import_module("Erlang", array).
+:- pragma foreign_import_module("Erlang", bitmap).
+:- pragma foreign_import_module("Erlang", io).
+:- pragma foreign_import_module("Erlang", store).
+
+(luaMR.state).current(V_2) :-
+    V_3 = (luaMR.state).id(V_2),
+    V_4 = (luaMR.state).current_id,
+    trail.choicepoint_newer(V_3, V_4).
+
+(luaMR.state).current(V_1, V_2) :-
+    V_1 = (luaMR.state).ls(V_3, V_4, V_5),
+    V_2 = (luaMR.state).ls(V_3, V_4, V_5),
+    V_6 = (luaMR.state).current_id,
+    trail.choicepoint_newer(V_4, V_6).
+
+:- pragma foreign_proc("C", (luaMR.state).id(S :: (builtin.mui)) = (I :: (builtin.out)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	I = S->id;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).id(S :: (builtin.ui)) = (I :: (builtin.out)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	I = S->id;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).ls(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.mdi)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).ls(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.di)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).ls(L :: (builtin.in), I :: (builtin.in), T :: (builtin.in)) = (S :: (builtin.uo)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+\015\
+\015\
+	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);\015\
+	new->lua = L;\015\
+	new->id = I;\015\
+	new->trail = T;\015\
+	S = new;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).ls(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out), _IO :: (builtin.uo)) = (S :: (builtin.mdi)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).ls(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out), _IO :: (builtin.uo)) = (S :: (builtin.di)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).ls(L :: (builtin.in), I :: (builtin.in), T :: (builtin.in), _IO :: (builtin.di)) = (S :: (builtin.uo)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+\015\
+\015\
+	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);\015\
+	new->lua = L;\015\
+	new->id = I;\015\
+	new->trail = T;\015\
+	S = new;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).lua(S :: (builtin.mui)) = (L :: (builtin.out)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).lua(S :: (builtin.ui)) = (L :: (builtin.out)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).lua_state(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.mdi)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).lua_state(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.di)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).lua_state(L :: (builtin.in), I :: (builtin.in), T :: (builtin.in)) = (S :: (builtin.uo)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);\015\
+	new->lua = L;\015\
+	new->id = I;\015\
+	new->trail = T;\015\
+	S = new;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).lua_state(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out), _IO :: (builtin.uo)) = (S :: (builtin.mdi)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).lua_state(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out), _IO :: (builtin.uo)) = (S :: (builtin.di)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).lua_state(L :: (builtin.in), I :: (builtin.in), T :: (builtin.in), _IO :: (builtin.di)) = (S :: (builtin.uo)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);\015\
+	new->lua = L;\015\
+	new->id = I;\015\
+	new->trail = T;\015\
+	S = new;\015\
+").
+
+(luaMR.state).null_id = V_1 :-
+    V_1 = trail.null_choicepoint_id.
+
+:- pragma foreign_proc("C", (luaMR.state).trail(S :: (builtin.mui)) = (T :: (builtin.out)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).trail(S :: (builtin.ui)) = (T :: (builtin.out)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	T = S->trail;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).unique_state(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.mui)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).unique_state(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.ui)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+
+:- pragma foreign_proc("C", (luaMR.state).us(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.mui)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
+:- pragma foreign_proc("C", (luaMR.state).us(L :: (builtin.out), I :: (builtin.out), T :: (builtin.out)) = (S :: (builtin.ui)), [will_not_call_mercury, not_thread_safe, not_tabled_for_io, promise_pure, may_modify_trail], "\015\
+	\015\
+	L = S->lua;\015\
+	I = S->id;\015\
+	T = S->trail;\015\
+").
