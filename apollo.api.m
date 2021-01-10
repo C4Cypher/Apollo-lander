@@ -464,8 +464,15 @@
 :- pragma inline(registryindex/0).
 
 :- pragma foreign_proc("C", globalindex = (I::out),
-	[promise_pure, will_not_call_mercury], "I = LUA_GLOBALSINDEX;").
-
+	[promise_pure, will_not_call_mercury], "
+    #ifdef BEFORE_502
+      I = LUA_GLOBALSINDEX;
+    #else
+      I = LUA_RIDX_GLOBALS;
+    #endif
+   ").
+    
+    
 :- pragma inline(globalindex/0).
 
 index(I) = I.
@@ -674,7 +681,7 @@ to_value(I0, ToVar, L) = V :-
 	semipure Type = lua_type(I, L),
 	require_complete_switch [Type]
 	( Type = none,
-		unexpected($module, $pred, "Value at given index had no type.")
+		unexpected($module, $pred, "Value at given index had no type: ")
 	; Type = nil_type,
 		V = nil(nil)
 	; Type = number_type,

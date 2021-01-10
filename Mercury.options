@@ -12,9 +12,9 @@
 MAIN_TARGET = test.exe
 
 # Debugging Flags
-#MCFLAGS += --debug --stack-segments
-#MCFLAGS += --target-debug
-#MGNUCFLAGS += --c-debug
+MCFLAGS += --debug --stack-segments
+MCFLAGS += --target-debug
+MGNUCFLAGS += --c-debug
 
 MCFLAGS += --intermodule-optimization
 MCFLAGS += --no-inform-inferred
@@ -30,7 +30,7 @@ MCFLAGS += --libgrades-include trseg
 
 # This is to compile and link properly in cygwin 
 #(don't ask how long it to figure out)
-MCFLAGS += -llua-5.1
+MCFLAGS += -llua-5.3
 
 # For Fun
 #MCFLAGS += --auto-comments
