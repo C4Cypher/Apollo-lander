@@ -67,24 +67,37 @@ and Lua in an efficient and seamless manner.
 
 ===========================================================================================
 
-
-lua.m		
------
-
-A library to facilitate the writing of Mercury modules that are callable from Lua.
-
-api.m
-----
-
-Primitive (semipure and impure) bindings directly to the Lua C api.
-	
-	
-		
 apollo.m
 --------
 
-A Lua module written using lua.m that will allow Lua scripts to generate mercury modules 
-that export predicates that are safe to call from Mercury.
+Top level language binding written to facilitate Mercury style IO passing to manipulate Lua 
+variables, values and the Lua state
+
+apollo.api.m
+----
+
+Primitive (semipure and impure) bindings directly to the Lua C api.
+It is advised that this module not be directly used unless one understand the workings
+of the Lua Stack and the Lua C api.
+
+
+apollo.state.m
+--------------
+
+Facilitates types and methods to facilitate handling the Lua state as if it were a 
+Mercury style IO variable, including the possibility for backtracking certain
+changes to the Lua state
+
+trail.m
+-------
+
+Methods to further facilitate trailing and backtracking via the Lua state
+
+
+	
+	
+		
+
 
 
 
