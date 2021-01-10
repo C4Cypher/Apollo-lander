@@ -15,7 +15,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module luaMR.state.
+:- module apollo.state.
 
 :- interface.
 
@@ -160,11 +160,11 @@ current(L) :- choicepoint_newer(L^id, current_id).
 current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 
 :- pragma foreign_decl("C", "
-	typedef struct luaMR_lua_state {
+	typedef struct apollo_lua_state {
 		lua_State * lua;
 		MR_ChoicepointId id;
 		MR_Word trail;
-	} luaMR_lua_state;
+	} apollo_lua_state;
 ").
 
 %-----------------------------------------------------------------------------%
@@ -172,7 +172,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 :- pragma foreign_proc("C", lua_state(L::in, I::in, T::in) = (S::uo),
 	[will_not_call_mercury, promise_pure], "
 	
-	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
+	apollo_lua_state * new = MR_GC_NEW(apollo_lua_state);
 	new->lua = L;
 	new->id = I;
 	new->trail = T;
@@ -199,7 +199,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 :- pragma foreign_proc("C", lua_state(L::in, I::in, T::in, _IO::di) = (S::uo),
 	[will_not_call_mercury, promise_pure], "
 	
-	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
+	apollo_lua_state * new = MR_GC_NEW(apollo_lua_state);
 	new->lua = L;
 	new->id = I;
 	new->trail = T;
@@ -247,7 +247,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	[will_not_call_mercury, promise_pure], "
 
 
-	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
+	apollo_lua_state * new = MR_GC_NEW(apollo_lua_state);
 	new->lua = L;
 	new->id = I;
 	new->trail = T;
@@ -275,7 +275,7 @@ current(ls(L, I, T), ls(L, I, T)) :- choicepoint_newer(I, current_id).
 	[will_not_call_mercury, promise_pure], "
 
 
-	luaMR_lua_state * new = MR_GC_NEW(luaMR_lua_state);
+	apollo_lua_state * new = MR_GC_NEW(apollo_lua_state);
 	new->lua = L;
 	new->id = I;
 	new->trail = T;

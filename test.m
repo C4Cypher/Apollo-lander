@@ -6,16 +6,16 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: testluaMR.m.
+% File: test.m.
 % Main author: c4cypher.
 % Stability: low.
 % 
-% Test the luaMR library.
+% Test the apollo library.
 % 
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module testluaMR.
+:- module test.
 
 :- interface.
 
@@ -38,11 +38,11 @@
 :- import_module solutions.
 
 :- import_module trail.
-:- import_module luaMR.
-:- import_module luaMR.api.
-:- import_module luaMR.state.
+:- import_module apollo.
+:- import_module apollo.api.
+:- import_module apollo.state.
 
-:- pragma foreign_import_module("C", luaMR).
+:- pragma foreign_import_module("C", apollo).
 
 main(!IO) :-
 	new_state(L0),
