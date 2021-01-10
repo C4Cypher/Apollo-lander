@@ -171,7 +171,8 @@
 
 
 	% Var ^ T = index(value(T), Var).
-	% Assuming Var is a Table.  If Var is NOT a table, Lua may respond with a 
+	% Syntactic sugar for accessing the elements of a table, 
+  % assuming Var is a Table.  If Var is NOT a table, Lua may respond with a 
   % runtime error when it gets passed a variable constructed in this manner.
 	%
 :- func var ^ T = var. 
@@ -217,21 +218,24 @@
 	;	c_function(c_function) % A Lua callable function pointer
 	;	var(var)	% A Lua variable
 	;	userdata(univ)	% opaque type in Lua for handling foreign data
-	;	lua_error(lua_error). 
+	;	lua_error(lua_error). % May be returned from a Lua function on error.
 		
 :- type values == list(value).
 
 	% values are ground data types that can be cast back and forth from mercury 
-  % types without help from the Lua runtime
+  % types without help from the Lua runtime. The cc_nondet modes should
+  % properly cast ints and floats via backtracking.
 	%
 :- func value(T) = value.
 :- mode value(in) = out is det.
 :- mode value(out) = in is cc_nondet.
 
-:- func value_of(value) = T.
-:- mode value_of(out) = in is det.
+:- pred value(value, T).
+:- mode value(out, in) is det.
+:- mode value(in, out) is cc_nondet.
 
-:- type c_function.	% A Lua callable function defined in C
+  % A Lua callable function defined in C and refrenced via pointer
+:- type c_function.	
 
 	% Test equality on values (no metamethods)
 :- pred value_equal(value::in, value::in, ls::mdi, ls::muo) is semidet.
@@ -767,26 +771,13 @@ value(T::out) = (V::in) :-
 	).
 	
 
-%value(T::out) = (V::in) :-
-%	require_complete_switch [V]
-%	( V = nil(N) ->  dynamic_cast(N, T)
-%	; V = number(F) -> dynamic_cast(F, T)
-%	; V = integer(I) -> dynamic_cast(I, T)
-%	; V = boolean(B) -> dynamic_cast(B, T)
-%	; V = string(S) -> dynamic_cast(S, T)
-%	; V = lightuserdata(P) -> dynamic_cast(P, T)
-%	; V = thread(L) -> dynamic_cast(L, T)
-%	; V = c_function(F) -> dynamic_cast(F, T)
-%	; V = var(Var) -> dynamic_cast(Var, T)
-%	; V = userdata(U) -> dynamic_cast(U, T)
-%	; V = lua_error(E) -> dynamic_cast(E, T)
-%	; V = userdata(univ(U)) -> dynamic_cast(U, T)
-%	; unexpected($module, $pred, "Impossible value passed.")
-%	).
+
 
 :- pragma promise_pure(value/1).
 
-value_of(V) = T :- value(T) = V.
+value(V, T) :- value(T) = V.
+
+
 
 
 :- pragma foreign_type("C", c_function, "lua_CFunction").

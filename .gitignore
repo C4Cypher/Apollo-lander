@@ -8,3 +8,4 @@ Mercury/
 *.c_date
 *.date0
 *.date
+*.exe
