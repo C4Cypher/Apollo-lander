@@ -39,7 +39,7 @@
 %-----------------------------------------------------------------------------%
 %-----------------------------------------------------------------------------%
 
-:- module luaMR.api.
+:- module apollo.api.
 
 :- interface.
 
@@ -151,7 +151,7 @@
 %  Values and vars 
 %
 
-	% Push a luaMR.value onto the Lua stack
+	% Push a apollo.value onto the Lua stack
 :- impure pred push_value(value::in, lua::in) is det.
 
   % Push a list of values onto the stack, and return the number of values
@@ -159,7 +159,7 @@
 
 :- impure func push_values(values, lua) = int is det.    
 
-	% Push a luaMR.var onto the stack
+	% Push a apollo.var onto the stack
 :- impure pred push_var(var::in, lua::in) is det.
 
   % Push a list of variables onto the stack, and return the number of variabls
@@ -443,7 +443,7 @@
 :- import_module exception.
 :- import_module solutions.
 
-:- pragma foreign_import_module("C", luaMR).
+:- pragma foreign_import_module("C", apollo).
 
 :- pragma foreign_decl("C", "
 #include <lua.h>
@@ -483,10 +483,10 @@ index(I) = I.
 :- pragma inline(absolute/2).
 	
 :- pragma foreign_decl("C", "
-	int luaMR_absolute(lua_State *, int);").
+	int apollo_absolute(lua_State *, int);").
 	
 :- pragma foreign_code("C", "
-	int luaMR_absolute(lua_State * L, int I) {
+	int apollo_absolute(lua_State * L, int I) {
 		return I > 0 ? I : lua_gettop(L) + 1 + I;
 	}
 ").
@@ -901,10 +901,10 @@ value_equal(V1, V2, L) :-
 
 :- pragma foreign_proc("C", lua_setmetatable(I0::in, L::in), 
 	[may_call_mercury], "
-	int I = luaMR_absolute(L, I0);
+	int I = apollo_absolute(L, I0);
 	lua_setmetatable(L, I);
-	if(luaMR_ismruserdata(I, L))
-		luaMR_set_userdata_metatable(L, I);
+	if(apollo_ismruserdata(I, L))
+		apollo_set_userdata_metatable(L, I);
 "). 
 
 :- pragma foreign_proc("C", lua_newtable(L::in), 
@@ -923,25 +923,25 @@ value_equal(V1, V2, L) :-
 %
  
 :- pragma foreign_proc("C", lua_getregistry(I::in, L::in), 
-	[will_not_call_mercury], "luaMR_getregistry(L, I);").
+	[will_not_call_mercury], "apollo_getregistry(L, I);").
 	
 :- pragma inline(lua_getregistry/2).
 
 :- pragma foreign_proc("C", lua_setregistry(I::in, L::in), 
-	[will_not_call_mercury], "luaMR_setregistry(L, I);"). 
+	[will_not_call_mercury], "apollo_setregistry(L, I);"). 
 	
 :- pragma inline(lua_setregistry/2).
 	
 	
 :- pragma foreign_proc("C", lua_getupvalue(I::in, L::in), 
 	[will_not_call_mercury], "
-	SUCCESS_INDICATOR = luaMR_getupvalue(L, I);
+	SUCCESS_INDICATOR = apollo_getupvalue(L, I);
 "). 
 
 :- pragma inline(lua_getupvalue/2).
 
 :- pragma foreign_proc("C", lua_setupvalue(I::in, L::in), 
-	[will_not_call_mercury], "luaMR_setupvalue(L, I);"). 
+	[will_not_call_mercury], "apollo_setupvalue(L, I);"). 
 	
 :- pragma inline(lua_setupvalue/2).
 
@@ -1039,12 +1039,12 @@ mr_callpred(L, R) :-
 		
 :- pragma promise_pure(mr_callpred/2).
 		
-:- pragma foreign_export("C", mr_call(in) = out, "luaMR_call").	
+:- pragma foreign_export("C", mr_call(in) = out, "apollo_call").	
 	
 :- func mr_call_ptr = c_function.
 
 :- pragma foreign_proc("C", mr_call_ptr = (F::out),
-	[promise_pure, will_not_call_mercury], "F = (lua_CFunction)luaMR_call;").
+	[promise_pure, will_not_call_mercury], "F = (lua_CFunction)apollo_call;").
 
 :- pragma foreign_proc("C", lua_error(L::in),
 	[may_call_mercury],"lua_error(L);").
@@ -1089,21 +1089,21 @@ return_nil = nil.
 
 :- pragma inline(return_nil/0).
 
-:- pragma foreign_export("C", return_nil = out, "luaMR_nil").
+:- pragma foreign_export("C", return_nil = out, "apollo_nil").
 
 :- pragma foreign_proc("C", lua_new = (L::out),
 	[promise_pure, will_not_call_mercury], "
 	void * ptr = MR_malloc(sizeof(ptr));
-	L = lua_newstate((lua_Alloc)luaMR_alloc, ptr);
+	L = lua_newstate((lua_Alloc)apollo_alloc, ptr);
 	luaL_openlibs(L);
-	luaMR_init(L);
+	apollo_init(L);
 	").
 	
 :- pragma foreign_decl("C", "
-	void * luaMR_alloc(void *, void *, size_t, size_t);").
+	void * apollo_alloc(void *, void *, size_t, size_t);").
 	
 :- pragma foreign_code("C", "
-	void * luaMR_alloc(void * ud, void * ptr, 
+	void * apollo_alloc(void * ud, void * ptr, 
 			size_t osize, size_t nsize) {
 		(void)ud;
 		if(nsize == 0) {
@@ -1204,7 +1204,7 @@ return_nil = nil.
 ").
 		
 :- pragma foreign_export("C", lua_ismruserdata(in, in), 
-	"luaMR_ismruserdata").
+	"apollo_ismruserdata").
 	
 :- pragma foreign_proc("C", lua_istable(Index::in, L::in),
 	[promise_semipure, will_not_call_mercury],
@@ -1297,7 +1297,7 @@ lua_touserdata(Index, L) = U :-
 
 :- pragma foreign_proc("C", lua_toref(Index::in, L::in) = (V::out),
 	[promise_semipure, will_not_call_mercury],
-	"V = (luaMR_Ref)luaMR_newref(L, Index);").
+	"V = (apollo_Ref)apollo_newref(L, Index);").
 	
 :- pragma inline(lua_toref/2).
 
@@ -1347,10 +1347,10 @@ lua_pushuserdata(V, L) :-
 
 :- pragma foreign_proc("C", lua_pushuniv(V::in, L::in),
 	[will_not_call_mercury], " 
-	MR_Word * mr_ptr = luaMR_new(V);
+	MR_Word * mr_ptr = apollo_new(V);
 	MR_Word ** lua_ptr = lua_newuserdata(L, sizeof(MR_Word **));
 	*lua_ptr = mr_ptr;
-	luaMR_set_userdata_metatable(L, -1);
+	apollo_set_userdata_metatable(L, -1);
 	").
 	
 
@@ -1385,7 +1385,7 @@ lua_pushpred(V, L) :-
 
 :- pragma foreign_proc("C", lua_pushref(V::in, L::in),
 	[will_not_call_mercury],
-	"luaMR_pushref(L, V);").
+	"apollo_pushref(L, V);").
 	
 :- pragma inline(lua_pushref/2).
 
@@ -1394,17 +1394,17 @@ lua_pushpred(V, L) :-
 :- impure pred set_userdata_metatable(index::in, lua::in) is det.
 
 :- pragma foreign_proc("C", set_userdata_metatable(I::in, L::in),
-	[will_not_call_mercury], "luaMR_set_userdata_metatable(L, I);").
+	[will_not_call_mercury], "apollo_set_userdata_metatable(L, I);").
 
 :- pragma inline(set_userdata_metatable/2).
 
 :- pragma foreign_decl("C", "
-void luaMR_set_userdata_metatable(lua_State *, int);
+void apollo_set_userdata_metatable(lua_State *, int);
 ").
 
 :- pragma foreign_code("C", "
 
-void luaMR_set_userdata_metatable(lua_State * L, int I) {
+void apollo_set_userdata_metatable(lua_State * L, int I) {
 	lua_pushvalue(L, I);
 	
 	if(!lua_getmetatable(L, -1))
@@ -1417,11 +1417,11 @@ void luaMR_set_userdata_metatable(lua_State * L, int I) {
 	lua_rawset(L, -3);
 	
 	lua_pushstring(L, ""__GC"");
-	lua_pushcfunction(L, (lua_CFunction)luaMR_free);
+	lua_pushcfunction(L, (lua_CFunction)apollo_free);
 	lua_rawset(L, -3);
 
 	lua_pushstring(L, ""__tostring"");
-	lua_pushcfunction(L, (lua_CFunction)luaMR_tostring);
+	lua_pushcfunction(L, (lua_CFunction)apollo_tostring);
 	lua_rawset(L, -3);
 
 	lua_setmetatable(L, -2);
