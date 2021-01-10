@@ -367,21 +367,20 @@ update_lua_trail(F0, ls(L, I, T0), LS) :-
 
 
 trail_to_func(T, L) = F :-
-	require_complete_switch [T] some [R]
-	( T = mr_func(F0) -> F = 
-		( impure func(L1) = Ret is det :- 
-			impure impure_apply(F0, L1) = Ret)
-	; T = empty_trail -> 
+	some [R] require_complete_switch [T] 
+	( T = mr_func(F0) , F = 
+		( impure func(L1) = Ret is det :- impure impure_apply(F0, L1) = Ret)
+	; T = empty_trail , 
 		F = ( impure func(_) = 0 is det :- true )
-	; T = c_function(C) -> 
+	; T = c_function(C) , 
 		impure lua_pushcfunction(C, L),
 		semipure R = lua_toref(index(-1), L),
 		F = ref_to_func(R),
 		impure lua_pop(1, L)
-	; T = ref(R) ->
+	; T = ref(R) ,
 		F = ref_to_func(R)
-	; unexpected($module, $pred, 
-			"Unknown lua_trail value provided.")
+%	; unexpected($module, $pred, 
+%			"Unknown lua_trail value provided.")
 	).
 	
 

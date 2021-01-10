@@ -746,7 +746,6 @@ valid_var(V, L) :-
 	require_complete_switch [V]
 	 ( V = local(Local),
 	 	semipure Top = lua_gettop(L),
-	 	require_complete_switch [Local]
 		( Local < 0, Local >= -Top
 		; Local > 0, Local =< Top
 		)
