@@ -6,7 +6,7 @@
 % Public License - see the file COPYING.LIB in the Mercury distribution.
 %-----------------------------------------------------------------------------%
 % 
-% File: apollo.m.
+% File: apollo.m
 % Main author: C4Cypher.
 % Stability: low.
 % 
