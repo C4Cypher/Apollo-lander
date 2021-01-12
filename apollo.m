@@ -817,119 +817,127 @@ get(Var, !L) = Value :- get(Var, Value, !L).
 %:- mode set(in, in, mdi, uo) is det.
 
 set(V::in, Value::in, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
-	V = local(I) -> 
-    impure push_value(Value, L),
-    impure lua_replace(I, L)
-	; V = index(Key, Table) ->
-		impure push_var(Table,L),
-		impure push_value(Key, L),
-		impure push_value(Value, L),
-		impure lua_rawset(-3, L),
-		impure lua_pop(1, L)
-	; V = meta(Table) ->
-		impure push_var(Table, L), 
-		impure push_value(Value, L),
-		impure lua_setmetatable(-2, L),
-		impure lua_pop(1, L)
-	; V = ref(R) ->
-    (dynamic_cast(R, I:int) -> 
-      impure lua_pushinteger(I, L),
+  require_complete_switch [V] (
+	  V = local(I), 
       impure push_value(Value, L),
-      impure lua_rawset(registryindex, L)
-    ;
+      impure lua_replace(I, L)
+    ; V = index(Key, Table),
+      impure push_var(Table,L),
+      impure push_value(Key, L),
+      impure push_value(Value, L),
+      impure lua_rawset(-3, L),
+      impure lua_pop(1, L)
+    ; V = meta(Table),
+      impure push_var(Table, L), 
+      impure push_value(Value, L),
+      impure lua_setmetatable(-2, L),
+      impure lua_pop(1, L)
+    ; V = ref(R),
+      (dynamic_cast(R, I:int) -> 
+        impure lua_pushinteger(I, L),
+        impure push_value(Value, L),
+        impure lua_rawset(registryindex, L)
+      ;
+        throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+        " attempted to set invalid ref."))
+      )       
+    ; V = global(S),
+      impure lua_pushstring(S, L),
+      impure push_value(Value, L),
+      impure lua_rawset(globalindex, L)
+    ; V = invalid(S),
       throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		  " attempted to set invalid ref."))
-    )       
-	; V = global(S) -> 
-		impure lua_pushstring(S, L),
-		impure push_value(Value, L),
-		impure lua_rawset(globalindex, L)
-	; V = invalid(S) ->
-		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		" attempted to set invalid var: " ++ S))
-  ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		" attempted to set impossible var."))  
-  .
+      " attempted to set invalid var: " ++ S))
+    ).
 
 
 
 %:- mode set(in, in, mdi, muo) is det.
 
-set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
-	V = local(I) ->
+set(V::in, Value::in, LS0::mdi, LS1::muo) :-
+
+  LS0 = ls(L, I0, T0),
+  
+  
+  require_complete_switch [V] (
+    V = local(I),
     
-    semipure OldValue = to_value(I, L),
-    update_lua_trail( revert_local(I, OldValue) , ls(L, I0, T0), ls(L, I1, T1)),
+      semipure OldValue = to_value(I, L),
+      update_lua_trail( revert_local(I, OldValue) , ls(L, I0, T0), ls(L1, I1, T1) ),
      
-    impure push_value(Value, L),
-    impure lua_replace(I, L)
+      impure push_value(Value, L),
+      impure lua_replace(I, L),
     
-	; V = index(Key, Table) ->
-    impure push_var(Table,L),
-    impure push_value(Key, L),
-    impure lua_rawget(-2, L),
-    semipure OldValue = to_value(-1, L),
+      LS1 = ls(L1, I1, T1)
     
-    update_lua_trail(revert_table(Key, Table, OldValue), ls(L, I0, T0), ls(L, I1, T1)),
-    
-    impure lua_pop(1, L),
-    
-    
-    
-    impure push_value(Key, L), %?
-		impure push_value(Value, L),
-		impure lua_rawset(-3, L),
-		impure lua_pop(1, L)
-    
-	; V = meta(Table) ->
-    impure push_var(Table, L), 
-    
-    impure lua_getmetatable(-1, L), 
-    semipure OldTable = to_value(-1, L),
-    impure lua_pop(1, L),
-    
-    update_lua_trail(revert_metatable(Table, OldTable) , ls(L, I0, T0), ls(L, I1, T1) ),
-    
-		impure push_value(Value, L),
-		impure lua_setmetatable(-2, L),
-		impure lua_pop(1, L)
-    
-	; V = ref(R) ->
-    ( dynamic_cast(R, I:int) -> 
-      impure lua_pushinteger(I, L),
-      
-      impure lua_rawget(registryindex, L),
+    ; V = index(Key, Table),
+      impure push_var(Table,L),
+      impure push_value(Key, L),
+      impure lua_rawget(-2, L),
       semipure OldValue = to_value(-1, L),
       impure lua_pop(1, L),
-      
-      update_lua_trail(revert_ref(I, OldValue), ls(L, I0, T0), ls(L, I1, T1) ),
-      
+    
+      update_lua_trail(revert_table(Key, Table, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
+    
+      impure push_value(Key, L), %?
       impure push_value(Value, L),
-      impure lua_rawset(registryindex, L)
-    ;
+      impure lua_rawset(-3, L),
+      impure lua_pop(1, L),
+    
+      LS1 = ls(L1, I1, T1)
+    
+    ; V = meta(Table),
+      impure push_var(Table, L), 
+    
+      ( impure lua_getmetatable(-1, L) -> true ; impure lua_pushnil(L)), 
+      semipure OldTable = to_value(-1, L),
+      impure lua_pop(1, L),
+    
+      update_lua_trail(revert_metatable(Table, OldTable) , ls(L, I0, T0), ls(L1, I1, T1) ),
+    
+      impure push_value(Value, L),
+      impure lua_setmetatable(-2, L),
+      impure lua_pop(1, L),
+    
+      LS1 = ls(L1, I1, T1)
+    
+    ; V = ref(R),
+      ( dynamic_cast(R, I:int) -> 
+        impure lua_pushinteger(I, L),
+      
+        impure lua_rawget(registryindex, L),
+        semipure OldValue = to_value(-1, L),
+        impure lua_pop(1, L),
+      
+        update_lua_trail(revert_ref(I, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
+      
+        impure push_value(Value, L),
+        impure lua_rawset(registryindex, L)
+      ;
+        throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
+        " attempted to set invalid ref."))
+      ),
+      LS1 = ls(L1, I1, T1)
+    
+    ; V = global(S),
+      impure lua_pushstring(S, L),
+    
+      impure lua_rawget(globalindex, L),
+      semipure OldValue = to_value(-1, L),
+      impure lua_pop(1, L),
+    
+      update_lua_trail(revert_global(S, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
+    
+      impure push_value(Value, L),
+      impure lua_rawset(globalindex, L),
+    
+      LS1 = ls(L1, I1, T1)
+    
+    ; V = invalid(S),
       throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		  " attempted to set invalid ref."))
-    )       
-	; V = global(S) -> 
-		impure lua_pushstring(S, L),
-    
-    impure lua_rawget(globalindex, L),
-    semipure OldValue = to_value(-1, L),
-    impure lua_pop(1, L),
-    
-    update_lua_trail(revert_global(S, OldValue), ls(L, I0, T0), ls(L, I1, T1) ),
-    
-		impure push_value(Value, L),
-		impure lua_rawset(globalindex, L)
-    
-	; V = invalid(S) ->
-		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		" attempted to set invalid var: " ++ S)),
-    I0 = I1, T0 = T1
-  ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		" attempted to set impossible var.")),
-    I0 = I1, T0 = T1
-  .
+      " attempted to set invalid var: " ++ S)),
+      I0 = I1, T0 = T1, LS1 = ls(L, I1, T1)
+    ).
   
 :- impure func revert_local(index, value, lua) = int.
  
@@ -942,9 +950,9 @@ revert_local(I, OldValue, L) = 0 :-
 revert_table(Key, Table, OldValue, L) = 0 :- 
       impure push_var(Table,  L),
       impure push_value(Key, L),
-      impure push_value(OldValue, Lu),
-      impure lua_rawset(-3, Lu),
-		  impure lua_pop(1, Lu).
+      impure push_value(OldValue, L),
+      impure lua_rawset(-3, L),
+		  impure lua_pop(1, L).
       
       
 :- impure func revert_metatable(var, value, lua) = int.
