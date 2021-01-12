@@ -816,7 +816,7 @@ get(Var, !L) = Value :- get(Var, Value, !L).
 %:- mode set(in, in, di, uo) is det.
 %:- mode set(in, in, mdi, uo) is det.
 
-set(V, Value, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
+set(V::in, Value::in, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
 	V = local(I) -> 
     impure push_value(Value, L),
     impure lua_replace(I, L)
@@ -856,7 +856,7 @@ set(V, Value, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
 %:- mode set(in, in, mdi, muo) is det.
 
 /*
-set(V, Value, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
+set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
 	V = local(I) ->
     
     semipure Old = to_value(I, L),
