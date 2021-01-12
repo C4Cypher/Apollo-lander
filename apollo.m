@@ -284,7 +284,7 @@
   %
 :- pred set(var, value, ls, ls).
 :- mode set(in, in, di, uo) is det.
-%:- mode set(in, in, mdi, muo) is det.
+:- mode set(in, in, mdi, muo) is det.
  
 
   % Change the value of a var in Lua, making sure to not trigger metatables.
@@ -855,7 +855,6 @@ set(V::in, Value::in, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
 
 %:- mode set(in, in, mdi, muo) is det.
 
-/*
 set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
 	V = local(I) ->
     
@@ -950,7 +949,6 @@ set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
   ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		" attempted to set impossible var."))  
   .
-*/
 
 :- pragma promise_pure(set/4).
 
