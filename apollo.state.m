@@ -379,8 +379,6 @@ trail_to_func(T, L) = F :-
 		impure lua_pop(1, L)
 	; T = ref(R) ,
 		F = ref_to_func(R)
-%	; unexpected($module, $pred, 
-%			"Unknown lua_trail value provided.")
 	).
 	
 
