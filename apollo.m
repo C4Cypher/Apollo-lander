@@ -858,12 +858,8 @@ set(V::in, Value::in, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
 set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
 	V = local(I) ->
     
-    semipure Old = to_value(I, L),
-    update_lua_trail( (impure func(Lu) = 0 :- 
-      impure push_value(Old, Lu),
-      impure lua_replace(I, Lu)
-      ), ls(L, I0, T0), ls(L, I1, T1)
-     ),
+    semipure OldValue = to_value(I, L),
+    update_lua_trail( revert_local(I, OldValue) , ls(L, I0, T0), ls(L, I1, T1)),
      
     impure push_value(Value, L),
     impure lua_replace(I, L)
@@ -871,20 +867,16 @@ set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
 	; V = index(Key, Table) ->
     impure push_var(Table,L),
     impure push_value(Key, L),
-    semipure lua_rawget(-2, L),
+    impure lua_rawget(-2, L),
     semipure OldValue = to_value(-1, L),
-    impure lua_pop(1, L);
     
-    update_lua_trail( (impure func(Lu) = 0 :- 
-      impure push_var(Table,Lu),
-      impure push_value(Key, Lu),
-      impure push_value(OldValue, Lu),
-      impure lua_rawset(-3, Lu),
-		  impure lua_pop(1, Lu)
-      ), 
-     ),
+    update_lua_trail(revert_table(Key, Table, OldValue), ls(L, I0, T0), ls(L, I1, T1)),
     
-		impure push_value(Key, L),
+    impure lua_pop(1, L),
+    
+    
+    
+    impure push_value(Key, L), %?
 		impure push_value(Value, L),
 		impure lua_rawset(-3, L),
 		impure lua_pop(1, L)
@@ -892,17 +884,11 @@ set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
 	; V = meta(Table) ->
     impure push_var(Table, L), 
     
-    ( semipure = lua_getmetatable(-1, L), 
-      OldTable = to_value(-1, L),
-      lua_pop(1, L)
-    ; OldTable = nil(nil) )
+    impure lua_getmetatable(-1, L), 
+    semipure OldTable = to_value(-1, L),
+    impure lua_pop(1, L),
     
-    update_lua_trail ( (impure func(Lu) = 0 :-
-      impure push_var(Table, Lu),
-      impure push_value(OldTable, Lu),
-      impure lua_setmetatable(-2, Lu),
-      impure lua_pop(1, Lu)
-      ), ls(L, I0, T0), ls(L, I1, T1) ),
+    update_lua_trail(revert_metatable(Table, OldTable) , ls(L, I0, T0), ls(L, I1, T1) ),
     
 		impure push_value(Value, L),
 		impure lua_setmetatable(-2, L),
@@ -916,11 +902,7 @@ set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
       semipure OldValue = to_value(-1, L),
       impure lua_pop(1, L),
       
-      update_lua_trail ( (impure func(Lu) = 0 :-
-        impure lua_pushinteger(I, Lu),
-        impure push_value(OldValue, Lu),
-        impure lua_rawset(registryindex, Lu)
-      ), ls(L, I0, T0), ls(L, I1, T1) ),
+      update_lua_trail(revert_ref(I, OldValue), ls(L, I0, T0), ls(L, I1, T1) ),
       
       impure push_value(Value, L),
       impure lua_rawset(registryindex, L)
@@ -935,20 +917,57 @@ set(V::in, Value::in, ls(L, I0, T0)::mdi, ls(L, I1, T1)::muo) :-
     semipure OldValue = to_value(-1, L),
     impure lua_pop(1, L),
     
-    update_lua_trail ( (impure func(Lu) = 0 :-
-      impure lua_pushstring(S, Lu),
-      impure push_value(OldValue, Lu),
-      impure lua_rawset(globalindex, Lu)
-    ), ls(L, I0, T0), ls(L, I1, T1) ),
+    update_lua_trail(revert_global(S, OldValue), ls(L, I0, T0), ls(L, I1, T1) ),
     
 		impure push_value(Value, L),
 		impure lua_rawset(globalindex, L)
+    
 	; V = invalid(S) ->
 		throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		" attempted to set invalid var: " ++ S))
+		" attempted to set invalid var: " ++ S)),
+    I0 = I1, T0 = T1
   ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
-		" attempted to set impossible var."))  
+		" attempted to set impossible var.")),
+    I0 = I1, T0 = T1
   .
+  
+:- impure func revert_local(index, value, lua) = int.
+ 
+revert_local(I, OldValue, L) = 0 :- 
+  impure push_value(OldValue, L),
+  impure lua_replace(I, L).
+  
+:- impure func revert_table(value, var, value, lua) = int.
+ 
+revert_table(Key, Table, OldValue, L) = 0 :- 
+      impure push_var(Table,  L),
+      impure push_value(Key, L),
+      impure push_value(OldValue, Lu),
+      impure lua_rawset(-3, Lu),
+		  impure lua_pop(1, Lu).
+      
+      
+:- impure func revert_metatable(var, value, lua) = int.
+
+revert_metatable(Table, OldTable, L) = 0 :-
+      impure push_var(Table, L),
+      impure push_value(OldTable, L),
+      impure lua_setmetatable(-2, L),
+      impure lua_pop(1, L).
+
+:- impure func revert_ref(int, value, lua) = int.
+      
+revert_ref(I, OldValue, L) = 0 :-
+        impure lua_pushinteger(I, L),
+        impure push_value(OldValue, L),
+        impure lua_rawset(registryindex, L).
+        
+:- impure func revert_global(string, value, lua) = int.
+        
+revert_global(S, OldValue, L) = 0 :-
+      impure lua_pushstring(S, L),
+      impure push_value(OldValue, L),
+      impure lua_rawset(globalindex, L).
 
 :- pragma promise_pure(set/4).
 
