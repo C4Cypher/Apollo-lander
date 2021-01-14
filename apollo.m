@@ -312,18 +312,22 @@
   %
 :- func local_table(ls, ls) = var.
 :- mode local_table(di, uo) = out is det.
+:- mode local_table(mdi, muo) = out is det.
 
 :- pred local_table(var, ls, ls).
-:- mode local_table(out, di, uo) is det. 
+:- mode local_table(out, di, uo) is det.
+:- mode local_table(out, mdi, muo) is det. 
 
 
   % Create new Lua table and pass it to Mercury as a refrence
   %
 :- func ref_table(ls, ls) = var.
 :- mode ref_table(di, uo) = out is det.
+:- mode ref_table(mdi, muo) = out is det.
 
 :- pred ref_table(var, ls, ls).
 :- mode ref_table(out, di, uo) is det.
+:- mode ref_table(out, mdi, muo) is det.
  
 
 
@@ -726,6 +730,13 @@ void apollo_finalizeref(lua_State * L, apollo_Ref ref) {
 
 "). 
 
+:- impure pred finalizeref(ref::in, lua::in) is det.
+
+:- pragma foreign_proc("C", finalizeref(R::in, L::in, _I::di, _O::uo), 
+	[promise_pure, will_not_call_mercury], "apollo_finalizeref(R, L);").
+
+
+
 
 %-----------------------------------------------------------------------------%
 %
@@ -863,7 +874,7 @@ set(V::in, Value::in, LS0::mdi, LS1::muo) :-
     V = local(I),
     
       semipure OldValue = to_value(I, L),
-      update_lua_trail( revert_local(I, OldValue) , ls(L, I0, T0), ls(L1, I1, T1) ),
+      trail_lua_closure(revert_local(I, OldValue) , ls(L, I0, T0), ls(L1, I1, T1) ),
      
       impure push_value(Value, L),
       impure lua_replace(I, L),
@@ -877,7 +888,7 @@ set(V::in, Value::in, LS0::mdi, LS1::muo) :-
       semipure OldValue = to_value(-1, L),
       impure lua_pop(1, L),
     
-      update_lua_trail(revert_table(Key, Table, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
+      trail_lua_closure(revert_table(Key, Table, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
     
       impure push_value(Key, L), %?
       impure push_value(Value, L),
@@ -893,7 +904,7 @@ set(V::in, Value::in, LS0::mdi, LS1::muo) :-
       semipure OldTable = to_value(-1, L),
       impure lua_pop(1, L),
     
-      update_lua_trail(revert_metatable(Table, OldTable) , ls(L, I0, T0), ls(L1, I1, T1) ),
+      trail_lua_closure(revert_metatable(Table, OldTable) , ls(L, I0, T0), ls(L1, I1, T1) ),
     
       impure push_value(Value, L),
       impure lua_setmetatable(-2, L),
@@ -909,7 +920,7 @@ set(V::in, Value::in, LS0::mdi, LS1::muo) :-
         semipure OldValue = to_value(-1, L),
         impure lua_pop(1, L),
       
-        update_lua_trail(revert_ref(I, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
+        trail_lua_closure(revert_ref(I, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
       
         impure push_value(Value, L),
         impure lua_rawset(registryindex, L)
@@ -926,7 +937,7 @@ set(V::in, Value::in, LS0::mdi, LS1::muo) :-
       semipure OldValue = to_value(-1, L),
       impure lua_pop(1, L),
     
-      update_lua_trail(revert_global(S, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
+      trail_lua_closure(revert_global(S, OldValue), ls(L, I0, T0), ls(L1, I1, T1) ),
     
       impure push_value(Value, L),
       impure lua_rawset(globalindex, L),
@@ -993,7 +1004,7 @@ local(local(I)::out, ls(L, Ix, T)::mdi, LSout::muo) :-
   semipure Top = lua_gettop(L),
   I = Top + 1,
   impure lua_settop(I, L),
-  update_lua_trail(pop_one, ls(L, Ix, T), LSout).
+  trail_lua_closure(pop_one, ls(L, Ix, T), LSout).
       
 :- impure func pop_one(lua) = int is det.
 
@@ -1020,9 +1031,14 @@ local(L1, L2) = V :- local(V, L1, L2).
 %:- pred local_table(var, ls, ls).
 %:- pred local_table(out, di, uo) is det.
 
-local_table(local(I), ls(L, Ix, T), ls(L, Ix, T)) :-
+local_table(local(I)::out, ls(L, Ix, T)::di, ls(L, Ix, T)::uo) :-
   impure lua_newtable(L), 
   semipure I = absolute(-1, L).
+  
+local_table(local(I)::out, ls(L, I0, T0)::mdi, L1::muo) :-
+  impure lua_newtable(L), 
+  semipure I = absolute(-1, L),
+  trail_lua_closure(pop_one, ls(L, I0, T0), L1).
   
 :- pragma promise_pure(local_table/3).
 
@@ -1033,14 +1049,22 @@ local_table(!L) = V :- local_table(V, !L).
   %
 %:- func ref_table(ls, ls) = var.
 %:- mode ref_table(di, uo) = out is det.
+%:- mode ref_table(mdi, muo) = out is det.
 
 %:- pred ref_table(var, ls, ls).
 %:- mode ref_table(out, di, uo) is det.
+%:- mode ref_table(out, mdi, muo) is det.
 
-ref_table(ref(Ref), ls(L, I, T), ls(L, I, T)):-
+ref_table(ref(Ref)::out, ls(L, I, T)::di, ls(L, I, T)::uo):-
   impure lua_newtable(L),
   semipure Ref = lua_toref(-1, L),
   impure lua_pop(1, L).
+  
+ref_table(ref(Ref)::out, ls(L, I, T)::mdi, L1::muo):-
+  impure lua_newtable(L),
+  semipure Ref = lua_toref(-1, L),
+  impure lua_pop(1, L),
+  trail_lua_closure(finalizeref(Ref, ls(L, I, T), L1).
   
 :- pragma promise_pure(ref_table/3).
           
