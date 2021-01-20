@@ -1,6 +1,8 @@
 
 *.err
 Mercury/
+.idea/
+.mps
 *.date3
 *.int3
 *.module_dep
