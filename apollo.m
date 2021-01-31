@@ -732,8 +732,8 @@ void apollo_finalizeref(lua_State * L, apollo_Ref ref) {
 
 :- impure pred finalizeref(ref::in, lua::in) is det.
 
-:- pragma foreign_proc("C", finalizeref(R::in, L::in, _I::di, _O::uo), 
-	[promise_pure, will_not_call_mercury], "apollo_finalizeref(R, L);").
+:- pragma foreign_proc("C", finalizeref(R::in, L::in), 
+	[will_not_call_mercury], "apollo_finalizeref(L, R);").
 
 
 
@@ -1063,8 +1063,7 @@ ref_table(ref(Ref)::out, ls(L, I, T)::di, ls(L, I, T)::uo):-
 ref_table(ref(Ref)::out, ls(L, I, T)::mdi, L1::muo):-
   impure lua_newtable(L),
   semipure Ref = lua_toref(-1, L),
-  impure lua_pop(1, L),
-  trail_lua_closure(finalizeref(Ref, ls(L, I, T), L1).
+  trail_lua_closure((impure func(Lu) = 0 :- impure finalizeref(Ref, Lu)), ls(L, I, T), L1).
   
 :- pragma promise_pure(ref_table/3).
           

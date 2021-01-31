@@ -1,0 +1,4 @@
+INIT mercury__apollo__init
+INIT mercury__trail__init
+INIT mercury__apollo__api__init
+INIT mercury__apollo__state__init

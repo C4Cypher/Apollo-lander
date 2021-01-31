@@ -12,3 +12,4 @@ Mercury/
 *.date
 *.exe
 *.exe
+*.a

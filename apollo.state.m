@@ -106,7 +106,7 @@
 
 	% Register the trail_func of a lua_state on the trail, update the
 	% choicepoint ID, and reset the trail func.
-:- impure pred trail_lua_closure(mr_func, ls, ls).
+:- pred trail_lua_closure(mr_func, ls, ls).
 :- mode trail_lua_closure(mri, di, uo) is det.
 :- mode trail_lua_closure(mri, mdi, muo) is det.
 
@@ -409,6 +409,9 @@ trail_lua_closure(F0, LS, lua_state(L, current_id, empty_trail)) :-
 	; unexpected($module, $pred, 
 	"Previous call to update_lua_trail did not convert trail to a func.")
 	).
+	
+:- pragma promise_pure(trail_lua_closure/3).
+
 %-----------------------------------------------------------------------------%
 
 trail_if_newer(F, !L) :-
