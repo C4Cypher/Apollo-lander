@@ -15,7 +15,7 @@ the 1960s and returning them safely to Earth.
 Lua - A lightweight programming language with dynamic typing.
 From the Portuguese lua (“moon”). The inventors of the language were Brazilian.
 
-==========================================================================================
+=============
 
 If you are reading this, you should no doubt be aware that Mercury is a
 strict language.  This is not merely about having a strict static type
@@ -65,7 +65,7 @@ For these reasons, this module is intended to provide a simple way to pass
 both data and procedure between Mercury 
 and Lua in an efficient and seamless manner.
 
-===========================================================================================
+=============
 
 apollo.m
 --------
