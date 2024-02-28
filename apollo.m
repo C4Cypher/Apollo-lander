@@ -282,9 +282,7 @@
 :- mode get(in, mdi, muo) = out is det.
 
   % Change the value of a var in Lua
-  % Although these calls are considered pure due to the passing of the 
-  % lua_state. Mercury can not backtrack through these or other calls 
-  % that modify the Lua state.
+  % These calls are now backtrackable due to the trailing module
   %
 :- pred set(var, value, ls, ls).
 :- mode set(in, in, di, uo) is det.
