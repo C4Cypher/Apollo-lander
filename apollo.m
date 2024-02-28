@@ -172,8 +172,8 @@
 
 	% Var ^ T = index(value(T), Var).
 	% Syntactic sugar for accessing the elements of a table, 
-  % assuming Var is a Table.  If Var is NOT a table, Lua may respond with a 
-  % runtime error when it gets passed a variable constructed in this manner.
+	% assuming Var is a Table.  If Var is NOT a table, Lua may respond with a 
+	% runtime error when it gets passed a variable constructed in this manner.
 	%
 :- func var ^ T = var. 
 
@@ -227,8 +227,8 @@
 :- type values == list(value).
 
 	% values are ground data types that can be cast back and forth from mercury 
-  % types without help from the Lua runtime. The cc_nondet modes should
-  % properly cast ints and floats via backtracking.
+	% types without help from the Lua runtime. The cc_nondet modes should
+	% properly cast ints and floats via backtracking.
 	%
 :- func value(T) = value.
 :- mode value(in) = out is det.
@@ -238,7 +238,7 @@
 :- mode value(out, in) is det.
 :- mode value(in, out) is cc_nondet.
 
-  % A Lua callable function defined in C and refrenced via pointer
+	% A Lua callable function defined in C and refrenced via pointer
 :- type c_function.	
 
 	% Test equality on values (no metamethods)
@@ -271,8 +271,8 @@
 
 :- type nil ---> nil.
 
-  % Retreive the value of a var in Lua without triggering metatables.  
-  %
+	% Retreive the value of a var in Lua without triggering metatables.  
+	%
 :- pred get(var, value, ls, ls).
 :- mode get(in, out, di, uo) is det.
 :- mode get(in, out, mdi, muo) is det.
@@ -281,21 +281,21 @@
 :- mode get(in, di, uo) = out is det.
 :- mode get(in, mdi, muo) = out is det.
 
-  % Change the value of a var in Lua
-  % These calls are now backtrackable due to the trailing module
-  %
+	% Change the value of a var in Lua
+	% These calls are now backtrackable due to the trailing module
+	%
 :- pred set(var, value, ls, ls).
 :- mode set(in, in, di, uo) is det.
 :- mode set(in, in, mdi, muo) is det.
  
 
-  % Change the value of a var in Lua, making sure to not trigger metatables.
-  %
+	% Change the value of a var in Lua, making sure to not trigger metatables.
+	%
 
-  % Create a new variable local to the environment initial value will be nil
-  % if the lua state is mostly unique the variable is trailed and will be 
-  % undone on backtrack.
-  %
+	% Create a new variable local to the environment initial value will be nil
+	% if the lua state is mostly unique the variable is trailed and will be 
+	% undone on backtrack.
+	%
 :- pred local(var, ls, ls).
 :- mode local(out, di, uo) is det.
 :- mode local(out, mdi, muo) is det.
@@ -310,8 +310,8 @@
 % Lua tables
 %	
 
-  % Create new Lua table and pass it as a local.
-  %
+	% Create new Lua table and pass it as a local.
+	%
 :- func local_table(ls, ls) = var.
 :- mode local_table(di, uo) = out is det.
 :- mode local_table(mdi, muo) = out is det.
@@ -321,8 +321,8 @@
 :- mode local_table(out, mdi, muo) is det. 
 
 
-  % Create new Lua table and pass it to Mercury as a refrence
-  %
+	% Create new Lua table and pass it to Mercury as a refrence
+	%
 :- func ref_table(ls, ls) = var.
 :- mode ref_table(di, uo) = out is det.
 :- mode ref_table(mdi, muo) = out is det.
@@ -330,7 +330,29 @@
 :- pred ref_table(var, ls, ls).
 :- mode ref_table(out, di, uo) is det.
 :- mode ref_table(out, mdi, muo) is det.
+
+	% The first key-value pair from a table, fails if var is not a table or
+	% if the table is empty.
+	%
+:- pred first(var, value, value, ls, ls).
+:- mode first(in, out, out, mdi, muo) is semidet.
  
+	% Det version, returns nil values if table is empty or var is not a table
+:- pred det_first(var, value, value, ls, ls).
+:- mode det_first(in, out, out, di, uo) is det.
+:- mode det_first(in, out, out, mdi, muo) is det.
+
+	% Accepts a key value and returns the next key value pair when iterating
+	% over a table. Fails if there is no next pair.
+	%
+:- pred next(var, value, value, value, ls, ls).
+:- mode next(in, in, out, out, mdi, muo) is semidet.
+
+	% Det version of next, nil values returned if there is no next pair
+	%
+:- pred det_next(var, value, value, value, ls, ls).
+:- mode det_next(in, in, out, out, di, uo) is det.
+:- mode det_next(in, in, out, out, mdi,  muo) is det.
 
 
 %-----------------------------------------------------------------------------%
@@ -352,18 +374,18 @@
 :- mode mro == out(mr_func).
 
 
-  % Accepts a Mercury function that takes a list of lua variables and 
-  % returns a list of lua variables. If a semidet function fails, then
-  % the pred will return nil to lua.
-  %
+	% Accepts a Mercury function that takes a list of lua variables and 
+	% returns a list of lua variables. If a semidet function fails, then
+	% the pred will return nil to lua.
+	%
 :- func make_lua_func(func(vars, ls, ls) = vars) = mr_func.
 :- mode make_lua_func(in(func(in, di, uo) = out is det)) = mro is det.
 :- mode make_lua_func(in(func(in, di, uo) = out is semidet)) = mro is det.
 
-  % Acceps a Mercury function that takes a list of variables and returns
-  % one Lua variable. In Lua, the function will return nil on failure, or
-  % if the function finds multiple solutions, they will all be returned
-  %
+	% Acceps a Mercury function that takes a list of variables and returns
+	% one Lua variable. In Lua, the function will return nil on failure, or
+	% if the function finds multiple solutions, they will all be returned
+	%
 :- func make_nondet_lua_func(func(vars, ls, ls) = var) = mr_func.
 :- mode make_nondet_lua_func(in(func(in, di, uo) = out is det)) = mro is det.
 :- mode make_nondet_lua_func(in(func(in, di, uo) = out is semidet)) 
@@ -373,19 +395,19 @@
   = mro is det.
 
 
-  % Accepts a string chunk of lua code and compiles it to a lua function, 
-  % passing it by refrence. If the compile fails, a refrecnce to a lua_error    
-  % userdata object will be returned instead.
-  %  
+	% Accepts a string chunk of lua code and compiles it to a lua function, 
+	% passing it by refrence. If the compile fails, a refrecnce to a lua_error    
+	% userdata object will be returned instead.
+	%  
 :- pred string_to_func(string, var, ls, ls).
 :- mode string_to_func(in, out, di, uo) is det.
 
 :- func string_to_func(string, ls, ls) = var.
 :- mode string_to_func(in, di, uo) = out is det.
 
-  % Calls a lua variable as if it were a function, this may be unsafe if the
-  % variable is not a function or does not have a __call metamethod defined
-  %
+	% Calls a lua variable as if it were a function, this may be unsafe if the
+	% variable is not a function or does not have a __call metamethod defined
+	%
 :- pred call_lua_func(var, values, values, ls, ls).
 :- mode call_lua_func(in, in, out, di, uo) is det.
 
@@ -812,8 +834,8 @@ value_equal(V1, V2, ls(L, I, T), ls(L, I, T)) :-
 %
 
 
-  % Retreive the value of a var in Lua
-  %
+	% Retreive the value of a var in Lua
+	%
 %:- pred get(var, value, ls, ls).
 %:- mode get(in, out, di, uo) is det.
 %:- mode get(in, out, mdi, muo) is det.
@@ -827,11 +849,11 @@ get(Var,Value,ls(L, I, T), ls(L, I, T)) :-
 
 get(Var, !L) = Value :- get(Var, Value, !L).
 
-  % Change the value of a var in Lua
-  % Although these calls are considered pure due to the passing of the lua_state
-  % Mercury can not backtrack through these or other calls that modify the 
-  % Lua state.
-  %
+	% Change the value of a var in Lua
+	% Although these calls are considered pure due to the passing of the lua_state
+	% Mercury can not backtrack through these or other calls that modify the 
+	% Lua state.
+	%
 %:- pred set(var, value, ls, ls).
 %:- mode set(in, in, di, uo) is det.
 %:- mode set(in, in, mdi, uo) is det.
@@ -999,8 +1021,8 @@ revert_global(S, OldValue, L) = 0 :-
 
 :- pragma promise_pure(set/4).
 
-  % Create a new variable local to the environment initial value will be nil
-  %
+	% Create a new variable local to the environment initial value will be nil
+	%
 %:- pred local(var, ls, ls).
 %:- mode local(out, di, uo).
 
@@ -1032,8 +1054,8 @@ local(L1, L2) = V :- local(V, L1, L2).
 % Lua tables
 %	
 
-  % Create new Lua table and pass it as a local.
-  %
+	% Create new Lua table and pass it as a local.
+	%
 %:- func local_table(ls, ls) = var.
 %:= mode local_table(di, uo) = out is det.
 
@@ -1054,8 +1076,8 @@ local_table(local(I)::out, ls(L, I0, T0)::mdi, L1::muo) :-
 local_table(!L) = V :- local_table(V, !L). 
 
 
-  % Create new Lua table and pass it to Mercury as a refrence
-  %
+	% Create new Lua table and pass it to Mercury as a refrence
+	%
 %:- func ref_table(ls, ls) = var.
 %:- mode ref_table(di, uo) = out is det.
 %:- mode ref_table(mdi, muo) = out is det.
@@ -1078,6 +1100,50 @@ ref_table(ref(Ref)::out, ls(L, I, T)::mdi, L1::muo):-
           
 ref_table(!L) = V :- ref_table(V, !L).
 
+:- pred pure_next(var::in, value::in, value::out, value::out, lua::in) 
+	is semidet.
+
+pure_next(Table, Last, Next, Value, L) :- promise_pure(
+	impure push_var(Table, L),
+	impure push_value(Last, L),
+	if impure lua_next(-2, L),
+	then semipure Next = to_value(-2, L),
+		semipure Value = to_value(-1, L),
+		impure pop(3, L)
+	else impure pop(1, L), fail).
+
+	% The first key-value pair from a table, fails if the table is empty.
+	%
+%:- pred first(var, value, value, ls, ls).
+%:- mode first(in, out, out, mdi, muo) is semidet.
+first(Table, Key, Value, !L) :- next(Table, nil(nil), Key, Value, !L).
+
+	% Det version, returns nil values if table is empty
+%:- pred det_first(var, value, value, ls, ls).
+%:- mode det_first(in, out, out, di, uo) is det.
+%:- mode det_first(in, out, out, mdi, muo) is det.
+det_first(Table, Key, Value, !L) :- det_next(Table, nil(nil), Key, Value, !L).
+
+	% Accepts a key value and returns the next key value pair when iterating
+	% over a table. Fails if there is no next pair. If a nil value is passed
+	% as the key value, the first pair is passed instead.
+	%
+%:- pred next(var, value, value, value, ls, ls).
+%:- mode next(in, in, out, out, mdi, muo) is semidet.
+next(Table, Last, Next, Value, ls(L, I, T), ls(L, I, T)) :-
+	pure_next(Table, Last, Next, Value, L).
+
+
+	% Det version of next, nil values returned if there is no next pair
+	%
+%:- pred det_next(var, value, value, value, ls, ls).
+%:- mode det_next(in, in, out, out, di, uo) is det.
+%:- mode det_next(in, in, out, out, mdi,  muo) is det.
+det_next(Table, Last, Next, Value, ls(L, I, T), ls(L, I, T)) :-
+	if pure_next(Table, Last, K, V, L)
+	then Next = K, Value = V
+	else Next = nil(nil), Value = nil(nil).
+	
 %-----------------------------------------------------------------------------%
 %
 % Functions
@@ -1103,10 +1169,10 @@ ref_table(!L) = V :- ref_table(V, !L).
   ; throw(lua_error(runtime_error, $module ++ "." ++ $pred ++
 		  " Invalid list of vars.")).
 
-  % Accepts a Mercury function that takes a list of lua variables and 
-  % returns a list of lua variables. If a semidet function fails, then
-  % the pred will return nil to lua.
-  %
+	% Accepts a Mercury function that takes a list of lua variables and 
+	% returns a list of lua variables. If a semidet function fails, then
+	% the pred will return nil to lua.
+	%
 %:- func make_lua_func(func(vars, ls, ls) = vars) = mr_func.
 %:- mode make_lua_func(in(func(in, di, uo) = out is det)) = mpo.
 %:- mode make_lua_func(in(func(in, di, uo) = out is semidet)) = mpo.
@@ -1139,10 +1205,10 @@ make_nondet_lua_func(Func) = (impure func(L) = Returned is det :-
   Return:vars = solutions(Pred),        
   impure return_args(Return, Returned, L)).
 
-  % Accepts a string chunk of lua code and compiles it to a lua function, 
-  % passing it by refrence. If the compile fails, a refrecnce to a lua_error    
-  % userdata object will be returned instead.
-  %  
+	% Accepts a string chunk of lua code and compiles it to a lua function, 
+	% passing it by refrence. If the compile fails, a refrecnce to a lua_error    
+	% userdata object will be returned instead.
+	%  
 %:- pred string_to_func(string, var, ls, ls) is det.
 %:- mode string_to_func(in, out, di, uo) is det.
 %
@@ -1162,9 +1228,9 @@ string_to_func(Chunk, Var, ls(L, Ix, T), ls(L, Ix, T)) :-
 string_to_func(Chunk, L1, L2) = Var :- string_to_func(Chunk, Var, L1, L2).
 
 
-  % Calls a lua variable as if it were a function, this may be unsafe if the
-  % variable is not a function or does not have a __call metamethod defined
-  %
+	% Calls a lua variable as if it were a function, this may be unsafe if the
+	% variable is not a function or does not have a __call metamethod defined
+	%
 %:- pred call_lua_func(var, vars, vars, ls, ls) is det.
 %:- mode call_lua_func(in, in, out, di, uo).
 %

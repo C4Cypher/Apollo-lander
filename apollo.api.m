@@ -159,7 +159,7 @@
 
 :- impure func push_values(values, lua) = int is det.    
 
-	% Push a apollo.var onto the stack
+	% Push an apollo.var onto the stack
 :- impure pred push_var(var::in, lua::in) is det.
 
   % Push a list of variables onto the stack, and return the number of variabls
@@ -269,7 +269,7 @@
 	% corresponding to the 'next' value associated with the table at
 	% the given index.
 	%
-:- impure pred lua_next(index::in, lua::in) is det.
+:- impure pred lua_next(index::in, lua::in) is semidet.
 
 %-----------------------------------------------------------------------------%
 %
@@ -790,20 +790,18 @@ table_value(Table, Key, Value, L) :-
 table_value2(Table, Key, Value, Last, L) :-
 	impure push_var(Table, L),	% Table being iterated
 	impure lua_pushref(Last, L), 	% Last key 
-	impure lua_next(-2, L), % Pop the last key and push the next pair
+	if impure lua_next(-2, L), % Pop the last key and push the next pair
 	% The stack should now look like [Table, Key, Value]
-	semipure lua_isnil(-2, L) ->	% Is there another pair?
-		impure lua_pop(3, L), 	% Clear the stack
-		fail			% There are no more pairs
-	; 
-		(
+	then (
 			semipure Key = to_value(-2, L),
 			semipure Value = to_value(-1, L)
 		;
 			semipure Next =  lua_toref(-2, L),
 			semipure table_value2(Table, Key, Value, Next, L)
-		),
-		impure lua_pop(3, L). % Clear the stack
+		), impure lua_pop(3, L) % Clear the stack
+	else impure lua_pop(3, L), 	% Clear the stack and fail
+		fail.			% There are no more pairs,
+		
 	
 :- pragma promise_semipure(table_value2/5).
 	
@@ -919,9 +917,7 @@ value_equal(V1, V2, L) :-
 :- pragma inline(lua_newtable/1).
 
 :- pragma foreign_proc("C", lua_next(I::in, L::in), 
-	[may_call_mercury], "lua_next(L, I);"). 
-	
-:- pragma inline(lua_next/2).
+	[may_call_mercury], "SUCCESS_INDICATOR = lua_next(L, I);"). 
 
 %-----------------------------------------------------------------------------%
 %
