@@ -183,6 +183,10 @@
 :- pred valid_var(var, ls, ls).
 :- mode valid_var(in, mdi, muo) is semidet.
 
+:- pred valid_var(var, bool, ls, ls).
+:- mode valid_var(in, out, di, uo) is det.
+:- mode valid_var(in, out, mdi, muo) is det.
+
 
 	% Test equality on vars (no metamethods)
 :- pred var_equal(var::in, var::in, ls::mdi, ls::muo) is semidet.
@@ -647,7 +651,14 @@ Var ^ T = index(value(T), Var).
 valid_var(V, ls(L, I, T), ls(L, I, T)) :- 
 	semipure valid_var(V, L). 
 		
-:- pragma promise_pure(valid_var/3).		
+:- pragma promise_pure(valid_var/3).
+
+valid_var(Var, Valid, ls(L, I, T), ls(L, I, T)) :- 
+			if semipure valid_var(Var, L) 
+				then Valid = yes 
+				else Valid = no.
+				
+:- pragma promise_pure(valid_var/4).
 
 
 /* Yeah no, I'll have to revisit this later

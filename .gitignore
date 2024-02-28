@@ -13,3 +13,4 @@ Mercury/
 *.exe
 *.exe
 *.a
+*.init
