@@ -1103,14 +1103,16 @@ ref_table(!L) = V :- ref_table(V, !L).
 :- pred pure_next(var::in, value::in, value::out, value::out, lua::in) 
 	is semidet.
 
-pure_next(Table, Last, Next, Value, L) :- promise_pure(
+pure_next(Table, Last, Next, Value, L) :-
 	impure push_var(Table, L),
 	impure push_value(Last, L),
-	if impure lua_next(-2, L),
-	then semipure Next = to_value(-2, L),
+	impure lua_next(-2, L) ->
+		semipure Next = to_value(-2, L),
 		semipure Value = to_value(-1, L),
-		impure pop(3, L)
-	else impure pop(1, L), fail).
+		impure lua_pop(3, L)
+	; impure lua_pop(1, L), fail.
+
+:- pragma promise_pure(pure_next/5).
 
 	% The first key-value pair from a table, fails if the table is empty.
 	%

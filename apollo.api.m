@@ -790,17 +790,18 @@ table_value(Table, Key, Value, L) :-
 table_value2(Table, Key, Value, Last, L) :-
 	impure push_var(Table, L),	% Table being iterated
 	impure lua_pushref(Last, L), 	% Last key 
-	if impure lua_next(-2, L), % Pop the last key and push the next pair
+	impure lua_next(-2, L) -> % Pop the last key and push the next pair
 	% The stack should now look like [Table, Key, Value]
-	then (
+		(
 			semipure Key = to_value(-2, L),
 			semipure Value = to_value(-1, L)
 		;
 			semipure Next =  lua_toref(-2, L),
 			semipure table_value2(Table, Key, Value, Next, L)
-		), impure lua_pop(3, L) % Clear the stack
-	else impure lua_pop(3, L), 	% Clear the stack and fail
-		fail.			% There are no more pairs,
+		), 
+			impure lua_pop(3, L)  % Clear the stack 
+		; impure lua_pop(1, L),	% Clear the stack and fail
+			fail.	% There are no more pairs,
 		
 	
 :- pragma promise_semipure(table_value2/5).
