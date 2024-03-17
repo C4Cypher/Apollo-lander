@@ -30,7 +30,7 @@ MCFLAGS += --libgrades-include trseg
 # Include the Lua header 
 CFLAGS += -I/usr/include/lua5.3
 
-# For Fun-5-
+# For Fun
 #MCFLAGS += --auto-comments
                                           
 #MCFLAGS += --use-grade-subdirs
